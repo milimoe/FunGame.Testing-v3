@@ -12,6 +12,20 @@ im.Load();
 
 FunGameService.InitFunGame();
 
+Console.WriteLine("读取 rounds_archive.zip");
+string zipFileName = "rounds_archive.zip";
+Dictionary<int, FunGame.Core.Model.Framework.RoundRecord> record = FunGameSimulation.ReadRoundsFromZip(zipFileName) ?? [];
+if (record.Count > 0)
+{
+    foreach (int i in record.Keys)
+    {
+        Console.WriteLine(record[i]);
+    }
+}
+
+Console.WriteLine("上一次战斗记录加载完毕");
+Console.ReadLine();
+
 while (true)
 {
     FunGameSimulation.IsDebug = true;

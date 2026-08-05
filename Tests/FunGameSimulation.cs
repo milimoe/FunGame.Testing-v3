@@ -622,8 +622,8 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                     }
 
-                    //string zipFileName = "rounds_archive.zip";
-                    //WriteRoundsToZip(actionQueue.Rounds.ToDictionary(kv => kv.Round, kv => kv), zipFileName);
+                    string zipFileName = "rounds_archive.zip";
+                    WriteRoundsToZip(actionQueue.Rounds.ToDictionary(kv => kv.Round, kv => kv), zipFileName);
 
                     IsRuning = false;
                 }
