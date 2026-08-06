@@ -439,6 +439,7 @@ namespace Milimoe.FunGameTesting.Tests
 
                     // 赛后统计
                     FunGameService.GetCharacterRating(actionQueue.CharacterStatistics, isTeam, tgq != null ? tgq.EliminatedTeams : []);
+                    actionQueue.Rounds.Last().CharacterStatistics = actionQueue.CharacterStatistics;
 
                     // 统计技术得分，评选 MVP
                     Character? mvp = actionQueue.CharacterStatistics.OrderByDescending(d => d.Value.Rating).Select(d => d.Key).FirstOrDefault();

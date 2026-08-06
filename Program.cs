@@ -1,4 +1,5 @@
-﻿using Milimoe.FunGameTesting.OshimaGameModules;
+﻿using FunGame.Core.Entity;
+using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.Tests;
 
 Console.WriteLine("Hello, World!");
@@ -20,6 +21,16 @@ if (record.Count > 0)
     foreach (int i in record.Keys)
     {
         Console.WriteLine(record[i]);
+    }
+    Console.WriteLine($"=== 赛后数据 ===");
+    Dictionary<Character, CharacterStatistics> characterStatistics = record.Values.Last().CharacterStatistics;
+    foreach (Character statCharacter in characterStatistics
+        .OrderBy(kv => kv.Value.Deaths)
+        .ThenByDescending(kv => kv.Value.Rating)
+        .ThenByDescending(kv => kv.Value.Kills).Select(kv => kv.Key))
+    {
+        CharacterStatistics stats = characterStatistics[statCharacter];
+        Console.WriteLine($"[ {stats.Rating:0.0#} ]  {statCharacter}（{stats.Kills} / {stats.Assists} / {stats.Deaths}）");
     }
 }
 
