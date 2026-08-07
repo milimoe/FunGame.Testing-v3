@@ -542,7 +542,7 @@ namespace Milimoe.FunGameTesting.Tests
                 magic = Magics.FirstOrDefault(m => m.Id == magicId);
             }
             magic ??= Magics[Random.Shared.Next(Magics.Count)].Copy();
-            magic.Guid = item.Guid;
+            magic.AssociatedItemGuid = item.Guid;
             magic.Level = (int)item.QualityType switch
             {
                 2 => 2,
@@ -675,7 +675,7 @@ namespace Milimoe.FunGameTesting.Tests
                     else
                     {
                         Skill magic = skill.Copy();
-                        magic.Guid = item.Guid;
+                        magic.AssociatedItemGuid = item.Guid;
                         magic.Level = skill.Level;
                         item.Skills.Magics.Add(magic);
                     }
