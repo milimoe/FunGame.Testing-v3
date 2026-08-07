@@ -37,6 +37,9 @@ if (record.Count > 0)
 Console.WriteLine("上一次战斗记录加载完毕");
 Console.ReadLine();
 
+// 即时主动 POST 外发数据包测试
+await RoundRecordSinkTest.RunAllTests();
+
 while (true)
 {
     FunGameSimulation.IsDebug = true;
