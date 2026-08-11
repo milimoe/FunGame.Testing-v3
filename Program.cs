@@ -38,7 +38,10 @@ Console.WriteLine("上一次战斗记录加载完毕");
 Console.ReadLine();
 
 // 即时主动 POST 外发数据包测试
-await RoundRecordSinkTest.RunAllTests();
+//await RoundRecordSinkTest.RunAllTests();
+
+// 特效自动记录测试（RoundRecord.Effects）
+//EffectAutoRecordTest.RunAllTests();
 
 while (true)
 {
