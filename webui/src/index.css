@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+}
+
+body {
+  background-color: #fff1f2;
+}
+
+/* 白粉主题滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #fff1f2;
+}
+::-webkit-scrollbar-thumb {
+  background: #fda4af;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fb7185;
+}

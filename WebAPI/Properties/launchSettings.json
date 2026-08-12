@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "FunGame.Testing-v3.WebAPI": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:11029;http://localhost:11030"
+    }
+  }
+}
