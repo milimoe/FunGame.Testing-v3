@@ -1,4 +1,6 @@
 <Solution>
+  <Folder Name="/WebAPI/">
+    <Project Path="WebAPI/FunGame.Testing-v3.WebAPI.csproj" />
+  </Folder>
   <Project Path="../FunGame.Core/FunGame.Core.csproj" />
-  <Project Path="FunGame.Testing-v3.csproj" />
 </Solution>
