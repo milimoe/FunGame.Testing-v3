@@ -103,7 +103,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     WriteLine($"[ {character} ] 对 [ {enemy} ] 施加了禁止治疗{e.禁止类型}！！持续时间：{熵核影响敌人时间:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                     enemy.Effects.Add(e);
                     e.OnEffectGained(enemy);
-                    GamingQueue?.LastRound.AddApplyEffects(enemy, e.EffectType);
+                    GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
         }
@@ -146,7 +146,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 WriteLine($"[ {caster} ] 获得了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                 caster.Effects.Add(effect);
                 effect.OnEffectGained(caster);
-                GamingQueue?.LastRound.AddApplyEffects(caster, effect.EffectType);
+                GamingQueue?.AddApplyEffects(caster, effect.EffectType);
             }
             else
             {
@@ -158,7 +158,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 WriteLine($"[ {caster} ] 获得了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                 caster.Effects.Add(effect);
                 effect.OnEffectGained(caster);
-                GamingQueue?.LastRound.AddApplyEffects(caster, effect.EffectType);
+                GamingQueue?.AddApplyEffects(caster, effect.EffectType);
                 List<Character> allEnemys = [];
                 List<Character> allTeammates = [];
                 if (GamingQueue != null)
@@ -178,7 +178,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         WriteLine($"[ {caster} ] 嘲讽了 [ {enemy} ]，[ {enemy} ] 愤怒了！！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                         enemy.Effects.Add(e);
                         e.OnEffectGained(enemy);
-                        GamingQueue?.LastRound.AddApplyEffects(enemy, e.EffectType);
+                        GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                     }
                 }
                 foreach (Character teammate in allTeammates)
@@ -190,10 +190,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     WriteLine($"[ {caster} ] 对 [ {teammate} ] 施加了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                     teammate.Effects.Add(e);
                     e.OnEffectGained(teammate);
-                    GamingQueue?.LastRound.AddApplyEffects(teammate, e.EffectType);
+                    GamingQueue?.AddApplyEffects(teammate, e.EffectType);
                 }
             }
-            GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.Focusing, EffectType.HealOverTime);
+            GamingQueue?.AddApplyEffects(caster, EffectType.Focusing, EffectType.HealOverTime);
         }
     }
 }

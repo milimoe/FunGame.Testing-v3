@@ -53,7 +53,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     e.EffectType = EffectType.Slow;
                     e.IsDebuff = true;
                     WriteLine($"[ {target} ] 的行动速度降低了 {-SPD:0.##} 点，行动等待时间（当前硬直时间）被延长了 30%！持续时间：{持续时间}！");
-                    GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                    GamingQueue?.AddApplyEffects(target, e.EffectType);
                     GamingQueue?.ChangeCharacterHardnessTime(target, 0.3, true, false);
                 }
             }

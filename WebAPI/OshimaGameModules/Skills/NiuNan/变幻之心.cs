@@ -159,11 +159,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 {
                     double 回复的生命 = 生命值回复 * caster.MaxHP;
                     HealToTarget(caster, caster, 回复的生命);
-                    GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.Lifesteal);
+                    GamingQueue?.AddApplyEffects(caster, EffectType.Lifesteal);
                 }
                 else if (caster.PrimaryAttribute == PrimaryAttribute.INT)
                 {
-                    GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.DamageBoost);
+                    GamingQueue?.AddApplyEffects(caster, EffectType.DamageBoost);
                 }
             }
         }

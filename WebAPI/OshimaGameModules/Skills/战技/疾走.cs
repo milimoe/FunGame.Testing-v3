@@ -66,7 +66,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             本次提升 = 0;
             if (!caster.Effects.Contains(this))
             {
-                GamingQueue?.LastRound.AddApplyEffects(caster, EffectType);
+                GamingQueue?.AddApplyEffects(caster, EffectType);
                 RemainDurationTurn = DurationTurn;
                 caster.Effects.Add(this);
                 OnEffectGained(caster);

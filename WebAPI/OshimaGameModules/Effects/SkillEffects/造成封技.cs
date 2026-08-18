@@ -40,7 +40,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     WriteLine($"[ {caster} ] 对 [ {enemy} ] 造成了封技和施法解除！持续时间：{封技时间}！");
                     enemy.Effects.Add(e);
                     e.OnEffectGained(enemy);
-                    GamingQueue?.LastRound.AddApplyEffects(enemy, e.EffectType);
+                    GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
         }

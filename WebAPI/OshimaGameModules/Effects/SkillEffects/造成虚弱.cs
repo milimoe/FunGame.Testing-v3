@@ -66,7 +66,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                         $"治疗效果降低 {ActualHealingReductionPercent * 100:0.##}%！持续时间：{虚弱时间}！");
                     enemy.Effects.Add(e);
                     e.OnEffectGained(enemy);
-                    GamingQueue?.LastRound.AddApplyEffects(enemy, e.EffectType);
+                    GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
         }

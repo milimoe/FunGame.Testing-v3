@@ -102,7 +102,7 @@ export default function SnapshotPanel() {
       ) : snapshots.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-400">该回合没有状态快照</div>
       ) : selected ? (
-        <SnapshotDetail snapshot={selected} onBack={() => setSelectedGuid(null)} />
+        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} />
       ) : (
         /* 全部角色 HP 总览网格 */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -154,8 +154,22 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
 }
 
 // ===== 单个角色详情 =====
-function SnapshotDetail({ snapshot, onBack }: { snapshot: CharacterStateSnapshot; onBack: () => void }) {
+function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: CharacterStateSnapshot; allSnapshots: CharacterStateSnapshot[]; onBack: () => void }) {
   const c = snapshot.Character
+  // 角色 Guid -> 名称 索引（用于解析特效来源角色）
+  const charNames = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of allSnapshots) {
+      const cc = s.Character
+      if (cc?.Guid && !map.has(cc.Guid)) map.set(cc.Guid, charName(cc))
+    }
+    return map
+  }, [allSnapshots])
+  const sourceName = (guid?: string): string | null => {
+    if (!guid || guid === '' || guid === c?.Guid) return null
+    return charNames.get(guid) ?? `未知角色(${guid.slice(0, 8)})`
+  }
+  const attributeEntries = useMemo(() => Object.entries(snapshot.Attributes ?? {}), [snapshot.Attributes])
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-100 bg-gradient-to-r from-rose-50 to-pink-100/70 p-4 shadow-sm">
@@ -186,6 +200,21 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: CharacterStateSnapshot
               </div>
             </div>
           </div>
+        </Section>
+
+        <Section title="角色属性" subtitle={`${attributeEntries.length} 项属性`}>
+          {attributeEntries.length === 0 ? (
+            <p className="py-2 text-center text-sm text-slate-500">无属性数据</p>
+          ) : (
+            <ul className="space-y-1">
+              {attributeEntries.map(([key, value]) => (
+                <li key={key} className="flex items-baseline justify-between gap-3 rounded-lg bg-rose-50/70 px-3 py-1.5 text-sm">
+                  <span className="shrink-0 text-slate-400">{key}</span>
+                  <span className="break-all text-right tabular-nums text-slate-700">{value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Section>
 
         <Section title="装备">
@@ -244,31 +273,41 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: CharacterStateSnapshot
             <p className="py-2 text-center text-sm text-slate-500">无特效</p>
           ) : (
             <ul className="space-y-1.5">
-              {snapshot.Effects.map((ef, i) => (
-                <li key={i} className="rounded-lg bg-rose-50/80 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-700">
-                      {ef.EffectName} <span className="text-xs text-slate-400">(#{ef.EffectId})</span>
-                    </span>
-                    <Badge tone="cyan">{effectTypeName(ef.EffectType)}</Badge>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    {ef.RemainDuration <= 0 && ef.RemainDurationTurn <= 0 ? (
-                      <span className="text-slate-500">被动效果</span>
-                    ) : (
-                      <>
-                        剩余 <span className="tabular-nums text-slate-600">{fmt(ef.RemainDuration, 1)}s</span>
-                        {ef.RemainDurationTurn > 0 && (
-                          <>
-                            {' '}
-                            · <span className="tabular-nums text-slate-600">{ef.RemainDurationTurn}</span> 回合
-                          </>
+              {snapshot.Effects.map((ef, i) => {
+                const src = sourceName(ef.SourceGuid)
+                return (
+                  <li key={i} className="rounded-lg bg-rose-50/80 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-700">
+                        {ef.EffectName} <span className="text-xs text-slate-400">(#{ef.EffectId})</span>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        {src && (
+                          <span className="text-xs text-amber-600" title={`由 ${src} 施加`}>
+                            来源：{src}
+                          </span>
                         )}
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
+                        <Badge tone="cyan">{effectTypeName(ef.EffectType)}</Badge>
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {ef.RemainDuration <= 0 && ef.RemainDurationTurn <= 0 ? (
+                        <span className="text-slate-500">被动效果</span>
+                      ) : (
+                        <>
+                          剩余 <span className="tabular-nums text-slate-600">{fmt(ef.RemainDuration, 1)}s</span>
+                          {ef.RemainDurationTurn > 0 && (
+                            <>
+                              {' '}
+                              · <span className="tabular-nums text-slate-600">{ef.RemainDurationTurn}</span> 回合
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Section>

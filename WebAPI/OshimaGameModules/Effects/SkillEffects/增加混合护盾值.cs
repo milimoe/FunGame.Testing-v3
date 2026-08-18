@@ -28,7 +28,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             {
                 target.Shield.Mix += 护盾值;
                 WriteLine($"[ {target} ] 获得了 {护盾值:0.##} 点混合护盾值！");
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType.Shield);
+                GamingQueue?.AddApplyEffects(target, EffectType.Shield);
             }
         }
     }

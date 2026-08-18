@@ -102,6 +102,8 @@ export interface CharacterStateSnapshot {
   EP: number
   HR: number
   MR: number
+  // 角色全部属性（属性名 -> 展示值，与 Character.GetInfo() 中出现的属性一致）
+  Attributes: Record<string, string>
   Equipments: Record<string, number>
   EquipmentsDetail: EquipmentStateSnapshot[]
   Skills: SkillStateSnapshot[]
@@ -133,6 +135,8 @@ export interface EffectStateSnapshot {
   EffectType: number
   RemainDuration: number
   RemainDurationTurn: number
+  // 特效施加者（Source 角色）的 Guid，无施加者为空字符串
+  SourceGuid?: string
 }
 
 // ===== 最终排名条目（RankingEntry）=====

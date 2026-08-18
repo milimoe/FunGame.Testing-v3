@@ -79,7 +79,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         {
             if (!caster.Effects.Contains(this))
             {
-                GamingQueue?.LastRound.AddApplyEffects(caster, EffectType);
+                GamingQueue?.AddApplyEffects(caster, EffectType);
                 首次伤害 = true;
                 破隐一击 = false;
                 RemainDuration = Duration;

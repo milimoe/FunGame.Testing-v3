@@ -67,7 +67,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     e.DispelledType = DispelledType;
                     e.ParentEffect = ParentEffect;
                 }
-                GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                GamingQueue?.AddApplyEffects(target, e.EffectType);
             }
         }
     }

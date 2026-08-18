@@ -99,7 +99,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         }
                         target.Effects.Add(e);
                         e.OnEffectGained(target);
-                        GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                        GamingQueue?.AddApplyEffects(target, e.EffectType);
                     }
                 }
             }

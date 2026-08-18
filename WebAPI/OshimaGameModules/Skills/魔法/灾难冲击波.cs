@@ -100,7 +100,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     e.EffectType = EffectType.MagicResistBreak;
                     e.Source = caster;
                     e.OnEffectGained(target);
-                    GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                    GamingQueue?.AddApplyEffects(target, e.EffectType);
                 }
             }
         }

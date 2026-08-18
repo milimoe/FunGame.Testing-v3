@@ -77,7 +77,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 caster.Effects.Add(this);
                 OnEffectGained(caster);
             }
-            GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.MPRegen, EffectType.Haste);
+            GamingQueue?.AddApplyEffects(caster, EffectType.MPRegen, EffectType.Haste);
         }
     }
 }

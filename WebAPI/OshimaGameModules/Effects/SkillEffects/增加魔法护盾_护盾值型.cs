@@ -28,7 +28,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             {
                 target.Shield[true, MagicType.None] += 护盾值;
                 WriteLine($"[ {target} ] 获得了 {护盾值:0.##} 点魔法护盾值！");
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType.Shield);
+                GamingQueue?.AddApplyEffects(target, EffectType.Shield);
             }
         }
     }

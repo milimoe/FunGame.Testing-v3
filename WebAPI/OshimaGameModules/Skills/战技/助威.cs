@@ -77,7 +77,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 e.EffectType = EffectType;
                 e.Source = caster;
                 e.OnEffectGained(target);
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType);
+                GamingQueue?.AddApplyEffects(target, EffectType);
             }
         }
     }

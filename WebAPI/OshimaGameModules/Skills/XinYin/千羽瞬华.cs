@@ -100,7 +100,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 caster.Effects.Add(this);
                 OnEffectGained(caster);
             }
-            GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.DamageBoost, EffectType.PenetrationBoost);
+            GamingQueue?.AddApplyEffects(caster, EffectType.DamageBoost, EffectType.PenetrationBoost);
         }
     }
 }

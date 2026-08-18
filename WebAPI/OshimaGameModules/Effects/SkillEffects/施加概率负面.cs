@@ -210,7 +210,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     WriteLine(tip);
                     target.Effects.Add(e);
                     e.OnEffectGained(target);
-                    GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                    GamingQueue?.AddApplyEffects(target, e.EffectType);
                     if (e is 迟滞 cz)
                     {
                         cz.ApplyChange(target);

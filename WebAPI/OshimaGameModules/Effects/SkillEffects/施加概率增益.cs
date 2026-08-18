@@ -106,7 +106,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     WriteLine(tip);
                     target.Effects.Add(e);
                     e.OnEffectGained(target);
-                    GamingQueue?.LastRound.AddApplyEffects(target, e.EffectType);
+                    GamingQueue?.AddApplyEffects(target, e.EffectType);
                 }
             }
         }

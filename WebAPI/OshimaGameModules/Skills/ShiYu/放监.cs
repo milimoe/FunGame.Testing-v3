@@ -117,7 +117,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         }
                     }
                 }
-                GamingQueue.LastRound.AddApplyEffects(caster, EffectType.Focusing);
+                GamingQueue.AddApplyEffects(caster, EffectType.Focusing);
             }
         }
     }

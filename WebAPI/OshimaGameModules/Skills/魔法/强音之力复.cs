@@ -96,7 +96,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 e.EffectType = EffectType.DamageBoost;
                 e.Source = caster;
                 e.OnEffectGained(target);
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType.DamageBoost);
+                GamingQueue?.AddApplyEffects(target, EffectType.DamageBoost);
             }
         }
     }

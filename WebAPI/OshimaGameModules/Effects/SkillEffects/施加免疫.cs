@@ -83,7 +83,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                             break;
                         }
                 }
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType);
+                GamingQueue?.AddApplyEffects(target, EffectType);
             }
         }
     }

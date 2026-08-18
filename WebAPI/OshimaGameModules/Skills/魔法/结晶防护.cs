@@ -100,7 +100,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 e2.EffectType = EffectType.DefenseBoost;
                 e2.Source = caster;
                 e2.OnEffectGained(target);
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType.DefenseBoost);
+                GamingQueue?.AddApplyEffects(target, EffectType.DefenseBoost);
             }
         }
     }

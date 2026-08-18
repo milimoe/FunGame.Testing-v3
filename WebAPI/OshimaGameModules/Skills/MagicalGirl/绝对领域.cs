@@ -84,7 +84,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 caster.Effects.Add(this);
                 OnEffectGained(caster);
             }
-            GamingQueue?.LastRound.AddApplyEffects(caster, EffectType.Invulnerable);
+            GamingQueue?.AddApplyEffects(caster, EffectType.Invulnerable);
         }
     }
 }

@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     WriteLine($"[ {caster} ] 眩晕了 [ {enemy} ] ！持续时间：{眩晕时间}！");
                     enemy.Effects.Add(e);
                     e.OnEffectGained(enemy);
-                    GamingQueue?.LastRound.AddApplyEffects(enemy, e.EffectType);
+                    GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
         }

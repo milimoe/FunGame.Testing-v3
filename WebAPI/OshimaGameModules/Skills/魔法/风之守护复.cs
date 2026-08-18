@@ -120,7 +120,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 e2.EffectType = EffectType.EvadeBoost;
                 e2.Source = caster;
                 e2.OnEffectGained(target);
-                GamingQueue?.LastRound.AddApplyEffects(target, EffectType.CritBoost, EffectType.EvadeBoost);
+                GamingQueue?.AddApplyEffects(target, EffectType.CritBoost, EffectType.EvadeBoost);
             }
         }
     }
