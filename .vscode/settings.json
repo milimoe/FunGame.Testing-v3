@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^dotnet build WebAPI/FunGame\\.Testing-v3\\.WebAPI\\.csproj$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "启动 WebAPI（托管 WebUI）",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/WebAPI/FunGame.Testing-v3.WebAPI.csproj",
+      "preLaunchTask": "构建 WebUI",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      }
+    }
+  ]
+}
