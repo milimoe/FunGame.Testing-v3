@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRound, fetchSummary } from '../api'
-import type { CharacterStateSnapshot, RoundSummaryDto } from '../types'
-import { Badge, CharChip, ErrorBox, Section, Spinner, ValueBar } from './ui'
-import { charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
+import { fetchGameData, fetchRound, fetchSummary } from '../api'
+import type { CharacterStateSnapshot, GameDataDto, RoundSummaryDto } from '../types'
+import { Badge, CharChip, DescText, ErrorBox, Section, Spinner, ValueBar } from './ui'
+import { buildGameDataMaps, charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
 
 export default function SnapshotPanel() {
   const [summaries, setSummaries] = useState<RoundSummaryDto[]>([])
@@ -12,6 +12,16 @@ export default function SnapshotPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedGuid, setSelectedGuid] = useState<string | null>(null)
+  const [gameData, setGameData] = useState<GameDataDto | null>(null)
+
+  const { skillDesc, itemDesc } = useMemo(() => buildGameDataMaps(gameData), [gameData])
+
+  // 加载游戏数据字典（技能/物品描述，供按 id 匹配）
+  useEffect(() => {
+    fetchGameData()
+      .then(setGameData)
+      .catch(() => setGameData(null))
+  }, [])
 
   // 加载摘要，找出含检查点快照的回合
   useEffect(() => {
@@ -102,7 +112,7 @@ export default function SnapshotPanel() {
       ) : snapshots.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-400">该回合没有状态快照</div>
       ) : selected ? (
-        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} />
+        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} skillDesc={skillDesc} itemDesc={itemDesc} />
       ) : (
         /* 全部角色 HP 总览网格 */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -154,7 +164,13 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
 }
 
 // ===== 单个角色详情 =====
-function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: CharacterStateSnapshot; allSnapshots: CharacterStateSnapshot[]; onBack: () => void }) {
+function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }: {
+  snapshot: CharacterStateSnapshot
+  allSnapshots: CharacterStateSnapshot[]
+  onBack: () => void
+  skillDesc: Map<number, string>
+  itemDesc: Map<number, string>
+}) {
   const c = snapshot.Character
   // 角色 Guid -> 名称 索引（用于解析特效来源角色）
   const charNames = useMemo(() => {
@@ -167,9 +183,23 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: Characte
   }, [allSnapshots])
   const sourceName = (guid?: string): string | null => {
     if (!guid || guid === '' || guid === c?.Guid) return null
-    return charNames.get(guid) ?? `未知角色(${guid.slice(0, 8)})`
+    return charNames.get(guid) ?? ''
   }
   const attributeEntries = useMemo(() => Object.entries(snapshot.Attributes ?? {}), [snapshot.Attributes])
+  // 单行展示的关键属性
+  const singleKeys = useMemo(
+    () => new Set(['生命值', '魔法值', '攻击力', '物理护甲', '魔法抗性', '行动速度', '核心属性', '力量', '敏捷', '智力']),
+    [],
+  )
+  const singleEntries = attributeEntries.filter(([k]) => singleKeys.has(k))
+  const pairedEntries = attributeEntries.filter(([k]) => !singleKeys.has(k))
+  const pairedRows = useMemo(() => {
+    const rows: Array<Array<[string, string]>> = []
+    for (let i = 0; i < pairedEntries.length; i += 2) {
+      rows.push(pairedEntries.slice(i, i + 2))
+    }
+    return rows
+  }, [pairedEntries])
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-100 bg-gradient-to-r from-rose-50 to-pink-100/70 p-4 shadow-sm">
@@ -184,37 +214,45 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: Characte
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Section title="状态数值">
-          <div className="space-y-3">
-            <ValueBar label="生命 HP" value={snapshot.HP} max={snapshot.MaxHP} color="#f87171" digits={1} />
-            <ValueBar label="魔法 MP" value={snapshot.MP} max={snapshot.MaxMP} color="#60a5fa" digits={1} />
-            {snapshot.EP > 0 && <ValueBar label="能量 EP" value={snapshot.EP} max={Math.max(snapshot.EP, 1)} color="#fbbf24" digits={1} />}
-            <div className="grid grid-cols-2 gap-2 border-t border-rose-100 pt-3 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">生命回复 HR</span>
-                <span className="tabular-nums text-slate-600">{fmt(snapshot.HR, 1)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">魔法回复 MR</span>
-                <span className="tabular-nums text-slate-600">{fmt(snapshot.MR, 1)}</span>
-              </div>
+        <Section title="角色状态和能力值">
+            <div className="space-y-3">
+              <ValueBar label="生命 HP" value={snapshot.HP} max={snapshot.MaxHP} color="#f87171" digits={2} />
+              <ValueBar label="魔法 MP" value={snapshot.MP} max={snapshot.MaxMP} color="#60a5fa" digits={2} />
+              <ValueBar label="能量 EP" value={snapshot.EP} max={200} color="#fbbf24" digits={2} />
             </div>
-          </div>
-        </Section>
-
-        <Section title="角色属性" subtitle={`${attributeEntries.length} 项属性`}>
-          {attributeEntries.length === 0 ? (
-            <p className="py-2 text-center text-sm text-slate-500">无属性数据</p>
-          ) : (
-            <ul className="space-y-1">
-              {attributeEntries.map(([key, value]) => (
-                <li key={key} className="flex items-baseline justify-between gap-3 rounded-lg bg-rose-50/70 px-3 py-1.5 text-sm">
-                  <span className="shrink-0 text-slate-400">{key}</span>
-                  <span className="break-all text-right tabular-nums text-slate-700">{value}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+            <div className="border-t border-rose-100" style={{ marginTop: '10px', marginBottom: '5px'}} />
+            <div>
+              {attributeEntries.length === 0 ? (
+                <p className="py-2 text-center text-sm text-slate-500">无属性数据</p>
+              ) : (
+                <div className="space-y-1">
+                  {/* 关键属性：一行一个 */}
+                  {singleEntries.map(([key, value]) => (
+                    <div key={key} className="flex items-baseline justify-between gap-3 rounded-lg bg-rose-50/70 px-3 py-1.5 text-sm">
+                      <span className="shrink-0 text-slate-400">{key}</span>
+                      <span className="break-all text-right tabular-nums text-slate-700">{value}</span>
+                    </div>
+                  ))}
+                  {/* 其余属性：两行一个 */}
+                  {pairedRows.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 border-t border-rose-100 pt-3 text-xs">
+                      {pairedRows.map((row, ri) => (
+                        <div key={ri} className="contents">
+                          {row.map(([key, value]) => (
+                            key === '能量值' ? null : (
+                            <div key={key} className="flex justify-between">
+                              <span className="text-slate-400">{key}</span>
+                              <span className="tabular-nums text-slate-600">{value}</span>
+                            </div>
+                            )
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
         </Section>
 
         <Section title="装备">
@@ -222,14 +260,20 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: Characte
             <p className="py-2 text-center text-sm text-slate-500">未装备任何物品</p>
           ) : (
             <ul className="space-y-1.5">
-              {snapshot.EquipmentsDetail.map((eq, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
-                  <span className="text-slate-400">{equipSlotName(eq.Slot)}</span>
-                  <span className="text-slate-700">
-                    {eq.ItemName} <span className="text-xs text-slate-400">(#{eq.ItemId})</span>
-                  </span>
-                </li>
-              ))}
+              {snapshot.EquipmentsDetail.map((eq, i) => {
+                const desc = itemDesc.get(eq.ItemId)
+                return (
+                  <li key={i} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">{equipSlotName(eq.Slot)}</span>
+                      <span className="text-slate-700">
+                        {eq.ItemName} <span className="text-xs text-slate-400">(#{eq.ItemId})</span>
+                      </span>
+                    </div>
+                    {desc ? <DescText text={desc} /> : null}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Section>
@@ -239,17 +283,23 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: Characte
             <p className="py-2 text-center text-sm text-slate-500">无技能</p>
           ) : (
             <ul className="space-y-1.5">
-              {snapshot.Skills.map(s => (
-                <li key={s.SkillId} className="flex items-center justify-between rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
-                  <span className="text-slate-700">
-                    {s.SkillName} <span className="text-xs text-slate-400">(#{s.SkillId})</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <Badge tone="indigo">Lv.{s.Level}</Badge>
-                    {s.CurrentCD > 0 && <Badge tone="red">CD {fmt(s.CurrentCD, 1)}s</Badge>}
-                  </span>
-                </li>
-              ))}
+              {snapshot.Skills.map(s => {
+                const desc = skillDesc.get(s.SkillId)
+                return (
+                  <li key={s.SkillId} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">
+                        {s.SkillName} <span className="text-xs text-slate-400">(#{s.SkillId})</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Badge tone="indigo">Lv.{s.Level}</Badge>
+                        {s.CurrentCD > 0 && <Badge tone="red">CD {fmt(s.CurrentCD, 1)}s</Badge>}
+                      </span>
+                    </div>
+                    {desc ? <DescText text={desc} /> : null}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Section>
@@ -258,12 +308,18 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: { snapshot: Characte
           {snapshot.Items.length === 0 ? (
             <p className="py-2 text-center text-sm text-slate-500">背包为空</p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
-              {snapshot.Items.map(it => (
-                <li key={it.ItemId} className="rounded-lg bg-rose-50/80 px-3 py-1.5 text-sm text-slate-700">
-                  {it.ItemName} <span className="text-xs text-slate-400">(#{it.ItemId})</span>
-                </li>
-              ))}
+            <ul className="space-y-1.5">
+              {snapshot.Items.map(it => {
+                const desc = itemDesc.get(it.ItemId)
+                return (
+                  <li key={it.ItemId} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
+                    <span className="text-slate-700">
+                      {it.ItemName} <span className="text-xs text-slate-400">(#{it.ItemId})</span>
+                    </span>
+                    {desc ? <DescText text={desc} /> : null}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Section>

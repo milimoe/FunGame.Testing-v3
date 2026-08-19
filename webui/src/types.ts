@@ -37,7 +37,6 @@ export interface ActionRecord {
   ActionType: number
   Skill?: SkillRef | null
   Item?: ItemRef | null
-  Cost?: string
   MPCost: number
   EPCost: number
   SkillCD: number
@@ -282,4 +281,17 @@ export interface StatsDto {
   mvpRating: number
   rows: StatRowDto[]
   teams: TeamDto[]
+}
+
+// ===== 游戏数据字典（/api/gamedata，供按 id 匹配显示技能/物品描述）=====
+export interface GameDataEntryDto {
+  id: number
+  name: string
+  description: string
+}
+
+export interface GameDataDto {
+  skills: GameDataEntryDto[]
+  items: GameDataEntryDto[]
+  characters: GameDataEntryDto[]
 }

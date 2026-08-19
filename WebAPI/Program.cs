@@ -75,6 +75,20 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.Al
 WebApplication app = builder.Build();
 app.UseCors();
 
+// ============ 游戏数据字典（AllSkills / AllItems / Characters），供前端按 id 匹配显示描述 ============
+app.MapGet("/api/gamedata", () =>
+{
+    List<GameDataEntryDto> skills = [.. FunGameService.AllSkills
+        .GroupBy(s => s.Id)
+        .Select(g => new GameDataEntryDto(g.Key, g.First().Name, g.First().Description ?? ""))];
+    List<GameDataEntryDto> items = [.. FunGameService.AllItems
+        .GroupBy(i => i.Id)
+        .Select(g => new GameDataEntryDto(g.Key, g.First().Name, g.First().Description ?? ""))];
+    List<GameDataEntryDto> characters = [.. FunGameService.Characters
+        .Select(c => new GameDataEntryDto(c.Id, c.Name, ""))];
+    return Results.Ok(new GameDataDto(skills, items, characters));
+});
+
 // ============ 存档元信息 ============
 app.MapGet("/api/meta", async (ArchiveStore store, CancellationToken ct) =>
 {
@@ -258,3 +272,7 @@ record MetaDto(int RoundCount, double TotalTime, string Mode, DateTime ZipUpdate
 record RoundSummaryDto(int Round, string ActorGuid, string ActorName, bool HasKill, double DamageTotal, double HealTotal, int ActionCount, int EffectCount, bool HasCheckpoint, double TotalTime);
 record StatRowDto(string Guid, string Name, string NickName, string TeamName, double Rating, int Kills, int Deaths, int Assists, double TotalDamage, double TotalHeal, double TotalShield, double Winrate, int MVPs, int LastRank, double AvgRank, int LiveRound, int TotalEarnedMoney, double DamagePerRound, double DamagePerSecond, double ControlTime);
 record StatsDto(int RoundCount, double TotalTime, string Mode, string MvpName, double MvpRating, List<StatRowDto> Rows, List<TeamDto> Teams);
+
+// ===== 游戏数据字典（AllSkills / AllItems / Characters 的 Id -> 名称与描述，供前端按 id 匹配显示说明）=====
+record GameDataEntryDto(long Id, string Name, string Description);
+record GameDataDto(List<GameDataEntryDto> Skills, List<GameDataEntryDto> Items, List<GameDataEntryDto> Characters);

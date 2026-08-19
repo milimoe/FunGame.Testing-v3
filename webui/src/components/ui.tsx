@@ -170,3 +170,12 @@ export function ErrorBox({ message }: { message: string }) {
 export function EmptyBox({ message }: { message: string }) {
   return <div className="flex h-40 items-center justify-center text-sm text-slate-400">{message}</div>
 }
+
+// ===== 描述文本（直接展示，保留换行）=====
+export function DescText({ text }: { text: string }) {
+  return (
+    <p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
+      {text}
+    </p>
+  )
+}

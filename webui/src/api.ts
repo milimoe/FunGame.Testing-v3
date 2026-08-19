@@ -1,4 +1,4 @@
-import type { MetaDto, RoundRecord, RoundSummaryDto, StatsDto } from './types'
+import type { GameDataDto, MetaDto, RoundRecord, RoundSummaryDto, StatsDto } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -18,6 +18,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const fetchMeta = () => request<MetaDto>('/api/meta')
 
 export const fetchStats = () => request<StatsDto>('/api/statistics')
+
+export const fetchGameData = () => request<GameDataDto>('/api/gamedata')
 
 export const fetchSummary = (from?: number, to?: number) => {
   const params = new URLSearchParams()

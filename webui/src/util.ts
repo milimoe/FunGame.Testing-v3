@@ -1,4 +1,4 @@
-import type { CharacterRef } from './types'
+import type { CharacterRef, GameDataDto } from './types'
 
 // ===== 数值格式化 =====
 export function fmt(n: number, digits = 0): string {
@@ -49,7 +49,7 @@ export const SKILL_TYPE_NAMES: Record<number, string> = {
 }
 
 export const EFFECT_TYPE_NAMES: Record<number, string> = {
-  0: '无', 1: '装备', 2: '标记', 3: '眩晕', 4: '冰冻', 5: '沉默', 6: '定身', 7: '恐惧', 8: '睡眠',
+  0: '被动', 1: '装备', 2: '标记', 3: '眩晕', 4: '冰冻', 5: '沉默', 6: '定身', 7: '恐惧', 8: '睡眠',
   9: '击退', 10: '击倒', 11: '嘲讽', 12: '减速', 13: '衰弱', 14: '中毒', 15: '燃烧', 16: '流血',
   17: '致盲', 18: '致残', 19: '护盾', 20: '持续治疗', 21: '加速', 22: '无敌', 23: '不可选中',
   24: '伤害提升', 25: '防御提升', 26: '暴击提升', 27: '魔法恢复', 28: '破甲', 29: '降低魔法抗性',
@@ -60,7 +60,7 @@ export const EFFECT_TYPE_NAMES: Record<number, string> = {
 }
 
 export const EQUIP_SLOT_NAMES: Record<number, string> = {
-  1: '魔法卡组', 2: '武器', 3: '护甲', 4: '鞋子', 5: '饰品1', 6: '饰品2',
+  1: '魔法卡包', 2: '武器', 3: '护甲', 4: '鞋子', 5: '饰品1', 6: '饰品2',
 }
 
 export const skillTypeName = (t: number) => SKILL_TYPE_NAMES[t] ?? `类型${t}`
@@ -92,4 +92,18 @@ export function charIndex(chars: CharacterRef[] | null | undefined): Map<string,
     if (c.Guid && !map.has(c.Guid)) map.set(c.Guid, c)
   }
   return map
+}
+
+// ===== 游戏数据字典索引（id -> 描述），用于按 id 匹配技能/物品说明 =====
+export interface GameDataMaps {
+  skillDesc: Map<number, string>
+  itemDesc: Map<number, string>
+}
+
+export function buildGameDataMaps(data: GameDataDto | null): GameDataMaps {
+  const skillDesc = new Map<number, string>()
+  const itemDesc = new Map<number, string>()
+  for (const s of data?.skills ?? []) if (s.description) skillDesc.set(s.id, s.description)
+  for (const it of data?.items ?? []) if (it.description) itemDesc.set(it.id, it.description)
+  return { skillDesc, itemDesc }
 }

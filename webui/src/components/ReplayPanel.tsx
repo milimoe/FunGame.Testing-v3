@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRound, fetchSummary } from '../api'
-import type { ActionRecord, CharacterRef, RoundRecord, RoundSummaryDto } from '../types'
-import { Badge, CharChip, ErrorBox, HBar, Section, Spinner } from './ui'
+import { fetchGameData, fetchRound, fetchSummary } from '../api'
+import type { ActionRecord, CharacterRef, GameDataDto, RoundRecord, RoundSummaryDto } from '../types'
+import { Badge, CharChip, DescText, ErrorBox, HBar, Section, Spinner } from './ui'
 import {
   ACTION_TYPE_ICONS,
   actionTypeName,
+  buildGameDataMaps,
   charIndex,
   charName,
   effectTypeName,
@@ -23,8 +24,18 @@ export default function ReplayPanel() {
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(2000)
+  const [gameData, setGameData] = useState<GameDataDto | null>(null)
+
+  const { skillDesc, itemDesc } = useMemo(() => buildGameDataMaps(gameData), [gameData])
 
   const totalRounds = summaries.length
+
+  // 加载游戏数据字典（技能/物品描述，供按 id 匹配）
+  useEffect(() => {
+    fetchGameData()
+      .then(setGameData)
+      .catch(() => setGameData(null))
+  }, [])
 
   // 加载回合摘要列表
   useEffect(() => {
@@ -154,16 +165,22 @@ export default function ReplayPanel() {
                 ) : (
                   <div className="space-y-4">
                     {(record.Actions ?? []).map(action => (
-                      <ActionItem key={action.ActionIndex} action={action} fallbackChars={record.AllCharacters} />
+                      <ActionItem
+                        key={action.ActionIndex}
+                        action={action}
+                        fallbackChars={record.AllCharacters}
+                        skillDesc={skillDesc}
+                        itemDesc={itemDesc}
+                      />
                     ))}
                   </div>
                 )}
               </Section>
-              <KillSection record={record} />
+              <KillSection record={record} skillDesc={skillDesc} />
               <RoundDamageSection record={record} />
             </div>
             <div className="space-y-5">
-              <EffectsSection record={record} />
+              <EffectsSection record={record} skillDesc={skillDesc} />
               <InfoSection record={record} />
             </div>
           </div>
@@ -198,13 +215,23 @@ function RoundHeader({ record, summary }: { record: RoundRecord; summary?: Round
 }
 
 // ===== 单条行动记录 =====
-function ActionItem({ action, fallbackChars }: { action: ActionRecord; fallbackChars: CharacterRef[] }) {
+function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
+  action: ActionRecord
+  fallbackChars: CharacterRef[]
+  skillDesc: Map<number, string>
+  itemDesc: Map<number, string>
+}) {
   const chars = useMemo(() => charIndex(action.AllCharacters ?? fallbackChars), [action.AllCharacters, fallbackChars])
   const name = action.Skill?.Name || action.Item?.Name || actionTypeName(action.ActionType)
   const icon = ACTION_TYPE_ICONS[action.ActionType] ?? '·'
   const damages = keyedToEntries(action.Damages)
   const heals = keyedToEntries(action.Heals)
   const hasEffect = keyedToEntries(action.ApplyEffects).length > 0
+  const desc = action.Skill
+    ? skillDesc.get(action.Skill.Id)
+    : action.Item
+      ? itemDesc.get(action.Item.Id)
+      : undefined
 
   return (
     <div className="flex gap-3">
@@ -235,6 +262,9 @@ function ActionItem({ action, fallbackChars }: { action: ActionRecord; fallbackC
           {action.Skill && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
           {action.IsSuccess === false && <Badge tone="red">失败</Badge>}
         </div>
+
+        {/* 技能 / 物品描述 */}
+        {desc ? <DescText text={desc} /> : null}
 
         {/* 消耗信息 */}
         <CostLine action={action} />
@@ -323,9 +353,8 @@ function ActionItem({ action, fallbackChars }: { action: ActionRecord; fallbackC
 // ===== 消耗行 =====
 function CostLine({ action }: { action: ActionRecord }) {
   const parts: string[] = []
-  if (action.Cost) parts.push(action.Cost)
-  if (action.MPCost > 0) parts.push(`-${fmt(action.MPCost, 0)} MP`)
-  if (action.EPCost > 0) parts.push(`-${fmt(action.EPCost, 0)} EP`)
+  if (action.MPCost > 0) parts.push(`魔法 -${fmt(action.MPCost, 1)}`)
+  if (action.EPCost > 0) parts.push(`能量 -${fmt(action.EPCost, 1)}`)
   if (action.SkillCD > 0) parts.push(`CD ${fmt(action.SkillCD, 1)}s`)
   if (action.DecisionPointsCost > 0) parts.push(`决策点 -${fmt(action.DecisionPointsCost, 1)}`)
   if (action.CastTime > 0) parts.push(`吟唱 ${fmt(action.CastTime, 1)}s`)
@@ -343,7 +372,7 @@ function CostLine({ action }: { action: ActionRecord }) {
 }
 
 // ===== 击杀与消息 =====
-function KillSection({ record }: { record: RoundRecord }) {
+function KillSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Map<number, string> }) {
   const kills = record.ActorContinuousKilling ?? []
   const deaths = record.DeathContinuousKilling ?? []
   const others = record.OtherMessages ?? []
@@ -372,9 +401,17 @@ function KillSection({ record }: { record: RoundRecord }) {
           </p>
         ))}
         {record.RoundRewards && record.RoundRewards.length > 0 && (
-          <p className="text-sm text-emerald-600">
-            🎁 回合奖励：{record.RoundRewards.map(s => s.Name).join('、')}
-          </p>
+          <div className="rounded-lg bg-emerald-50/80 p-2.5">
+            <p className="text-sm font-semibold text-emerald-600">🎁 回合奖励</p>
+            {record.RoundRewards.map((s, i) => (
+              <div key={`rw${i}`} className="mt-1">
+                <p className="text-sm text-emerald-700">
+                  {s.Name} <span className="text-xs text-emerald-500">(#{s.Id})</span>
+                </p>
+                {skillDesc.get(s.Id) ? <DescText text={skillDesc.get(s.Id)!} /> : null}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </Section>
@@ -414,7 +451,7 @@ function RoundDamageSection({ record }: { record: RoundRecord }) {
 }
 
 // ===== 特效记录 =====
-function EffectsSection({ record }: { record: RoundRecord }) {
+function EffectsSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Map<number, string> }) {
   const chars = charIndex(record.AllCharacters)
   const effects = keyedToEntries(record.Effects)
   const applyEffects = keyedToEntries(record.ApplyEffects)
@@ -437,6 +474,7 @@ function EffectsSection({ record }: { record: RoundRecord }) {
             <p className="mt-1 text-sm font-semibold text-slate-700">
               {skill.Name} <span className="text-xs font-normal text-slate-400">(#{skill.Id})</span>
             </p>
+            {skillDesc.get(skill.Id) ? <DescText text={skillDesc.get(skill.Id)!} /> : null}
           </div>
         ))}
         {applyEffects.map(([guid, types]) => (
