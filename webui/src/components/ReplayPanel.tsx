@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchGameData, fetchRound, fetchSummary } from '../api'
-import type { ActionRecord, CharacterRef, GameDataDto, RoundRecord, RoundSummaryDto } from '../types'
+import { fetchRound, fetchSummary } from '../api'
+import type { ActionRecord, CharacterRef, RoundRecord, RoundSummaryDto } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, HBar, Section, Spinner } from './ui'
 import {
   ACTION_TYPE_ICONS,
   actionTypeName,
-  buildGameDataMaps,
+  buildCheckpointDescMaps,
   charIndex,
   charName,
   effectTypeName,
@@ -24,18 +24,10 @@ export default function ReplayPanel() {
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(2000)
-  const [gameData, setGameData] = useState<GameDataDto | null>(null)
-
-  const { skillDesc, itemDesc } = useMemo(() => buildGameDataMaps(gameData), [gameData])
+  // 检查点描述缓存：检查点回合号 -> 描述索引（不再调用 /api/gamedata，改从检查点快照取 desc）
+  const [cpDescCache, setCpDescCache] = useState<Map<number, ReturnType<typeof buildCheckpointDescMaps>>>(new Map())
 
   const totalRounds = summaries.length
-
-  // 加载游戏数据字典（技能/物品描述，供按 id 匹配）
-  useEffect(() => {
-    fetchGameData()
-      .then(setGameData)
-      .catch(() => setGameData(null))
-  }, [])
 
   // 加载回合摘要列表
   useEffect(() => {
@@ -46,6 +38,51 @@ export default function ReplayPanel() {
       })
       .catch(e => setSummaryError(e.message))
   }, [])
+
+  // 当前回合之前（含）最近一个检查点回合号，作为描述基准
+  const baseCheckpointRound = useMemo(() => {
+    let found: number | null = null
+    for (const s of summaries) {
+      if (!s.hasCheckpoint) continue
+      if (s.round > roundNo) break
+      found = s.round
+    }
+    return found
+  }, [summaries, roundNo])
+
+  // 按需加载基准检查点，构建 skill/item/effect 描述索引（按检查点回合缓存，跨回合复用）
+  useEffect(() => {
+    if (baseCheckpointRound === null || cpDescCache.has(baseCheckpointRound)) return
+    // 当前回合本身就是检查点：直接复用已加载的 record，避免重复请求
+    if (record?.Round === baseCheckpointRound && record.Checkpoint) {
+      setCpDescCache(prev =>
+        prev.has(baseCheckpointRound) ? prev : new Map(prev).set(baseCheckpointRound, buildCheckpointDescMaps(record.Checkpoint ?? [])),
+      )
+      return
+    }
+    let cancelled = false
+    fetchRound(baseCheckpointRound)
+      .then(r => {
+        if (!cancelled) {
+          setCpDescCache(prev => new Map(prev).set(baseCheckpointRound, buildCheckpointDescMaps(r.Checkpoint ?? [])))
+        }
+      })
+      .catch(() => {
+        /* 检查点加载失败：该段回合无描述展示 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [baseCheckpointRound, cpDescCache, record])
+
+  const { skillDesc, itemDesc } = useMemo(() => {
+    if (baseCheckpointRound === null) return { skillDesc: new Map<number, string>(), itemDesc: new Map<number, string>() }
+    const maps = cpDescCache.get(baseCheckpointRound)
+    return {
+      skillDesc: maps?.skillDesc ?? new Map<number, string>(),
+      itemDesc: maps?.itemDesc ?? new Map<number, string>(),
+    }
+  }, [baseCheckpointRound, cpDescCache])
 
   // 加载单回合
   useEffect(() => {

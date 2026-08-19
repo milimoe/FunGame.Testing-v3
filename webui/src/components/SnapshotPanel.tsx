@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchGameData, fetchRound, fetchSummary } from '../api'
-import type { CharacterStateSnapshot, GameDataDto, RoundSummaryDto } from '../types'
+import { fetchRound, fetchSummary } from '../api'
+import type { CharacterStateSnapshot, RoundSummaryDto } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, Section, Spinner, ValueBar } from './ui'
-import { buildGameDataMaps, charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
+import { charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
 
 export default function SnapshotPanel() {
   const [summaries, setSummaries] = useState<RoundSummaryDto[]>([])
@@ -12,16 +12,6 @@ export default function SnapshotPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedGuid, setSelectedGuid] = useState<string | null>(null)
-  const [gameData, setGameData] = useState<GameDataDto | null>(null)
-
-  const { skillDesc, itemDesc } = useMemo(() => buildGameDataMaps(gameData), [gameData])
-
-  // 加载游戏数据字典（技能/物品描述，供按 id 匹配）
-  useEffect(() => {
-    fetchGameData()
-      .then(setGameData)
-      .catch(() => setGameData(null))
-  }, [])
 
   // 加载摘要，找出含检查点快照的回合
   useEffect(() => {
@@ -112,7 +102,7 @@ export default function SnapshotPanel() {
       ) : snapshots.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-400">该回合没有状态快照</div>
       ) : selected ? (
-        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} skillDesc={skillDesc} itemDesc={itemDesc} />
+        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} />
       ) : (
         /* 全部角色 HP 总览网格 */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -164,12 +154,10 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
 }
 
 // ===== 单个角色详情 =====
-function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }: {
+function SnapshotDetail({ snapshot, allSnapshots, onBack }: {
   snapshot: CharacterStateSnapshot
   allSnapshots: CharacterStateSnapshot[]
   onBack: () => void
-  skillDesc: Map<number, string>
-  itemDesc: Map<number, string>
 }) {
   const c = snapshot.Character
   // 角色 Guid -> 名称 索引（用于解析特效来源角色）
@@ -261,7 +249,7 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }:
           ) : (
             <ul className="space-y-1.5">
               {snapshot.EquipmentsDetail.map((eq, i) => {
-                const desc = itemDesc.get(eq.ItemId)
+                const desc = eq.Description
                 return (
                   <li key={i} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between">
@@ -284,7 +272,7 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }:
           ) : (
             <ul className="space-y-1.5">
               {snapshot.Skills.map(s => {
-                const desc = skillDesc.get(s.SkillId)
+                const desc = s.Description
                 return (
                   <li key={s.SkillId} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between">
@@ -310,7 +298,7 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }:
           ) : (
             <ul className="space-y-1.5">
               {snapshot.Items.map(it => {
-                const desc = itemDesc.get(it.ItemId)
+                const desc = it.Description
                 return (
                   <li key={it.ItemId} className="rounded-lg bg-rose-50/80 px-3 py-2 text-sm">
                     <span className="text-slate-700">
@@ -361,6 +349,7 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack, skillDesc, itemDesc }:
                         </>
                       )}
                     </div>
+                    {ef.Description ? <DescText text={ef.Description} /> : null}
                   </li>
                 )
               })}

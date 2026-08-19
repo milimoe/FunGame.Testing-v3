@@ -1,4 +1,4 @@
-import type { CharacterRef, GameDataDto } from './types'
+import type { CharacterRef, CharacterStateSnapshot } from './types'
 
 // ===== 数值格式化 =====
 export function fmt(n: number, digits = 0): string {
@@ -94,16 +94,21 @@ export function charIndex(chars: CharacterRef[] | null | undefined): Map<string,
   return map
 }
 
-// ===== 游戏数据字典索引（id -> 描述），用于按 id 匹配技能/物品说明 =====
-export interface GameDataMaps {
+// ===== 检查点描述索引（id -> 描述），直接从检查点快照构建，不再依赖 /api/gamedata =====
+export interface CheckpointDescMaps {
   skillDesc: Map<number, string>
   itemDesc: Map<number, string>
+  effectDesc: Map<number, string>
 }
 
-export function buildGameDataMaps(data: GameDataDto | null): GameDataMaps {
+export function buildCheckpointDescMaps(checkpoint: CharacterStateSnapshot[] | null | undefined): CheckpointDescMaps {
   const skillDesc = new Map<number, string>()
   const itemDesc = new Map<number, string>()
-  for (const s of data?.skills ?? []) if (s.description) skillDesc.set(s.id, s.description)
-  for (const it of data?.items ?? []) if (it.description) itemDesc.set(it.id, it.description)
-  return { skillDesc, itemDesc }
+  const effectDesc = new Map<number, string>()
+  for (const state of checkpoint ?? []) {
+    for (const s of state.Skills ?? []) if (s.Description) skillDesc.set(s.SkillId, s.Description)
+    for (const it of state.Items ?? []) if (it.Description) itemDesc.set(it.ItemId, it.Description)
+    for (const ef of state.Effects ?? []) if (ef.Description) effectDesc.set(ef.EffectId, ef.Description)
+  }
+  return { skillDesc, itemDesc, effectDesc }
 }

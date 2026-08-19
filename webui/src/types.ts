@@ -114,6 +114,8 @@ export interface EquipmentStateSnapshot {
   Slot: number
   ItemId: number
   ItemName: string
+  // 装备描述（来自检查点快照，序列化后可直接使用）
+  Description: string
 }
 
 export interface SkillStateSnapshot {
@@ -121,11 +123,15 @@ export interface SkillStateSnapshot {
   SkillName: string
   Level: number
   CurrentCD: number
+  // 技能描述（来自检查点快照，序列化后可直接使用）
+  Description: string
 }
 
 export interface ItemStateSnapshot {
   ItemId: number
   ItemName: string
+  // 物品描述（来自检查点快照，序列化后可直接使用）
+  Description: string
 }
 
 export interface EffectStateSnapshot {
@@ -136,6 +142,8 @@ export interface EffectStateSnapshot {
   RemainDurationTurn: number
   // 特效施加者（Source 角色）的 Guid，无施加者为空字符串
   SourceGuid?: string
+  // 特效描述（来自检查点快照，序列化后可直接使用）
+  Description: string
 }
 
 // ===== 最终排名条目（RankingEntry）=====
@@ -281,17 +289,4 @@ export interface StatsDto {
   mvpRating: number
   rows: StatRowDto[]
   teams: TeamDto[]
-}
-
-// ===== 游戏数据字典（/api/gamedata，供按 id 匹配显示技能/物品描述）=====
-export interface GameDataEntryDto {
-  id: number
-  name: string
-  description: string
-}
-
-export interface GameDataDto {
-  skills: GameDataEntryDto[]
-  items: GameDataEntryDto[]
-  characters: GameDataEntryDto[]
 }
