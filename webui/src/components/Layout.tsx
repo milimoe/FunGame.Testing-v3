@@ -10,11 +10,11 @@ const NAV: { key: PanelKey; label: string; icon: string; desc: string }[] = [
 
 export default function Layout({
   panel,
-  onSelect,
+  panelPaths,
   children,
 }: {
   panel: PanelKey
-  onSelect: (p: PanelKey) => void
+  panelPaths: Record<PanelKey, string>
   children: ReactNode
 }) {
   const [reloading, setReloading] = useState(false)
@@ -105,9 +105,9 @@ export default function Layout({
         {/* 导航（移动端横向滚动 / 桌面端纵向） */}
         <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:space-y-1 lg:p-3">
           {NAV.map(item => (
-            <button
+            <a
               key={item.key}
-              onClick={() => onSelect(item.key)}
+              href={panelPaths[item.key]}
               className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors lg:w-full lg:gap-3 lg:px-3 lg:py-2.5 lg:text-left ${
                 panel === item.key
                   ? 'bg-rose-500/10 text-rose-600 ring-1 ring-rose-400/40'
@@ -119,7 +119,7 @@ export default function Layout({
                 <span className="block whitespace-nowrap font-semibold">{item.label}</span>
                 <span className="hidden text-[11px] font-normal opacity-60 lg:block">{item.desc}</span>
               </span>
-            </button>
+            </a>
           ))}
         </nav>
       </aside>

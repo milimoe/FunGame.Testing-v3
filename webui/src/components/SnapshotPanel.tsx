@@ -4,7 +4,7 @@ import type { CharacterStateSnapshot, RoundSummaryDto } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, Section, Spinner, ValueBar } from './ui'
 import { charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
 
-export default function SnapshotPanel() {
+export default function SnapshotPanel({ requestedRound, onRoundChange }: { requestedRound?: number; onRoundChange: (round: number) => void }) {
   const [summaries, setSummaries] = useState<RoundSummaryDto[]>([])
   const [sumError, setSumError] = useState<string | null>(null)
   const [roundNo, setRoundNo] = useState<number | null>(null)
@@ -18,13 +18,21 @@ export default function SnapshotPanel() {
     fetchSummary()
       .then(list => {
         setSummaries(list)
-        const first = list.find(s => s.hasCheckpoint)
-        if (first) setRoundNo(first.round)
       })
       .catch(e => setSumError(e.message))
   }, [])
 
   const checkpointRounds = useMemo(() => summaries.filter(s => s.hasCheckpoint), [summaries])
+
+  // URL 回合没有检查点时，使用该回合之前最近的检查点。
+  useEffect(() => {
+    if (checkpointRounds.length === 0) return
+    const candidates = requestedRound === undefined
+      ? checkpointRounds
+      : checkpointRounds.filter(s => s.round <= requestedRound)
+    const target = candidates[candidates.length - 1] ?? checkpointRounds[0]
+    setRoundNo(current => (current === target.round ? current : target.round))
+  }, [checkpointRounds, requestedRound])
 
   // 加载选中回合的快照
   useEffect(() => {
@@ -63,7 +71,9 @@ export default function SnapshotPanel() {
         <select
           value={roundNo ?? ''}
           onChange={e => {
-            setRoundNo(Number(e.target.value))
+            const nextRound = Number(e.target.value)
+            setRoundNo(nextRound)
+            onRoundChange(nextRound)
             setSelectedGuid(null)
           }}
           className="max-w-64 rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-rose-400"
