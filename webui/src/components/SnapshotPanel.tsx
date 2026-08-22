@@ -4,7 +4,12 @@ import type { CharacterStateSnapshot, RoundSummaryDto } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, Section, Spinner, ValueBar } from './ui'
 import { charName, effectTypeName, equipSlotName, fmt, fmtTime } from '../util'
 
-export default function SnapshotPanel({ requestedRound, onRoundChange }: { requestedRound?: number; onRoundChange: (round: number) => void }) {
+export default function SnapshotPanel({ requestedRound, requestedCharacterId, onRoundChange, onCharacterChange }: {
+  requestedRound?: number
+  requestedCharacterId?: string
+  onRoundChange: (round: number) => void
+  onCharacterChange: (characterId: string | null, round?: number) => void
+}) {
   const [summaries, setSummaries] = useState<RoundSummaryDto[]>([])
   const [sumError, setSumError] = useState<string | null>(null)
   const [roundNo, setRoundNo] = useState<number | null>(null)
@@ -12,6 +17,10 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedGuid, setSelectedGuid] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSelectedGuid(requestedCharacterId ?? null)
+  }, [requestedCharacterId])
 
   // 加载摘要，找出含检查点快照的回合
   useEffect(() => {
@@ -74,7 +83,6 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
             const nextRound = Number(e.target.value)
             setRoundNo(nextRound)
             onRoundChange(nextRound)
-            setSelectedGuid(null)
           }}
           className="max-w-64 rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-rose-400"
         >
@@ -88,7 +96,11 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
         <span className="text-sm text-slate-500">角色：</span>
         <select
           value={selectedGuid ?? ''}
-          onChange={e => setSelectedGuid(e.target.value || null)}
+          onChange={e => {
+            const nextCharacterId = e.target.value || null
+            setSelectedGuid(nextCharacterId)
+            onCharacterChange(nextCharacterId, roundNo ?? undefined)
+          }}
           className="max-w-48 rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-rose-400"
         >
           <option value="">全部角色</option>
@@ -112,7 +124,14 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
       ) : snapshots.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-400">该回合没有状态快照</div>
       ) : selected ? (
-        <SnapshotDetail snapshot={selected} allSnapshots={snapshots} onBack={() => setSelectedGuid(null)} />
+        <SnapshotDetail
+          snapshot={selected}
+          allSnapshots={snapshots}
+          onBack={() => {
+            setSelectedGuid(null)
+            onCharacterChange(null, roundNo ?? undefined)
+          }}
+        />
       ) : (
         /* 全部角色 HP 总览网格 */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -122,7 +141,11 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
             return (
               <button
                 key={c?.Guid}
-                onClick={() => setSelectedGuid(c?.Guid ?? null)}
+                onClick={() => {
+                  const nextCharacterId = c?.Guid ?? null
+                  setSelectedGuid(nextCharacterId)
+                  onCharacterChange(nextCharacterId, roundNo ?? undefined)
+                }}
                 className="group rounded-xl border border-rose-100 bg-white p-4 text-left shadow-sm transition-colors hover:border-rose-400/60"
               >
                 <div className="mb-2.5 flex items-center justify-between">
@@ -133,7 +156,7 @@ export default function SnapshotPanel({ requestedRound, onRoundChange }: { reque
                 <div className="space-y-1.5">
                   <MiniBar label="HP" value={s.HP} max={s.MaxHP} color={alive ? '#f87171' : '#cbd5e1'} />
                   <MiniBar label="MP" value={s.MP} max={s.MaxMP} color="#fb7185" />
-                  {s.EP > 0 && <MiniBar label="EP" value={s.EP} max={Math.max(s.EP, 1)} color="#fbbf24" />}
+                  <MiniBar label="EP" value={s.EP} max={200} color="#fbbf24" />
                 </div>
                 <div className="mt-2 text-xs text-slate-400">
                   装备 {s.EquipmentsDetail.length} 件 · 技能 {s.Skills.length} 个

@@ -16,7 +16,7 @@ import {
   skillTypeName,
 } from '../util'
 
-export default function ReplayPanel() {
+export default function ReplayPanel({ requestedRound, onRoundChange }: { requestedRound?: number; onRoundChange: (round: number) => void }) {
   const [summaries, setSummaries] = useState<RoundSummaryDto[]>([])
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [roundNo, setRoundNo] = useState(1)
@@ -35,10 +35,18 @@ export default function ReplayPanel() {
     fetchSummary()
       .then(list => {
         setSummaries(list)
-        if (list.length > 0) setRoundNo(list[0].round)
+        if (list.length > 0) {
+          const initialRound = requestedRound !== undefined && list.some(s => s.round === requestedRound) ? requestedRound : list[0].round
+          setRoundNo(initialRound)
+        }
       })
       .catch(e => setSummaryError(e.message))
-  }, [])
+  }, [requestedRound])
+
+  const changeRound = (round: number) => {
+    setRoundNo(round)
+    onRoundChange(round)
+  }
 
   // 当前回合之前（含）最近一个检查点回合号，作为描述基准
   const baseCheckpointRound = useMemo(() => {
@@ -115,7 +123,7 @@ export default function ReplayPanel() {
       setPlaying(false)
       return
     }
-    const timer = setTimeout(() => setRoundNo(n => n + 1), speed)
+    const timer = setTimeout(() => changeRound(roundNo + 1), speed)
     return () => clearTimeout(timer)
   }, [playing, roundNo, speed, totalRounds])
 
@@ -129,14 +137,14 @@ export default function ReplayPanel() {
       {/* 工具栏 */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-100 bg-white p-3 shadow-sm">
         <button
-          onClick={() => setRoundNo(1)}
+          onClick={() => changeRound(1)}
           disabled={roundNo <= 1}
           className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-40"
         >
           ⏮ 最早
         </button>
         <button
-          onClick={() => setRoundNo(n => Math.max(1, n - 1))}
+          onClick={() => changeRound(Math.max(1, roundNo - 1))}
           disabled={roundNo <= 1}
           className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-40"
         >
@@ -148,20 +156,20 @@ export default function ReplayPanel() {
             min={1}
             max={totalRounds}
             value={roundNo}
-            onChange={e => setRoundNo(Math.min(totalRounds, Math.max(1, Number(e.target.value) || 1)))}
+            onChange={e => changeRound(Math.min(totalRounds, Math.max(1, Number(e.target.value) || 1)))}
             className="w-24 rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-center text-sm tabular-nums text-slate-700 outline-none focus:border-rose-400"
           />
           <span className="text-sm text-slate-400">/ {fmt(totalRounds)}</span>
         </div>
         <button
-          onClick={() => setRoundNo(n => Math.min(totalRounds, n + 1))}
+          onClick={() => changeRound(Math.min(totalRounds, roundNo + 1))}
           disabled={roundNo >= totalRounds}
           className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-40"
         >
           下一回合 ▶
         </button>
         <button
-          onClick={() => setRoundNo(totalRounds)}
+          onClick={() => changeRound(totalRounds)}
           disabled={roundNo >= totalRounds}
           className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-40"
         >
