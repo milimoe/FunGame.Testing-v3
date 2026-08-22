@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -22,8 +23,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _sourceCharacter = sourceCharacter;
         }
 
-        public override void OnTurnStart(Character character, List<Character> enemys, List<Character> teammates, List<Skill> skills, List<Item> items)
+        public override void OnTurnStart(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (GamingQueue is null)
             {
                 return;
@@ -34,12 +36,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
                 WriteLine($"[ {character} ] 受到了{nameof(时雨标记)}的影响，陷入了混乱！！！");
                 Effect e = new 混乱(Skill, character, false, 0, 1);
                 character.Effects.Add(e);
-                e.OnEffectGained(character);
+                e.OnEffectGained(new HookContext(GamingQueue, character));
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character) return 0;
+            if (ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
             if (GamingQueue is null)
             {
                 return 0;

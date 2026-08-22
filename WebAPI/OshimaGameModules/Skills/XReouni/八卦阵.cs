@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -36,8 +37,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 奇数伤害提升 { get; set; } = 0.3;
         public double 奇数伤害减少 { get; set; } = 0.15;
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             double bonus = 0;
             if (character != Skill.Character && enemy != Skill.Character)
             {
@@ -106,7 +113,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         RemainDurationTurn = 1
                     };
                     Skill.Character.Effects.Add(e);
-                    e.OnEffectGained(Skill.Character);
+                    e.OnEffectGained(new HookContext(GamingQueue, Skill.Character));
                     WriteLine($"[ {Skill.Character} ] 发动了八卦阵！该回合提升 {奇数平衡性提升 * 100:0.##}% 暴击率和闪避率、{奇数平衡性提升 * 100:0.##}% 魔法抗性！");
                 }
                 if (!奇数效果)
@@ -117,8 +124,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return bonus;
         }
 
-        public override void OnTurnEnd(Character character)
+        public override void OnTurnEnd(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             回合投掷出奇数 = false;
         }
     }

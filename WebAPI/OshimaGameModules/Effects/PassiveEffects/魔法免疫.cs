@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -32,8 +33,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _durationTurn = durationTurn;
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -45,13 +47,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             AddImmuneTypesToCharacter(character, [ImmuneType.Magical]);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             RemoveImmuneTypesFromCharacter(character);
         }
 
-        public override bool OnImmuneCheck(Character character, Character target, ISkill skill, Item? item = null)
+        public override bool OnImmuneCheck(ImmuneContext ctx)
         {
+            if (ctx.Actor is not Character character) return true;
+            Character? target = ctx.Target;
             if (character == target)
             {
                 return false;

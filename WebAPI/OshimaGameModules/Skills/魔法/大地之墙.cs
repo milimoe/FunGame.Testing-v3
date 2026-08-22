@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
@@ -101,8 +102,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private List<Character> _targets = [];
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             if (!character.Effects.Any(e => e is 物理护盾 && e.ParentEffect == this))
             {
                 if (character.Effects.FirstOrDefault(e => e is 施加持续性弱驱散 && e.ParentEffect == this) is 施加持续性弱驱散 e)
@@ -116,8 +119,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             _targets = targets;
             foreach (Character target in targets)
             {

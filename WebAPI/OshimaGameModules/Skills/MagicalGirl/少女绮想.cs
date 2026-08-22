@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -32,8 +33,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 累计伤害 = 0;
         private double 下一次提升 = 7;
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if ((damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && character == Skill.Character)
             {
                 double 实际伤害提升 = damage * 累计伤害;
@@ -44,16 +52,25 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if ((damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && enemy == Skill.Character && actualDamage > 0 && !enemy.Effects.Where(e => e is 绝对领域特效 && e.Skill.Character == character).Any())
             {
                 累计伤害 = 0;
             }
         }
 
-        public override void OnTimeElapsed(Character character, double eapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double eapsed = ctx.Elapsed;
             if (GamingQueue != null)
             {
                 下一次提升 -= eapsed;

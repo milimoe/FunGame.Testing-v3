@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -32,7 +33,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private bool 激活 = false;
 
-        public override void OnGameStart()
+        public override void OnGameStart(HookContext ctx)
         {
             if (!激活)
             {
@@ -41,16 +42,25 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             if (激活)
             {
                 发送他们标记();
             }
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character != Skill.Character || GamingQueue is null || damageType != DamageType.Magical || (damageResult != DamageResult.Normal && damageResult != DamageResult.Critical))
             {
                 return;
@@ -83,7 +93,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 {
                     Effect e = new 长期监视(Skill, Skill.Character, character);
                     character.Effects.Add(e);
-                    e.OnEffectGained(character);
+                    e.OnEffectGained(new HookContext(GamingQueue, character));
                 }
             }
         }

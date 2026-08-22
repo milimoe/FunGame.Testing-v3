@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.Tests;
 
@@ -41,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private bool 激活 = false;
 
-        public override void OnGameStart()
+        public override void OnGameStart(HookContext ctx)
         {
             if (!激活)
             {
@@ -53,8 +54,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
+            bool hasMaster = ctx.HasMaster;
+            Character? killer = ctx.Killer;
+            Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
+            Dictionary<Character, int> earnedMoney = ctx.EarnedMoney;
+            Character[] assists = ctx.Assists;
             if (death is 雇佣兵 gyb)
             {
                 WriteLine($"[ {killer} ] 杀死了 [ {death} ]！");
@@ -73,7 +80,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
             if (death == Skill.Character)
             {
-                OnEffectLost(death);
+                OnEffectLost(new HookContext(GamingQueue, death));
             }
 
             if (Skill.Character != null && death != Skill.Character && (killer == Skill.Character || assists.Contains(Skill.Character)) && 雇佣兵团.Count < 最大数量)
@@ -82,8 +89,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             if (character == Skill.Character)
             {
                 保底补充(character);
@@ -102,8 +111,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (GamingQueue != null)
             {
                 if (GamingQueue is FunGame.Core.Model.Queue.GamingQueue queue)

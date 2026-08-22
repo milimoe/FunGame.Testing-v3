@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -38,8 +39,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 实际物理伤害减免 = 0;
         private double 实际魔法抗性 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.NormalAttack.SetMagicType(new(this, true, MagicType.None, 999), GamingQueue);
             实际物理伤害减免 = 物理伤害减免;
             实际魔法抗性 = 魔法抗性;
@@ -48,8 +50,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             WriteLine($"[ {character} ] 提升了 {实际物理伤害减免 * 100:0.##}% 物理伤害减免，{实际魔法抗性 * 100:0.##}% 魔法抗性！！");
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.NormalAttack.UnsetMagicType(this, GamingQueue);
             character.ExPDR -= 实际物理伤害减免;
             character.MDF[character.MagicType] -= 实际魔法抗性;
@@ -57,8 +60,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             实际魔法抗性 = 0;
         }
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character && isNormalAttack)
             {
                 WriteLine($"[ {character} ] 发动了宿命时律！伤害提升了 {智力加成:0.##} 点！");
@@ -67,18 +76,23 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(Character character, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            baseHardnessTime *= 0.3;
+            if (ctx.Actor is not Character character) return;
+            ctx.BaseHardnessTime *= 0.3;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             RemainDuration = Duration;
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.DamageBoost, EffectType.Haste, EffectType.DefenseBoost);
         }

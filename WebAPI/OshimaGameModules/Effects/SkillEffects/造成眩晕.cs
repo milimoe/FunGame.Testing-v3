@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -31,8 +32,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             _levelGrowth = levelGrowth;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character enemy in targets)
             {
                 if (enemy.HP <= 0) continue;
@@ -41,7 +44,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 {
                     WriteLine($"[ {caster} ] 眩晕了 [ {enemy} ] ！持续时间：{眩晕时间}！");
                     enemy.Effects.Add(e);
-                    e.OnEffectGained(enemy);
+                    e.OnEffectGained(new HookContext(GamingQueue, enemy));
                     GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }

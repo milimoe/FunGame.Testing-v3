@@ -43,6 +43,8 @@ export interface ActionRecord {
   DecisionPointsCost: number
   Targets: CharacterRef[]
   Damages: Record<string, number>
+  // 按伤害类型分桶的伤害值（角色 Guid -> 伤害类型 -> 伤害值；旧档无此字段）
+  DamageDetails?: Record<string, Record<number, number>>
   IsCritical: Record<string, boolean>
   IsEvaded: Record<string, boolean>
   IsImmune: Record<string, boolean>
@@ -62,6 +64,8 @@ export interface RoundRecord {
   Actor: CharacterRef | null
   Targets: Record<string, CharacterRef[]>
   Damages: Record<string, number>
+  // 按伤害类型分桶的伤害值（角色 Guid -> 伤害类型 -> 伤害值；旧档无此字段）
+  DamageDetails?: Record<string, Record<number, number>>
   IsCritical: Record<string, boolean>
   IsEvaded: Record<string, boolean>
   IsImmune: Record<string, boolean>

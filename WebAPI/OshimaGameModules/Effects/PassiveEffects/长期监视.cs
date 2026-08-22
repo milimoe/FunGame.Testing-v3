@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -29,23 +30,27 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
         public CharacterActionType LastType { get; set; } = CharacterActionType.None;
         public Skill? LastSkill { get; set; } = null;
 
-        public override void OnCharacterActionStart(Character actor, DecisionPoints dp, CharacterActionType type)
+        public override void OnCharacterActionStart(ActionContext ctx)
         {
+            CharacterActionType type = ctx.ActionType;
             if (type == CharacterActionType.NormalAttack)
             {
                 LastType = type;
             }
         }
 
-        public override bool BeforeSkillCasted(Character caster, Skill skill, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override bool BeforeSkillCastedOnStatus(SkillCastContext ctx)
         {
             LastType = CharacterActionType.CastSkill;
-            LastSkill = skill;
+            LastSkill = ctx.Skill;
             return true;
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
+            bool hasMaster = ctx.HasMaster;
+            Character? killer = ctx.Killer;
             if (GamingQueue != null && !hasMaster && killer != null && killer == _targetCharacter && Source != null && death != Source && GamingQueue.Queue.Contains(Source))
             {
                 WriteLine($"[ {Source} ] 正在观察 [ {killer} ] 的情绪。");
@@ -62,7 +67,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
                         DurationTurn = 3,
                         RemainDurationTurn = 3
                     };
-                    e.OnEffectGained(Source);
+                    e.OnEffectGained(new HookContext(GamingQueue, Source));
                     Source.Effects.Add(e);
                     WriteLine($"[ {Source} ] 获得了无视闪避效果，持续 3 回合！");
                 }
@@ -80,7 +85,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
                     e.CopiedSkill.FreeCostMP = true;
                     e.CopiedSkill.Enable = true;
                     e.CopiedSkill.IsInEffect = false;
-                    e.OnEffectGained(Source);
+                    e.OnEffectGained(new HookContext(GamingQueue, Source));
                     Source.Effects.Add(e);
                     WriteLine($"[ {Source} ] 复制了 [ {killer} ] 的技能：{LastSkill.Name}！！");
                 }
@@ -96,7 +101,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
                         DurationTurn = 3,
                         RemainDurationTurn = 3
                     };
-                    e2.OnEffectGained(killer);
+                    e2.OnEffectGained(new HookContext(GamingQueue, killer));
                     killer.Effects.Add(e2);
                     WriteLine($"[ {Source} ] 给予了 [ {killer} ] 时雨标记！");
                 }

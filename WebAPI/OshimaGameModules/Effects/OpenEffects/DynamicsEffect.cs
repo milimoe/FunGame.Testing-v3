@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 {
@@ -11,8 +12,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
         public HashSet<string> Descriptions { get; } = [];
         public Dictionary<string, double> RealDynamicsValues { get; } = [];
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (Durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -24,16 +26,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
             Resolve(character);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             Resolve(character, true);
         }
 
-        public override void OnAttributeChanged(Character character)
+        public override void OnAttributeChanged(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             // 刷新加成
-            OnEffectLost(character);
-            OnEffectGained(character);
+            OnEffectLost(new HookContext(GamingQueue, character));
+            OnEffectGained(new HookContext(GamingQueue, character));
         }
 
         private void Resolve(Character character, bool remove = false)

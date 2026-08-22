@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
@@ -53,25 +54,31 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override void AlterSelectListBeforeSelection(Character character, ISkill skill, List<Character> allEnemys, List<Character> allTeammates, List<Character> enemys, List<Character> teammates)
+        public override void AlterSelectListBeforeSelection(SelectionContext ctx)
         {
+            ISkill? skill = ctx.Skill;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
             if (skill is NormalAttack)
             {
                 enemys.AddRange(teammates);
             }
         }
 
-        public override bool BeforeCriticalCheck(Character actor, Character enemy, bool isNormalAttack, ref double throwingBonus)
+        public override bool BeforeCriticalCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor) return true;
+            bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == _targetCharacter && isNormalAttack)
             {
-                throwingBonus += 300;
+                ctx.ThrowingBonus += 300;
             }
             return true;
         }
 
-        public override bool BeforeEvadeCheck(Character actor, Character enemy, ref double throwingBonus)
+        public override bool BeforeEvadeCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor) return true;
             if (actor == _targetCharacter)
             {
                 return false;
@@ -79,8 +86,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return true;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            if (ctx.Enemy is not Character enemy) return;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == _targetCharacter && isNormalAttack && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 if (GamingQueue != null && GamingQueue.IsTeammate(character, enemy))
@@ -90,8 +101,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
             if (death == _targetCharacter)
             {
                 death.Effects.Remove(this);
@@ -102,8 +114,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (!已完成普攻任务 || !已完成指向性技能任务)
             {
                 放监.造成伤害(character, !已完成普攻任务 && !已完成指向性技能任务 ? 2 : 1);

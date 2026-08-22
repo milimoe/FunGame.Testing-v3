@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -39,8 +40,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private bool 本回合可附赠动作 = true;
         private readonly int 额外攻击次数 = 2;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             实际比例 = 减伤比例;
             character.NormalAttack.SetMagicType(new(this, true, MagicType.None, 999), GamingQueue);
             if (character.Effects.Where(e => e is 蚀魂震击特效 && e.Skill.Character == character).FirstOrDefault() is 蚀魂震击特效 e)
@@ -50,8 +52,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             实际比例 = 0;
             character.NormalAttack.UnsetMagicType(this, GamingQueue);
             if (character.Effects.Where(e => e is 蚀魂震击特效 && e.Skill.Character == character).FirstOrDefault() is 蚀魂震击特效 e)
@@ -60,14 +63,22 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnTurnStart(Character character, List<Character> enemys, List<Character> teammates, List<Skill> skills, List<Item> items)
+        public override void OnTurnStart(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
+            List<Skill> skills = ctx.Skills;
+            List<Item> items = ctx.Items;
             本回合已攻击的目标.Clear();
             本回合可附赠动作 = true;
         }
 
-        public override void AfterCharacterNormalAttack(Character character, NormalAttack normalAttack, List<Character> targets)
+        public override void AfterCharacterNormalAttack(NormalAttackContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            NormalAttack? normalAttack = ctx.NormalAttack;
+            List<Character> targets = ctx.Targets;
             本回合已攻击的目标.AddRange(targets);
             if (本回合可附赠动作 && GamingQueue != null && GamingQueue.CharacterDecisionPoints.TryGetValue(character, out DecisionPoints? dp) && dp != null)
             {
@@ -77,16 +88,29 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AlterSelectListBeforeSelection(Character character, ISkill skill, List<Character> allEnemys, List<Character> allTeammates, List<Character> enemys, List<Character> teammates)
+        public override void AlterSelectListBeforeSelection(SelectionContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            ISkill? skill = ctx.Skill;
+            List<Character> allEnemys = ctx.AllEnemys;
+            List<Character> allTeammates = ctx.AllTeammates;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
             if (skill is NormalAttack && !本回合可附赠动作)
             {
                 enemys.RemoveAll(本回合已攻击的目标.Contains);
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (enemy == Skill.Character)
             {
                 return -(damage * 实际比例);
@@ -94,13 +118,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             RemainDuration = Duration;
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.DefenseBoost);
         }

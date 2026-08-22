@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -49,8 +50,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private double 实际力量提升 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             实际力量提升 = 力量提升;
             character.ExSTR += 实际力量提升;
             if (character.Effects.Where(e => e is 深海之戟特效 && e.Skill.Character == character).FirstOrDefault() is 深海之戟特效 e)
@@ -59,8 +61,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExSTR -= 实际力量提升;
             if (character.Effects.Where(e => e is 深海之戟特效 && e.Skill.Character == character).FirstOrDefault() is 深海之戟特效 e)
             {
@@ -68,8 +71,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (enemy == Skill.Character)
             {
                 if (!敌人伤害统计.TryAdd(character, actualDamage))
@@ -84,14 +94,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             实际力量提升 = 0;
             RemainDuration = Duration;
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             foreach (Character target in targets)
             {
@@ -107,7 +121,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     RemainDuration = Duration
                 };
                 target.Effects.Add(e);
-                e.OnEffectGained(target);
+                e.OnEffectGained(new HookContext(GamingQueue, target));
                 AddEffectTypeToCharacter(target, [e.EffectType]);
             }
             RecordCharacterApplyEffects(caster, EffectType.DamageBoost);

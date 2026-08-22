@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -34,18 +35,19 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _hardnessReductionPercent = healingReductionPercent;
         }
 
-        public override void AlterHardnessTimeAfterCastSkill(Character character, Skill skill, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
         {
-            baseHardnessTime *= 1 + _hardnessReductionPercent;
+            ctx.BaseHardnessTime *= 1 + _hardnessReductionPercent;
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(Character character, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            baseHardnessTime *= 1 + _hardnessReductionPercent;
+            ctx.BaseHardnessTime *= 1 + _hardnessReductionPercent;
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -57,8 +59,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             AddEffectTypeToCharacter(character, [EffectType.Slow]);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             RemoveEffectTypesFromCharacter(character);
         }
 

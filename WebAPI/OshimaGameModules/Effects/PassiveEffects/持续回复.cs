@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -50,8 +51,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return heal * elapsed;
         }
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             if (character == _targetCharacter && character.HP > 0)
             {
                 double hp = character.HP;
@@ -77,8 +80,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -90,8 +94,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             AddEffectTypeToCharacter(character, [EffectType.HealOverTime]);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             RemoveEffectTypesFromCharacter(character);
         }
     }

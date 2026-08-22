@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -39,8 +40,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override bool DurativeWithoutDuration => true;
         public override DispelledType DispelledType => DispelledType.CannotBeDispelled;
 
-        public override bool BeforeSkillCasted(Character caster, Skill skill, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override bool BeforeSkillCastedOnStatus(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster || ctx.Skill is not Skill skill) return true;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             if (Skill.Character != null && caster.Effects.FirstOrDefault(e => e is 宫监手标记 && e.Source == Source) is 宫监手标记 effect)
             {
                 WriteLine($"[ {Skill.Character} ] 高声呼喊：“宫监手，放监！”");
@@ -56,7 +61,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 e.CopiedSkill.FreeCostMP = true;
                 e.CopiedSkill.Enable = true;
                 e.CopiedSkill.IsInEffect = false;
-                e.OnEffectGained(Skill.Character);
+                e.OnEffectGained(new HookContext(GamingQueue, Skill.Character));
                 Skill.Character.Effects.Add(e);
                 WriteLine($"[ {Skill.Character} ] 复制了 [ {caster} ] 的技能：{skill.Name}！！");
                 effect.指向性技能任务完成(caster);
@@ -93,8 +98,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             if (GamingQueue != null)
             {
                 List<Character> enemies = GamingQueue.GetEnemies(caster);
@@ -113,7 +122,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                                 RemainDurationTurn = 3
                             };
                             character.Effects.Add(e2);
-                            e2.OnEffectGained(character);
+                            e2.OnEffectGained(new HookContext(GamingQueue, character));
                         }
                     }
                 }

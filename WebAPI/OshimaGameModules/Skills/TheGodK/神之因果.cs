@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -38,38 +39,57 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 因果伤害值 { get; set; } = 0;
         public double 系数 => 1 + 0.2 * (Skill.Level - 1);
 
-        public override bool OnExemptionCheck(Character character, Character? source, Effect effect, bool isEvade, ref double throwingBonus)
+        public override bool OnExemptionCheck(ImmuneContext ctx)
         {
+            if (ctx.Actor is not Character character) return true;
+            Character? source = ctx.Source;
+            Effect? effect = ctx.Effect;
+            bool isEvade = ctx.IsEvade;
             if (character == Skill.Character)
             {
-                throwingBonus += 300;
+                ctx.ThrowingBonus += 300;
             }
             return true;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 因果伤害值 += actualDamage;
             }
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
+            bool hasMaster = ctx.HasMaster;
+            Character? killer = ctx.Killer;
+            Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
+            Dictionary<Character, int> earnedMoney = ctx.EarnedMoney;
+            Character[] assists = ctx.Assists;
             if (death == Skill.Character)
             {
                 因果伤害值 = 0;
             }
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             因果伤害值 = 0;
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (GamingQueue != null && 因果伤害值 > 0)
             {
                 WriteLine($"[ {character} ] 发动了神之因果！万象因果，命运既定！！！");
@@ -88,13 +108,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             RemainDurationTurn = DurationTurn;
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.Focusing);
         }

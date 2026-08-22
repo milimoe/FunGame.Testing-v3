@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
@@ -26,8 +27,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             MagicType = magicType;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character enemy in targets)
             {
                 DamageToEnemy(caster, enemy, DamageType, MagicType, Damage);

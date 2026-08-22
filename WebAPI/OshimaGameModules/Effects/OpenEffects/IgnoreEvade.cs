@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 {
@@ -12,11 +13,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         private readonly double 概率 = 0;
 
-        public override bool BeforeEvadeCheck(Character actor, Character enemy, ref double throwingBonus)
+        public override bool BeforeEvadeCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor) return true;
             if (actor == Skill.Character && Random.Shared.NextDouble() < 概率)
             {
-                if (GamingQueue != null) WriteLine($"[ {actor} ] 的普通攻击无视了 [ {enemy} ] 的闪避！");
+                if (GamingQueue != null) WriteLine($"[ {actor} ] 的普通攻击无视了 [ {ctx.Enemy} ] 的闪避！");
                 return false;
             }
             return true;

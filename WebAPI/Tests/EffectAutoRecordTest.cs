@@ -1,4 +1,5 @@
 using FunGame.Core.Entity;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Queue;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.OshimaGameModules.Characters;
@@ -207,7 +208,7 @@ namespace Milimoe.FunGameTesting.Tests
     /// </summary>
     public class OnlyOnTurnStartEffect : Effect
     {
-        public override void OnTurnStart(Character character, List<Character> enemys, List<Character> teammates, List<Skill> skills, List<Item> items)
+        public override void OnTurnStart(TurnContext ctx)
         {
         }
     }

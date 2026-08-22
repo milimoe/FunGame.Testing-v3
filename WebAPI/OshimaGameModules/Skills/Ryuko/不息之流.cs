@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -30,8 +31,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 回复系数 { get; set; } = 0.01;
         public double 能量获取 { get; set; } = 1;
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             if (character.CharacterState == CharacterState.Actionable || character.CharacterState == CharacterState.Casting || character.CharacterState == CharacterState.PreCastSuperSkill)
             {
                 character.HP += (Skill.Character?.MaxHP ?? 0) * 回复系数 * elapsed;

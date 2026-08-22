@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.PrefabricatedEntity;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
@@ -70,8 +71,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             foreach (Character target in targets)
             {
                 DamageCalculationOptions options = new(caster);
@@ -85,10 +90,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     };
                     if (e.EffectType == EffectType.Freeze)
                     {
-                        e.OnSkillCasted(caster, [target], grids, others);
+                        e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target], Grids = grids, Others = others });
                         e = new 施加概率负面(Skill, EffectType.Vulnerable, false, 0, DurationTurn, 0, 1, 0, DamageType.Magical, 0.3);
                     }
-                    e.OnSkillCasted(caster, [target], grids, others);
+                    e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target], Grids = grids, Others = others });
                 }
             }
         }

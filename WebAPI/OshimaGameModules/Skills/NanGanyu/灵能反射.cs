@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -32,8 +33,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public int 释放次数 { get; set; } = 0;
         public double 获得额外能量值 => 0.08 * Skill.Character?.INT ?? 0;
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == Skill.Character && (是否支持普攻 && isNormalAttack || damageType == DamageType.Magical) && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && character.EP < 200)
             {
                 double 实际获得能量值 = 获得额外能量值;
@@ -58,19 +66,29 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(Character character, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (是否支持普攻)
             {
+                double baseHardnessTime = ctx.BaseHardnessTime;
+                bool isCheckProtected = ctx.IsCheckProtected;
                 AlterHardnessTime(character, ref baseHardnessTime, ref isCheckProtected);
+                ctx.BaseHardnessTime = baseHardnessTime;
+                ctx.IsCheckProtected = isCheckProtected;
             }
         }
 
-        public override void AlterHardnessTimeAfterCastSkill(Character character, Skill skill, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
         {
-            if (skill.SkillType == SkillType.Magic)
+            if (ctx.Actor is not Character character) return;
+            if (ctx.Skill is Skill skill && skill.SkillType == SkillType.Magic)
             {
+                double baseHardnessTime = ctx.BaseHardnessTime;
+                bool isCheckProtected = ctx.IsCheckProtected;
                 AlterHardnessTime(character, ref baseHardnessTime, ref isCheckProtected);
+                ctx.BaseHardnessTime = baseHardnessTime;
+                ctx.IsCheckProtected = isCheckProtected;
             }
         }
 
@@ -106,7 +124,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     if (e.剩余持续次数 == 0)
                     {
                         character.Effects.Remove(e);
-                        e.OnEffectLost(character);
+                        e.OnEffectLost(new HookContext(GamingQueue, character));
                     }
                 }
             }

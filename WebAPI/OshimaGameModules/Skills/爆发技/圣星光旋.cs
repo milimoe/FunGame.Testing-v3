@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.PrefabricatedEntity;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
@@ -38,8 +39,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double Damage => GeneralDamage + PADamage;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             List<Character> valid = [];
             foreach (Character target in targets)
             {
@@ -53,7 +58,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
             }
             Effect e = new 造成眩晕(Skill);
-            e.OnSkillCasted(caster, valid, grids, others);
+            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = valid, Grids = grids, Others = others });
         }
     }
 }

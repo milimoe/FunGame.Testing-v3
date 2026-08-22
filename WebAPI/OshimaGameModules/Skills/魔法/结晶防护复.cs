@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -69,8 +70,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             _levelGrowth = levelGrowth;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             foreach (Character target in targets)
             {
                 WriteLine($"[ {target} ] 的物理护甲提升了 {ExDEF * 100:0.##}%，魔法抗性提升了 {ExMDF * 100:0.##}%！持续时间：{持续时间}！");
@@ -93,7 +98,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
                 e.EffectType = EffectType.DefenseBoost;
                 e.Source = caster;
-                e.OnEffectGained(target);
+                e.OnEffectGained(new HookContext(GamingQueue, target));
                 ExMDF e2 = new(Skill, new()
                 {
                     { "mdftype", 0 },
@@ -114,7 +119,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
                 e2.EffectType = EffectType.DefenseBoost;
                 e2.Source = caster;
-                e2.OnEffectGained(target);
+                e2.OnEffectGained(new HookContext(GamingQueue, target));
                 GamingQueue?.AddApplyEffects(target, EffectType.DefenseBoost);
             }
         }

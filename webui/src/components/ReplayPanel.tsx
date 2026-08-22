@@ -8,6 +8,7 @@ import {
   buildCheckpointDescMaps,
   charIndex,
   charName,
+  damageTypeName,
   effectTypeName,
   fmt,
   fmtTime,
@@ -296,7 +297,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
           <CharChip char={action.Actor} size="sm" />
           <span className="text-xs text-slate-400">{actionTypeName(action.ActionType)}</span>
           <span className="font-semibold text-slate-800">{name}</span>
-          {action.Skill && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
+          {action.Skill?.Name && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
           {action.IsSuccess === false && <Badge tone="red">失败</Badge>}
         </div>
 
@@ -335,13 +336,23 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
                   {charName(target)} <span className="text-slate-400">免疫了伤害</span> 🛡️
                 </div>
               )
-            return (
-              <div key={guid} className="text-xs">
+            // 按伤害类型拆行显示（同一角色受到多类型伤害时各占一行）；旧档无 DamageDetails 时回退为单行总计
+            const typeEntries = Object.entries(action.DamageDetails?.[guid] ?? {})
+              .map(([t, v]) => ({ type: Number(t), value: v }))
+              .sort((a, b) => b.value - a.value)
+            const lines = typeEntries.length > 0 ? typeEntries : [{ type: -1, value: dmg }]
+            return lines.map((line, i) => (
+              <div key={`${guid}-${line.type}`} className="text-xs">
                 <span className="text-slate-500">{charName(target)}</span>{' '}
-                <span className="font-bold text-red-500">-{fmt(dmg, 1)}</span>
-                {crit && <span className="ml-1 text-amber-600">⚡ 暴击</span>}
+                <span className="font-bold text-red-500">-{fmt(line.value, 1)}</span>
+                {line.type >= 0 && (
+                  <span className="ml-1">
+                    <Badge tone={line.type === 1 ? 'indigo' : line.type === 2 ? 'cyan' : 'amber'}>{damageTypeName(line.type)}</Badge>
+                  </span>
+                )}
+                {crit && i === 0 && <span className="ml-1 text-amber-600">⚡ 暴击</span>}
               </div>
-            )
+            ))
           })}
           {heals.map(([guid, heal]) => (
             <div key={guid} className="text-xs">

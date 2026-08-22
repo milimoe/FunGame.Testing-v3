@@ -2,9 +2,9 @@ using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Model.Framework;
 using FunGame.Testing.WebAPI.Services;
+using Microsoft.Extensions.FileProviders;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.Tests;
-using Microsoft.Extensions.FileProviders;
 
 // ============ 初始化游戏模块（与 Testing-v3 的 Program.cs Main 一致，进程内直接调用模拟类） ============
 CharacterModule characterModule = new();

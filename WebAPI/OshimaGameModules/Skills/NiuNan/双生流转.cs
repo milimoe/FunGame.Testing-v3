@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -33,13 +34,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private readonly double 实际增加魔法抗性 = 0.15;
         private bool 已经加过 = false;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             ResetEffect(character, true);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             ResetEffect(character, false);
         }
 
@@ -67,22 +70,27 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override bool BeforeCriticalCheck(Character actor, Character enemy, bool isNormalAttack, ref double throwingBonus)
+        public override bool BeforeCriticalCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor || ctx.Enemy is not Character enemy) return true;
+            bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
-                throwingBonus += 200;
+                ctx.ThrowingBonus += 200;
             }
             return true;
         }
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             Changed(character);
         }
 
-        public override void OnAttributeChanged(Character character)
+        public override void OnAttributeChanged(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             Changed(character);
         }
 

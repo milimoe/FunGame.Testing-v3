@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -38,8 +39,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             };
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 if (target.HP <= 0) continue;
@@ -52,7 +55,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                             物理免疫 e = new(Skill, caster, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
                             _dispelledType = DispelledType.Weak;
                             target.Effects.Add(e);
-                            e.OnEffectGained(target);
+                            e.OnEffectGained(new HookContext(GamingQueue, target));
                             break;
                         }
                     case ImmuneType.Magical:
@@ -61,7 +64,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                             魔法免疫 e = new(Skill, caster, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
                             _dispelledType = DispelledType.Weak;
                             target.Effects.Add(e);
-                            e.OnEffectGained(target);
+                            e.OnEffectGained(new HookContext(GamingQueue, target));
                             break;
                         }
                     case ImmuneType.Skilled:
@@ -70,7 +73,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                             技能免疫 e = new(Skill, caster, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
                             _dispelledType = DispelledType.Weak;
                             target.Effects.Add(e);
-                            e.OnEffectGained(target);
+                            e.OnEffectGained(new HookContext(GamingQueue, target));
                             break;
                         }
                     case ImmuneType.All:
@@ -79,7 +82,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                             完全免疫 e = new(Skill, caster, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
                             _dispelledType = DispelledType.Strong;
                             target.Effects.Add(e);
-                            e.OnEffectGained(target);
+                            e.OnEffectGained(new HookContext(GamingQueue, target));
                             break;
                         }
                 }

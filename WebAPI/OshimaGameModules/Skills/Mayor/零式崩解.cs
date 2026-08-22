@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -27,13 +28,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Name => Skill.Name;
         public override string Description => $"{Skill.SkillOwner()}的零式剑法能够轻松命中敌人弱点。{Skill.SkillOwner()}的暴击伤害提升 70%。";
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExCritDMG += 0.7;
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExCritDMG -= 0.7;
         }
     }

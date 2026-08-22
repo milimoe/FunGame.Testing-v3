@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.PrefabricatedEntity;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
@@ -124,8 +125,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private string 虚弱时间 => Durative && Duration > 0 ? $"{实际虚弱时间:0.##} {GameplayEquilibriumConstant.InGameTime}" : (!Durative && DurationTurn > 0 ? 实际虚弱时间 + " 回合" : $"0 {GameplayEquilibriumConstant.InGameTime}");
         private double 实际虚弱时间 => Durative && Duration > 0 ? Duration + DurationLevelGrowth * (Level - 1) : (!Durative && DurationTurn > 0 ? DurationTurn + DurationLevelGrowth * (Level - 1) : 0);
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             List<Character> valid = [];
             foreach (Character target in targets)
             {
@@ -136,7 +141,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
             }
             造成虚弱 e = new(Skill, Durative, Duration, DurationTurn, DurationLevelGrowth, DamageReductionPercent, DEFReductionPercent, MDFReductionPercent, HealingReductionPercent);
-            e.OnSkillCasted(caster, valid, grids, others);
+            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = valid, Grids = grids, Others = others });
         }
     }
 }

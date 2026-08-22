@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -29,8 +30,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public HashSet<Character> 猎手标记 { get; set; } = [];
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character && 猎手标记.Contains(enemy))
             {
                 double 额外伤害 = damage * 0.4;
@@ -39,8 +46,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AlterSelectListBeforeSelection(Character character, ISkill skill, List<Character> allEnemys, List<Character> allTeammates, List<Character> enemys, List<Character> teammates)
+        public override void AlterSelectListBeforeSelection(SelectionContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Skill is not ISkill skill) return;
+            List<Character> allEnemys = ctx.AllEnemys;
+            List<Character> allTeammates = ctx.AllTeammates;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
             猎手标记.Clear();
             AddHalfOfMe([.. enemys.Where(e => e.HP > 0).OrderBy(e => e.HP / e.MaxHP)]);
             if (猎手标记.Count > 0)

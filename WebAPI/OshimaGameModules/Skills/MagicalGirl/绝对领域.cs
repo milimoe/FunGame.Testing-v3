@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -37,31 +38,44 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 实际敏捷提升 = 0;
         private double 释放时的能量值 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             实际敏捷提升 = 敏捷提升;
             character.ExAGI += 实际敏捷提升;
             WriteLine($"[ {character} ] 的敏捷提升了 {系数 * 100:0.##}% [ {实际敏捷提升:0.##} ] ！");
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExAGI -= 实际敏捷提升;
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (enemy == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 WriteLine($"[ {enemy} ] 发动了绝对领域，巧妙的化解了此伤害！");
-                isEvaded = true;
+                ctx.IsEvaded = true;
                 return 0;
             }
             return 0;
         }
 
-        public override bool BeforeApplyTrueDamage(Character character, Character enemy, double damage, bool isNormalAttack, DamageResult damageResult)
+        public override bool BeforeApplyTrueDamage(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return false;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageResult damageResult = ctx.DamageResult;
             if (enemy == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 WriteLine($"[ {enemy} ] 发动了绝对领域，巧妙的化解了此伤害！");
@@ -70,19 +84,26 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return false;
         }
 
-        public override void OnSkillCasting(Character caster, List<Character> targets, List<Grid> grids)
+        public override void OnSkillCasting(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
             释放时的能量值 = caster.EP;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             RemainDuration = Duration;
             if (!caster.Effects.Contains(this))
             {
                 实际敏捷提升 = 0;
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.Invulnerable);
         }

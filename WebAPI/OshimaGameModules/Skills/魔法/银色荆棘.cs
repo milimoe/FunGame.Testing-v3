@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -74,8 +75,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             _confusionProbabilityLevelGrowth = confusionProbabilityLevelGrowth;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             foreach (Character target in targets)
             {
                 DamageToEnemy(caster, target, DamageType.Magical, MagicType, Damage);
@@ -98,7 +103,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                             e.RemainDurationTurn = (int)实际持续时间;
                         }
                         target.Effects.Add(e);
-                        e.OnEffectGained(target);
+                        e.OnEffectGained(new HookContext(GamingQueue, target));
                         GamingQueue?.AddApplyEffects(target, e.EffectType);
                     }
                 }

@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -38,8 +39,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 冷却时间 => Skill.Character != null ? 24 + Skill.Character.Level * 0.1 : 24;
         private bool 冷却中 => Skill.CurrentCD > 0;
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (Skill.Character != null && Skill.Character == character && !冷却中 && isNormalAttack && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 WriteLine($"[ {character} ] 发动了致命节奏，提升了 {行动速度提升:0.##} 点行动速度！");
@@ -53,7 +61,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     Duration = 行动速度持续时间
                 };
                 character.Effects.Add(e1);
-                e1.OnEffectGained(character);
+                e1.OnEffectGained(new HookContext(GamingQueue, character));
                 e1.IsDebuff = false;
                 RecordCharacterApplyEffects(character, EffectType.Haste);
 
@@ -73,7 +81,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         Duration = 额外攻击力持续时间
                     };
                     character.Effects.Add(e2);
-                    e2.OnEffectGained(character);
+                    e2.OnEffectGained(new HookContext(GamingQueue, character));
                     e2.IsDebuff = false;
                     RecordCharacterApplyEffects(character, EffectType.DamageBoost);
                 }

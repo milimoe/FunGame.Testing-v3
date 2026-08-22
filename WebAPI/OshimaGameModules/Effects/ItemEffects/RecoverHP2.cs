@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -35,17 +36,21 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.ItemEffects
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 HealToTarget(caster, target, 回复比例 * (target?.MaxHP ?? 0), 能复活);
             }
         }
 
-        public override void OnSkillCasted(User user, List<Character> targets, Dictionary<string, object> others)
+        public override void OnSkillCastedOutside(SkillCastContext ctx)
         {
-            base.OnSkillCasted(user, targets, others);
+            if (ctx.User is not User user) return;
+            List<Character> targets = ctx.Targets;
+            base.OnSkillCastedOutside(ctx);
             foreach (Character target in targets)
             {
                 target.HP += 回复比例 * (target?.MaxHP ?? 0);

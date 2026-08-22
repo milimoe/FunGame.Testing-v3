@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -91,8 +92,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private int 当前吸血次数 = 0;
         private int 当前魔法加成次数 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (character.PrimaryAttribute == PrimaryAttribute.STR)
             {
                 当前吸血次数 = 吸血次数;
@@ -103,14 +105,21 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             当前吸血次数 = 0;
             当前魔法加成次数 = 0;
         }
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character && damageType == DamageType.Magical && 当前魔法加成次数 > 0)
             {
                 当前魔法加成次数--;
@@ -120,15 +129,22 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 if (当前魔法加成次数 == 0)
                 {
                     character.Effects.Remove(this);
-                    OnEffectLost(character);
+                    OnEffectLost(new HookContext(GamingQueue, character));
                 }
                 return 实际伤害提升;
             }
             return 0;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == Skill.Character && 当前吸血次数 > 0 && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && damage > 0)
             {
                 当前吸血次数--;
@@ -138,23 +154,27 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 if (当前吸血次数 == 0)
                 {
                     character.Effects.Remove(this);
-                    OnEffectLost(character);
+                    OnEffectLost(new HookContext(GamingQueue, character));
                 }
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             IEnumerable<Effect> effects = caster.Effects.Where(e => e is 双生流转特效 && e.Skill.Character == Skill.Character);
             if (effects.Any())
             {
                 if (caster.Effects.Contains(this))
                 {
                     caster.Effects.Remove(this);
-                    OnEffectLost(caster);
+                    OnEffectLost(new HookContext(GamingQueue, caster));
                 }
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
                 if (caster.PrimaryAttribute == PrimaryAttribute.STR)
                 {
                     double 回复的生命 = 生命值回复 * caster.MaxHP;

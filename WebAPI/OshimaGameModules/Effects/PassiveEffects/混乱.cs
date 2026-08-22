@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -33,8 +34,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _durationTurn = durationTurn;
         }
 
-        public override void AlterSelectListBeforeAction(Character character, List<Character> enemys, List<Character> teammates, List<Skill> skills, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney)
+        public override void AlterSelectListBeforeAction(SelectionContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
             // 为了确保角色能够混乱行动，这里需要将角色设置为可行动
             if (character.CharacterState == CharacterState.ActionRestricted)
             {
@@ -45,19 +49,22 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             teammates.AddRange(enemys);
         }
 
-        public override CharacterActionType AlterActionTypeBeforeAction(Character character, DecisionPoints dp, CharacterState state, ref bool canUseItem, ref bool canCastSkill, ref double pUseItem, ref double pCastSkill, ref double pNormalAttack, ref bool forceAction)
+        public override CharacterActionType AlterActionTypeBeforeAction(DecisionContext ctx)
         {
-            forceAction = true;
-            return FunGame.Core.Model.Queue.GamingQueue.GetActionType(dp, pUseItem, pCastSkill, pNormalAttack);
+            DecisionPoints dp = ctx.DP;
+            ctx.ForceAction = true;
+            return FunGame.Core.Model.Queue.GamingQueue.GetActionType(dp, ctx.PUseItem, ctx.PCastSkill, ctx.PNormalAttack);
         }
 
-        public override void OnTurnEnd(Character character)
+        public override void OnTurnEnd(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.UpdateCharacterState();
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -72,8 +79,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             InterruptCasting(character, Source);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             GamingQueue?.SetCharactersToAIControl(true, true, character);
             RemoveEffectStatesFromCharacter(character);
             RemoveEffectTypesFromCharacter(character);

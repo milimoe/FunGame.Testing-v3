@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 {
@@ -12,8 +13,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         private readonly double 实际加成 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (Durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -25,8 +27,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
             character.ExAccelerationCoefficient += 实际加成;
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExAccelerationCoefficient -= 实际加成;
         }
 

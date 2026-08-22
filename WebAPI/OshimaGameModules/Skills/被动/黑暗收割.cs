@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -44,8 +45,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private int 最多灵魂数量 => Skill.Character != null ? 10 + Skill.Character.Level / 10 * 5 : 10;
         private bool 触发标记 { get; set; } = false;
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (Skill is 黑暗收割 skill && character == Skill.Character && (enemy.HP / enemy.MaxHP) < 0.5)
             {
                 触发标记 = true;
@@ -54,8 +61,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (触发标记 && character == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && Skill is 黑暗收割 skill && skill.当前灵魂数量 < 最多灵魂数量)
             {
                 触发标记 = false;
@@ -64,8 +78,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
+            bool hasMaster = ctx.HasMaster;
+            Character? killer = ctx.Killer;
+            Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
+            Dictionary<Character, int> earnedMoney = ctx.EarnedMoney;
+            Character[] assists = ctx.Assists;
             if (death == Skill.Character && Skill is 黑暗收割 skill && skill.当前灵魂数量 > 0)
             {
                 int lost = skill.当前灵魂数量 / 2;
@@ -77,8 +97,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnTurnEnd(Character character)
+        public override void OnTurnEnd(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             触发标记 = false;
         }
     }

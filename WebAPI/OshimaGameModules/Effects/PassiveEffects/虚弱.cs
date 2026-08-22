@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -44,8 +45,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _healingReductionPercent = healingReductionPercent;
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character) return 0;
+            double damage = ctx.Damage;
             if (character == _targetCharacter)
             {
                 return -(damage * _damageReductionPercent);
@@ -53,8 +56,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return 0;
         }
 
-        public override double AlterHealValueBeforeHealToTarget(Character actor, Character target, double heal, ref bool canRespawn, Dictionary<Effect, double> totalHealBonus)
+        public override double AlterHealValueBeforeHealToTarget(HealContext ctx)
         {
+            if (ctx.Target is not Character target) return 0;
+            double heal = ctx.Heal;
             if (target == _targetCharacter)
             {
                 return -(heal * _healingReductionPercent);
@@ -62,8 +67,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return 0;
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -77,8 +83,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             AddEffectTypeToCharacter(character, [EffectType.Weaken, EffectType.GrievousWound]);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExDEFPercentage += _DEFReductionPercent;
             character.MDF[character.MagicType] += _MDFReductionPercent;
             RemoveEffectTypesFromCharacter(character);

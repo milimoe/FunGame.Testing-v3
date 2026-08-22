@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -67,8 +68,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Description = GeneralDescription;
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (enemy == Skill.Character && 实际受到伤害减少 > 0 && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 double reduce = damage * 实际受到伤害减少;
@@ -78,8 +86,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AfterDeathCalculation(Character death, bool hasMaster, Character? killer, Dictionary<Character, int> continuousKilling, Dictionary<Character, int> earnedMoney, Character[] assists)
+        public override void AfterDeathCalculation(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return;
+            bool hasMaster = ctx.HasMaster;
+            Character? killer = ctx.Killer;
+            Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
+            Dictionary<Character, int> earnedMoney = ctx.EarnedMoney;
+            Character[] assists = ctx.Assists;
             if (Skill.Character != null && death != Skill.Character && !hasMaster && (killer == Skill.Character || assists.Contains(Skill.Character)) && Skill is 概念之骰 skill)
             {
                 WriteLine($"[ {Skill.Character} ] 进行概念投掷：“此乃，神之概念。”");
@@ -135,13 +149,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             刷新技能效果(character);
         }
 
-        public override void OnTimeElapsed(Character character, double elapsed)
+        public override void OnTimeElapsed(TimeLapseContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            double elapsed = ctx.Elapsed;
             刷新技能效果(character);
             if (GamingQueue != null && GamingQueue.AssistDetails.TryGetValue(character, out AssistDetail? ad) && ad != null)
             {

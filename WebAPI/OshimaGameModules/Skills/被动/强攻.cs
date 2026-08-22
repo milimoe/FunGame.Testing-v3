@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -35,8 +36,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private int 目标连续攻击次数 = 0;
         private Character? 当前目标 = null;
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (Skill.Character != null && Skill.Character == character && isNormalAttack && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 if (当前目标 != enemy)
@@ -64,7 +72,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         {
             Effect e = new 易损(Skill, target, character, true, 易损持续时间, 0, 易损伤害提升百分比);
             target.Effects.Add(e);
-            e.OnEffectGained(target);
+            e.OnEffectGained(new HookContext(GamingQueue, target));
             RecordCharacterApplyEffects(target, EffectType.Vulnerable);
         }
     }

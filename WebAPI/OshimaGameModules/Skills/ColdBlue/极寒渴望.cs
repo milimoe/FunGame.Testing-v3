@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -34,8 +35,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private static double 吸血 => 0.2;
         private double 最大生命值伤害 => 0.015 * Level;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.Lifesteal += 吸血;
             if (character.Effects.Where(e => e is 累积之压特效 && e.Skill.Character == character).FirstOrDefault() is 累积之压特效 e)
             {
@@ -43,8 +45,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.Lifesteal -= 吸血;
             if (character.Effects.Where(e => e is 累积之压特效 && e.Skill.Character == character).FirstOrDefault() is 累积之压特效 e)
             {
@@ -52,13 +55,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             RemainDuration = Duration;
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.DamageBoost, EffectType.Lifesteal);
         }

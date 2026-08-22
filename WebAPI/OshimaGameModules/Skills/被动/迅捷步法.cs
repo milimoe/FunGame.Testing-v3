@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -33,8 +34,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 生命回复 => Skill.Character != null ? 20 + Skill.Character.Level * 6 : 20;
         private double 持续时间 => Skill.Character != null ? 10 + Skill.Character.Level * 0.1 : 10;
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (Skill.Character != null && Skill.Character == character && isNormalAttack && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 HealToTarget(character, character, 生命回复);
@@ -53,7 +61,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         Duration = 持续时间
                     };
                     character.Effects.Add(e);
-                    e.OnEffectGained(character);
+                    e.OnEffectGained(new HookContext(GamingQueue, character));
                     e.IsDebuff = false;
                     RecordCharacterApplyEffects(character, EffectType.Haste);
                 }

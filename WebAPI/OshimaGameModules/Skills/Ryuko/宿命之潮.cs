@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -59,8 +60,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Description = 通用描述;
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (实际选择熵核)
             {
                 实际攻击力提升 = 熵核攻击力提升;
@@ -69,16 +71,24 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (实际选择熵核)
             {
                 character.ExATKPercentage -= 实际攻击力提升;
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (实际选择熵核 && enemy == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 double bouns = -(damage * 熵核受到伤害提升);
@@ -88,8 +98,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (实际选择熵核 && character == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && !CheckSkilledImmune(character, enemy, Skill))
             {
                 禁止治疗 e = new(Skill, character, false, true, true, true, 熵核影响敌人时间, 0)
@@ -102,17 +119,21 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 {
                     WriteLine($"[ {character} ] 对 [ {enemy} ] 施加了禁止治疗{e.禁止类型}！！持续时间：{熵核影响敌人时间:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                     enemy.Effects.Add(e);
-                    e.OnEffectGained(enemy);
+                    e.OnEffectGained(new HookContext(GamingQueue, enemy));
                     GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             if (caster.Effects.Contains(this))
             {
-                OnEffectLost(caster);
+                OnEffectLost(new HookContext(GamingQueue, caster));
                 caster.Effects.Remove(this);
             }
             caster.Effects.Add(this);
@@ -135,7 +156,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             实际选择熵核 = 选择熵核;
             Duration = 实际选择熵核 ? 熵核持续时间 : 守护持续时间;
             RemainDuration = Duration;
-            OnEffectGained(caster);
+            OnEffectGained(new HookContext(GamingQueue, caster));
             if (实际选择熵核)
             {
                 Description = $"作出抉择：{熵核描述}";
@@ -145,7 +166,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
                 WriteLine($"[ {caster} ] 获得了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                 caster.Effects.Add(effect);
-                effect.OnEffectGained(caster);
+                effect.OnEffectGained(new HookContext(GamingQueue, caster));
                 GamingQueue?.AddApplyEffects(caster, effect.EffectType);
             }
             else
@@ -157,7 +178,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
                 WriteLine($"[ {caster} ] 获得了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                 caster.Effects.Add(effect);
-                effect.OnEffectGained(caster);
+                effect.OnEffectGained(new HookContext(GamingQueue, caster));
                 GamingQueue?.AddApplyEffects(caster, effect.EffectType);
                 List<Character> allEnemys = [];
                 List<Character> allTeammates = [];
@@ -177,7 +198,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     {
                         WriteLine($"[ {caster} ] 嘲讽了 [ {enemy} ]，[ {enemy} ] 愤怒了！！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                         enemy.Effects.Add(e);
-                        e.OnEffectGained(enemy);
+                        e.OnEffectGained(new HookContext(GamingQueue, enemy));
                         GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                     }
                 }
@@ -189,7 +210,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     };
                     WriteLine($"[ {caster} ] 对 [ {teammate} ] 施加了持续生命回复！持续时间：{Duration:0.##} {GameplayEquilibriumConstant.InGameTime}！");
                     teammate.Effects.Add(e);
-                    e.OnEffectGained(teammate);
+                    e.OnEffectGained(new HookContext(GamingQueue, teammate));
                     GamingQueue?.AddApplyEffects(teammate, e.EffectType);
                 }
             }

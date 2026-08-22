@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
 
@@ -55,14 +56,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             GamingQueue = skill.GamingQueue;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             Effect effect = new 施加免疫(Skill, ImmuneType.Magical, false, 0, 实际持续时间);
-            effect.OnSkillCasted(caster, targets, grids, others);
+            effect.OnSkillCasted(ctx);
             if (Level > 4)
             {
                 effect = new 施加免疫(Skill, ImmuneType.Skilled, false, 0, 2);
-                effect.OnSkillCasted(caster, targets, grids, others);
+                effect.OnSkillCasted(ctx);
             }
         }
     }

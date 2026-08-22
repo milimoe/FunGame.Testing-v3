@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -52,8 +53,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 分裂百分比 { get; set; } = 0.25;
         public 海王星的野望特效? 野望 { get; set; } = null;
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == Skill.Character && 野望 != null && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && enemy.Effects.FirstOrDefault(e => e is 海王星的野望标记 && e.Source == Skill.Character) is 海王星的野望标记 e)
             {
                 野望.分裂伤害(character, enemy, actualDamage, damageType, magicType);

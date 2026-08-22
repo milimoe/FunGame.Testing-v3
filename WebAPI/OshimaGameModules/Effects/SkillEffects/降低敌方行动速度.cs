@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -32,8 +33,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             _durationTurn = durationTurn;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 ExSPD e = new(Skill, new Dictionary<string, object>()
@@ -49,7 +52,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 if (!CheckExemption(caster, target, e))
                 {
                     target.Effects.Add(e);
-                    e.OnEffectGained(target);
+                    e.OnEffectGained(new HookContext(GamingQueue, target));
                     e.EffectType = EffectType.Slow;
                     e.IsDebuff = true;
                     WriteLine($"[ {target} ] 的行动速度降低了 {-SPD:0.##} 点，行动等待时间（当前硬直时间）被延长了 30%！持续时间：{持续时间}！");

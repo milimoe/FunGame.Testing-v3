@@ -48,6 +48,26 @@ export const SKILL_TYPE_NAMES: Record<number, string> = {
   0: '魔法', 1: '战技', 2: '爆发技', 3: '被动', 4: '物品',
 }
 
+// DamageType：0 物理 / 1 魔法 / 2 真实
+export const DAMAGE_TYPE_NAMES: Record<number, string> = {
+  0: '物理', 1: '魔法', 2: '真实',
+}
+
+export const damageTypeName = (t: number) => DAMAGE_TYPE_NAMES[t] ?? `伤害${t}`
+
+// 聚合一条记录的伤害类型（DamageDetails: 角色 Guid -> 伤害类型 -> 伤害值），返回按类型求和的列表
+export function damageTypeSummaries(details?: Record<string, Record<number, number>> | null): { type: number; value: number }[] {
+  if (!details) return []
+  const sums: Record<number, number> = {}
+  for (const buckets of Object.values(details)) {
+    for (const [t, v] of Object.entries(buckets ?? {})) {
+      const type = Number(t)
+      sums[type] = (sums[type] ?? 0) + (v ?? 0)
+    }
+  }
+  return Object.entries(sums).map(([t, value]) => ({ type: Number(t), value }))
+}
+
 export const EFFECT_TYPE_NAMES: Record<number, string> = {
   0: '被动', 1: '装备', 2: '标记', 3: '眩晕', 4: '冰冻', 5: '沉默', 6: '定身', 7: '恐惧', 8: '睡眠',
   9: '击退', 10: '击倒', 11: '嘲讽', 12: '减速', 13: '衰弱', 14: '中毒', 15: '燃烧', 16: '流血',

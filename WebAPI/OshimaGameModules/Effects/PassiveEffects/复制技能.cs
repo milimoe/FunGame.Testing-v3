@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -28,15 +29,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
         public CharacterActionType LastType { get; set; } = CharacterActionType.None;
         public Skill? LastSkill { get; set; } = null;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             _skill.Character = character;
             _skill.OnLevelUp();
             character.Skills.Add(_skill);
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             _skill.RemoveSkillFromCharacter(character);
         }
     }

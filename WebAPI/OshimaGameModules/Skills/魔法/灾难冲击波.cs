@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
@@ -73,8 +74,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             _MDFReductionPercentLevelGrowth = MDFReductionPercentLevelGrowth;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             foreach (Character target in targets)
             {
                 ExMDF e = new(Skill, new(){
@@ -99,7 +104,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     }
                     e.EffectType = EffectType.MagicResistBreak;
                     e.Source = caster;
-                    e.OnEffectGained(target);
+                    e.OnEffectGained(new HookContext(GamingQueue, target));
                     GamingQueue?.AddApplyEffects(target, e.EffectType);
                 }
             }

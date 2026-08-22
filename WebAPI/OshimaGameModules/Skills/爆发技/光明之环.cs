@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.PrefabricatedEntity;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
@@ -38,12 +39,23 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double PACoefficient => 1.35 + 0.65 * (Skill.Level - 1);
         public double Heal => (Skill.Character?.PrimaryAttributeValue ?? 0) * PACoefficient;
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
-            List<Character> deads = [.. targets.Where(c => c.HP == 0)];
-            List<Character> alives = [.. targets.Where(c => c.HP > 0)];
+            Character? caster = ctx.Actor;
+            if (caster is null)
+            {
+                return;
+            }
+
+            List<Character> deads = [.. ctx.Targets.Where(c => c.HP == 0)];
+            List<Character> alives = [.. ctx.Targets.Where(c => c.HP > 0)];
             Effect e = new 强驱散特效(Skill);
-            e.OnSkillCasted(caster, alives, grids, others);
+            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster)
+            {
+                Targets = alives,
+                Grids = ctx.Grids,
+                Others = ctx.Others
+            });
             foreach (Character target in alives)
             {
                 HealToTarget(caster, target, Heal);
@@ -55,14 +67,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (Improvement > 0)
             {
                 double dr = Improvement / 2;
-                foreach (Character target in targets)
+                foreach (Character target in ctx.Targets)
                 {
                     e = new DynamicsEffect(Skill, new()
                     {
                         ["expdr"] = dr,
                         ["mdftype"] = 0,
                         ["mdfvalue"] = dr
-                    }, caster)
+                    }, ctx.Actor)
                     {
                         Durative = false,
                         Duration = 0,
@@ -71,7 +83,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         IsDebuff = false
                     };
                     target.Effects.Add(e);
-                    e.OnEffectGained(target);
+                    e.OnEffectGained(new HookContext(GamingQueue, target));
                     RecordCharacterApplyEffects(target, EffectType.DefenseBoost);
                     WriteLine($"[ {target} ] 提升了 {dr * 100:0.##}% 物理伤害减免和魔法抗性！");
                 }

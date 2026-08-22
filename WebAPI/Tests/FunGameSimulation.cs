@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Interface.Base;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.Framework;
@@ -93,7 +94,7 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                         foreach (Effect e in c.Effects)
                         {
-                            e.OnEffectLost(c);
+                            e.OnEffectLost(new HookContext(e.GamingQueue, c));
                         }
                     }
 
@@ -639,8 +640,9 @@ namespace Milimoe.FunGameTesting.Tests
             }
         }
 
-        private static bool ActionQueue_CharacterDeath(GamingQueue queue, Character death, Character? killer, Character[] assists)
+        private static bool ActionQueue_CharacterDeath(DeathContext ctx)
         {
+            if (ctx.Actor is not Character death) return true;
             death.Items.Clear();
             return true;
         }

@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -43,8 +44,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 实际的物理穿透提升 = 0;
         private double 实际的闪避率提升 = 0;
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             实际的攻击力提升 = 攻击力提升;
             实际的物理穿透提升 = 物理穿透提升;
             实际的闪避率提升 = 闪避率提升;
@@ -58,8 +60,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.ExATK2 -= 实际的攻击力提升;
             character.PhysicalPenetration -= 实际的物理穿透提升;
             character.ExEvadeRate -= 实际的闪避率提升;
@@ -69,14 +72,20 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override CharacterActionType AlterActionTypeBeforeAction(Character character, DecisionPoints dp, CharacterState state, ref bool canUseItem, ref bool canCastSkill, ref double pUseItem, ref double pCastSkill, ref double pNormalAttack, ref bool forceAction)
+        public override CharacterActionType AlterActionTypeBeforeAction(DecisionContext ctx)
         {
-            pNormalAttack += 0.1;
+            ctx.PNormalAttack += 0.1;
             return CharacterActionType.None;
         }
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character && isNormalAttack)
             {
                 return 伤害加成;
@@ -84,13 +93,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(Character character, ref double baseHardnessTime, ref bool isCheckProtected)
+        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            baseHardnessTime *= 0.8;
+            if (ctx.Actor is not Character character) return;
+            ctx.BaseHardnessTime *= 0.8;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
+            List<Grid> grids = ctx.Grids;
+            Dictionary<string, object> others = ctx.Others;
             实际的攻击力提升 = 0;
             实际的物理穿透提升 = 0;
             实际的闪避率提升 = 0;
@@ -98,7 +112,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (!caster.Effects.Contains(this))
             {
                 caster.Effects.Add(this);
-                OnEffectGained(caster);
+                OnEffectGained(new HookContext(GamingQueue, caster));
             }
             GamingQueue?.AddApplyEffects(caster, EffectType.DamageBoost, EffectType.PenetrationBoost);
         }

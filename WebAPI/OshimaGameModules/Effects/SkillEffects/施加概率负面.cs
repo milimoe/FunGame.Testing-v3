@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -51,8 +52,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             SetDescription();
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 if (target.HP <= 0 || Random.Shared.NextDouble() > ActualProbability) continue;
@@ -204,12 +207,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 {
                     if (e is 打断施法 ddsf)
                     {
-                        ddsf.OnSkillCasted(caster, [target], [], []);
+                        ddsf.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target] });
                         continue;
                     }
                     WriteLine(tip);
                     target.Effects.Add(e);
-                    e.OnEffectGained(target);
+                    e.OnEffectGained(new HookContext(GamingQueue, target));
                     GamingQueue?.AddApplyEffects(target, e.EffectType);
                     if (e is 迟滞 cz)
                     {

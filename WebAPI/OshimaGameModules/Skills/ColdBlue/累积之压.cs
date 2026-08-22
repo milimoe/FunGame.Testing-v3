@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -33,8 +34,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 系数 { get; set; } = 0.12;
         private bool 是否是嵌套伤害 = false;
 
-        public override bool BeforeCriticalCheck(Character actor, Character enemy, bool isNormalAttack, ref double throwingBonus)
+        public override bool BeforeCriticalCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor || ctx.Enemy is not Character enemy) return true;
+            bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
                 return !是否是嵌套伤害;
@@ -42,8 +45,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return true;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (character == Skill.Character && actualDamage > 0 && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && !是否是嵌套伤害 && enemy.HP > 0)
             {
                 // 叠标记
@@ -64,7 +74,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     {
                         战斗不能 e3 = new(Skill, character, false, 0, 1);
                         enemy.Effects.Add(e3);
-                        e3.OnEffectGained(enemy);
+                        e3.OnEffectGained(new HookContext(GamingQueue, enemy));
                     }
                     是否是嵌套伤害 = true;
                     DamageToEnemy(character, enemy, DamageType.Physical, magicType, 额外伤害);

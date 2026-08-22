@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -70,8 +71,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 系数 * damage;
         }
 
-        public override double AlterExpectedDamageBeforeCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character)
             {
                 已通过累计受到伤害发动破釜沉舟 = 累计受到的伤害 != 0;
@@ -97,8 +104,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AfterDamageCalculation(Character character, Character enemy, double damage, double actualDamage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult)
+        public override void AfterDamageCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            double damage = ctx.Damage;
+            double actualDamage = ctx.ActualDamage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
             if (enemy == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 累计受到的伤害 += actualDamage;
@@ -119,17 +133,19 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override bool BeforeEvadeCheck(Character actor, Character enemy, ref double throwingBonus)
+        public override bool BeforeEvadeCheck(DamageContext ctx)
         {
+            if (ctx.Actor is not Character actor) return true;
             if (已通过累计受到伤害发动破釜沉舟 && actor == Skill.Character)
             {
-                throwingBonus -= 0.3;
+                ctx.ThrowingBonus -= 0.3;
             }
             return true;
         }
 
-        public override void OnTurnEnd(Character character)
+        public override void OnTurnEnd(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             已通过累计受到伤害发动破釜沉舟 = false;
         }
     }

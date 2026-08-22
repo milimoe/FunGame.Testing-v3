@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -64,23 +65,24 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _durationTurn = durationTurn;
         }
 
-        public override bool BeforeApplyRecoveryAtTimeLapsing(Character character, ref double hr, ref double mr)
+        public override bool BeforeApplyRecoveryAtTimeLapsing(TimeLapseContext ctx)
         {
             return _allowRecovery;
         }
 
-        public override bool BeforeLifesteal(Character character, Character enemy, double damage, double steal)
+        public override bool BeforeLifesteal(LifestealContext ctx)
         {
             return _allowLifeSteal;
         }
 
-        public override bool BeforeHealToTarget(Character actor, Character target, double heal, bool canRespawn)
+        public override bool BeforeHealToTarget(HealContext ctx)
         {
             return _allowHealing;
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             if (_allowRecovery && _allowLifeSteal && _allowHealing)
             {
                 character.Effects.Remove(this);

@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -30,8 +31,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             _durationTurn = durationTurn;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 WriteLine($"[ {target} ] 获得了 {护盾值:0.##} 点物理护盾！");
@@ -40,7 +43,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                     ParentEffect = ParentEffect
                 };
                 target.Effects.Add(e);
-                e.OnEffectGained(target);
+                e.OnEffectGained(new HookContext(GamingQueue, target));
                 e.DispelledType = DispelledType;
                 GamingQueue?.AddApplyEffects(target, EffectType.Shield);
             }

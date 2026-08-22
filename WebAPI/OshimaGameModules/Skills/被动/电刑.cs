@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -29,8 +30,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => $"造成伤害时，标记目标 25 {GameplayEquilibriumConstant.InGameTime}并叠加 1 层数，当目标身上的电刑标记达到 3 层时，此次伤害提升 {伤害百分比 * 100:0.##}%。";
         private double 伤害百分比 => Skill.Character != null ? 0.2 + Skill.Character.Level * 0.004 : 0;
 
-        public override double AlterActualDamageAfterCalculation(Character character, Character enemy, double damage, bool isNormalAttack, DamageType damageType, MagicType magicType, DamageResult damageResult, ref bool isEvaded, Dictionary<Effect, double> totalDamageBonus)
+        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
+            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            double damage = ctx.Damage;
+            bool isNormalAttack = ctx.IsNormalAttack;
+            DamageType damageType = ctx.DamageType;
+            MagicType magicType = ctx.MagicType;
+            DamageResult damageResult = ctx.DamageResult;
+            Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (Skill.Character != null && Skill.Character == character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical))
             {
                 if (enemy.Effects.Where(e => e is 电刑标记 && e.Source == character).FirstOrDefault() is 电刑标记 e)

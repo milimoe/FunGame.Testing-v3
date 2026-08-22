@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -28,14 +29,20 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public static double EP => 7;
 
-        public override void AlterEPAfterGetDamage(Character character, ref double baseEP)
+        public override void AlterEPAfterGetDamage(DamageContext ctx)
         {
-            baseEP *= 1.5;
-            if (Skill.Character != null) WriteLine($"[ {Skill.Character} ] 发动了META马专属被动！本次获得了 {baseEP:0.##} 能量！");
+            if (ctx.Actor is not Character character) return;
+            ctx.BaseEP *= 1.5;
+            if (Skill.Character != null) WriteLine($"[ {Skill.Character} ] 发动了META马专属被动！本次获得了 {ctx.BaseEP:0.##} 能量！");
         }
 
-        public override void OnTurnStart(Character character, List<Character> enemys, List<Character> teammates, List<Skill> skills, List<Item> items)
+        public override void OnTurnStart(TurnContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
+            List<Character> enemys = ctx.Enemys;
+            List<Character> teammates = ctx.Teammates;
+            List<Skill> skills = ctx.Skills;
+            List<Item> items = ctx.Items;
             if (character.EP < 200)
             {
                 character.EP += EP;
@@ -43,14 +50,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void OnEffectGained(Character character)
+        public override void OnEffectGained(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.InitialSTR += 5;
             character.STRGrowth += 0.5;
         }
 
-        public override void OnEffectLost(Character character)
+        public override void OnEffectLost(HookContext ctx)
         {
+            if (ctx.Actor is not Character character) return;
             character.InitialSTR -= 5;
             character.STRGrowth -= 0.5;
         }

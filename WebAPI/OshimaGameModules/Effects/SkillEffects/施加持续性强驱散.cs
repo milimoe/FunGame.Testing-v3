@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -36,8 +37,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             }
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             Dictionary<Character, bool> isTeammateDictionary = GamingQueue?.GetIsTeammateDictionary(caster, targets) ?? [];
             foreach (Character target in targets)
             {
@@ -62,7 +65,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 {
                     e = new(Skill, caster, _durativeWithoutDuration, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
                     target.Effects.Add(e);
-                    e.OnEffectGained(target);
+                    e.OnEffectGained(new HookContext(GamingQueue, target));
                     e.IsDebuff = isDebuff;
                     e.DispelledType = DispelledType;
                     e.ParentEffect = ParentEffect;

@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
@@ -22,8 +23,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             this.基础护盾等级成长 = 基础护盾等级成长;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
                 target.Shield[false] += 护盾值;

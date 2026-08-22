@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -30,8 +31,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             _levelGrowth = levelGrowth;
         }
 
-        public override void OnSkillCasted(Character caster, List<Character> targets, List<Grid> grids, Dictionary<string, object> others)
+        public override void OnSkillCasted(SkillCastContext ctx)
         {
+            if (ctx.Actor is not Character caster) return;
+            List<Character> targets = ctx.Targets;
             foreach (Character enemy in targets)
             {
                 封技 e = new(Skill, caster, _durative, _duration + _levelGrowth * (Level - 1), Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1)));
@@ -39,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 {
                     WriteLine($"[ {caster} ] 对 [ {enemy} ] 造成了封技和施法解除！持续时间：{封技时间}！");
                     enemy.Effects.Add(e);
-                    e.OnEffectGained(enemy);
+                    e.OnEffectGained(new HookContext(GamingQueue, enemy));
                     GamingQueue?.AddApplyEffects(enemy, e.EffectType);
                 }
             }
