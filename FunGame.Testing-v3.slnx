@@ -2,5 +2,8 @@
   <Folder Name="/WebAPI/">
     <Project Path="WebAPI/FunGame.Testing-v3.WebAPI.csproj" />
   </Folder>
+  <Folder Name="/OshimaGameModules/">
+    <Project Path="OshimaGameModules/OshimaGameModules.csproj" />
+  </Folder>
   <Project Path="../FunGame.Core/FunGame.Core.csproj" />
 </Solution>

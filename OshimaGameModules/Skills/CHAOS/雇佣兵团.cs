@@ -3,7 +3,7 @@ using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
-using Milimoe.FunGameTesting.Tests;
+using Milimoe.FunGameTesting.Others;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -150,7 +150,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public int 新增雇佣兵(Character character)
         {
-            雇佣兵 gyb = new(character, FunGameService.GenerateRandomChineseName())
+            雇佣兵 gyb = new(character, RandomNames.GenerateRandomChineseName())
             {
                 Level = 1,
                 InitialHP = character.MaxHP * 生命值比例,

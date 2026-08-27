@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\FunGame.Core\FunGame.Core.csproj" />
+    <ProjectReference Include="..\OshimaGameModules\OshimaGameModules.csproj" />
   </ItemGroup>
 
 </Project>

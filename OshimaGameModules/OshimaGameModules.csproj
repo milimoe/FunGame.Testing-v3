@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Milimoe.FunGameTesting.OshimaGameModules</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FunGame.Core\FunGame.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 内容模组实体 JSON 配置：随库输出到 modules/oshima-studios/（Factory.GetGameModuleInstances 的 BaseDirectory/modules/ 约定） -->
+  <ItemGroup>
+    <None Include="configs\**" CopyToOutputDirectory="PreserveNewest" Link="modules\oshima-studios\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
