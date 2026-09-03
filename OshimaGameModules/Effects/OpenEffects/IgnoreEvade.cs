@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 {
@@ -13,15 +14,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         private readonly double 概率 = 0;
 
-        public override bool BeforeEvadeCheck(DamageContext ctx)
+        public override BeforeEvadeCheckResult BeforeEvadeCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return default;
             if (actor == Skill.Character && Random.Shared.NextDouble() < 概率)
             {
                 if (GamingQueue != null) WriteLine($"[ {actor} ] 的普通攻击无视了 [ {ctx.Enemy} ] 的闪避！");
-                return false;
+                return new BeforeEvadeCheckResult { SkipEvadeCheck = true };
             }
-            return true;
+            return default;
         }
 
         public IgnoreEvade(Skill skill, Dictionary<string, object> args, Character? source = null) : base(skill, args)

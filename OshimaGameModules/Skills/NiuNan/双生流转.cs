@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -70,15 +71,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override bool BeforeCriticalCheck(DamageContext ctx)
+        public override BeforeCriticalCheckResult BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return true;
+            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return default;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
-                ctx.ThrowingBonus += 200;
+                // 力量模式下必定暴击：提供极高的暴击检定加值
+                return new BeforeCriticalCheckResult { ThrowingBonusDelta = 200 };
             }
-            return true;
+            return default;
         }
 
         public override void OnTimeElapsed(TimeLapseContext ctx)

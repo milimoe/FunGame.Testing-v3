@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -133,14 +134,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override bool BeforeEvadeCheck(DamageContext ctx)
+        public override BeforeEvadeCheckResult BeforeEvadeCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return default;
             if (已通过累计受到伤害发动破釜沉舟 && actor == Skill.Character)
             {
-                ctx.ThrowingBonus -= 0.3;
+                // 发动后本次攻击更易被闪避
+                return new BeforeEvadeCheckResult { ThrowingBonusDelta = -0.3 };
             }
-            return true;
+            return default;
         }
 
         public override void OnTurnEnd(TurnContext ctx)

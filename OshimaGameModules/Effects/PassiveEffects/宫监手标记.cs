@@ -2,6 +2,7 @@
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
@@ -65,25 +66,25 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override bool BeforeCriticalCheck(DamageContext ctx)
+        public override BeforeCriticalCheckResult BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return default;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == _targetCharacter && isNormalAttack)
             {
-                ctx.ThrowingBonus += 300;
+                return new BeforeCriticalCheckResult { ThrowingBonusDelta = 300 };
             }
-            return true;
+            return default;
         }
 
-        public override bool BeforeEvadeCheck(DamageContext ctx)
+        public override BeforeEvadeCheckResult BeforeEvadeCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return default;
             if (actor == _targetCharacter)
             {
-                return false;
+                return new BeforeEvadeCheckResult { SkipEvadeCheck = true };
             }
-            return true;
+            return default;
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)

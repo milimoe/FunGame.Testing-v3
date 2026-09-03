@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -34,15 +35,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 系数 { get; set; } = 0.12;
         private bool 是否是嵌套伤害 = false;
 
-        public override bool BeforeCriticalCheck(DamageContext ctx)
+        public override BeforeCriticalCheckResult BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return true;
+            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return default;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
-                return !是否是嵌套伤害;
+                // 嵌套伤害不进行暴击检定
+                return new BeforeCriticalCheckResult { SkipCriticalCheck = 是否是嵌套伤害 };
             }
-            return true;
+            return default;
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)
