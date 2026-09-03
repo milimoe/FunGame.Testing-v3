@@ -52,7 +52,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             foreach (Character enemy in targets)
             {

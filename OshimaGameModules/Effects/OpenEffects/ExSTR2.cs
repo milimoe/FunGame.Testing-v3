@@ -16,7 +16,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (Durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -31,13 +31,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.ExSTRPercentage -= 加成比例;
         }
 
         public override void OnAttributeChanged(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             // 刷新加成
             OnEffectLost(new HookContext(GamingQueue, character));
             OnEffectGained(new HookContext(GamingQueue, character));

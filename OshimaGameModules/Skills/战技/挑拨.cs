@@ -51,7 +51,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

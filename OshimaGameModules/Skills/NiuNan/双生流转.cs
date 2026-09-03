@@ -36,13 +36,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             ResetEffect(character, true);
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             ResetEffect(character, false);
         }
 
@@ -72,7 +72,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override bool BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Actor is not Character actor || ctx.Enemy is not Character enemy) return true;
+            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return true;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
@@ -83,14 +83,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             Changed(character);
         }
 
         public override void OnAttributeChanged(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             Changed(character);
         }
 

@@ -31,7 +31,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             _skill.Character = character;
             _skill.OnLevelUp();
             character.Skills.Add(_skill);
@@ -39,7 +39,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             _skill.RemoveSkillFromCharacter(character);
         }
     }

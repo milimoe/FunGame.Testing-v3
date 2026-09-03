@@ -47,7 +47,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character) return 0;
+            if (ctx.Trigger is not Character character) return 0;
             double damage = ctx.Damage;
             if (character == _targetCharacter)
             {
@@ -69,7 +69,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -85,7 +85,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.ExDEFPercentage += _DEFReductionPercent;
             character.MDF[character.MagicType] += _MDFReductionPercent;
             RemoveEffectTypesFromCharacter(character);

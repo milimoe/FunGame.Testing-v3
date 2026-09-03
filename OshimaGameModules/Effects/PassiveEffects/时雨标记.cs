@@ -25,7 +25,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnTurnStart(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (GamingQueue is null)
             {
                 return;
@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character) return 0;
+            if (ctx.Trigger is not Character character) return 0;
             if (ctx.Enemy is not Character enemy) return 0;
             double damage = ctx.Damage;
             if (GamingQueue is null)

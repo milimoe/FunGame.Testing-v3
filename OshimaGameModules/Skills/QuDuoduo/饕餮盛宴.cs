@@ -36,7 +36,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             double damage = ctx.Damage;
             double actualDamage = ctx.ActualDamage;
             bool isNormalAttack = ctx.IsNormalAttack;
@@ -52,7 +52,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

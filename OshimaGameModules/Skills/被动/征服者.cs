@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             double damage = ctx.Damage;
             double actualDamage = ctx.ActualDamage;
             bool isNormalAttack = ctx.IsNormalAttack;
@@ -102,7 +102,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTurnEnd(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             是否是叠加伤害 = false;
             是否是满层伤害 = false;
             允许叠层 = true;

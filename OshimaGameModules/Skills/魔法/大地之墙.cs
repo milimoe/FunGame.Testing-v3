@@ -104,7 +104,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             if (!character.Effects.Any(e => e is 物理护盾 && e.ParentEffect == this))
             {
@@ -121,7 +121,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

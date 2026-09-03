@@ -31,14 +31,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterEPAfterGetDamage(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             ctx.BaseEP *= 1.5;
             if (Skill.Character != null) WriteLine($"[ {Skill.Character} ] 发动了META马专属被动！本次获得了 {ctx.BaseEP:0.##} 能量！");
         }
 
         public override void OnTurnStart(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             List<Character> enemys = ctx.Enemys;
             List<Character> teammates = ctx.Teammates;
             List<Skill> skills = ctx.Skills;
@@ -52,14 +52,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.InitialSTR += 5;
             character.STRGrowth += 0.5;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.InitialSTR -= 5;
             character.STRGrowth -= 0.5;
         }

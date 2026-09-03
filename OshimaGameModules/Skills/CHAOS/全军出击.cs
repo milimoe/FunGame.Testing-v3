@@ -52,21 +52,21 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             刷新技能效果(character);
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             Skill.IsInEffect = false;
             刷新技能效果(character);
         }
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

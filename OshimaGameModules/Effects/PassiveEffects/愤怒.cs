@@ -38,7 +38,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AlterSelectListBeforeAction(SelectionContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             List<Character> enemys = ctx.Enemys;
             List<Character> teammates = ctx.Teammates;
             // 为了确保角色能够自动化行动，这里需要将角色设置为可行动
@@ -73,7 +73,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             if (death == _targetCharacter)
             {
                 // 如果目标死亡，则在下次时间流逝时自动移除愤怒状态
@@ -84,13 +84,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnTurnEnd(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.UpdateCharacterState();
         }
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -107,7 +107,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             GamingQueue?.SetCharactersToAIControl(true, true, character);
             RemoveEffectStatesFromCharacter(character);
             RemoveEffectTypesFromCharacter(character);

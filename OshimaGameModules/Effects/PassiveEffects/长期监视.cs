@@ -48,7 +48,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             bool hasMaster = ctx.HasMaster;
             Character? killer = ctx.Killer;
             if (GamingQueue != null && !hasMaster && killer != null && killer == _targetCharacter && Source != null && death != Source && GamingQueue.Queue.Contains(Source))

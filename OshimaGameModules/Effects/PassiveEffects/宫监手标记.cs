@@ -67,7 +67,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override bool BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Actor is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return true;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == _targetCharacter && isNormalAttack)
             {
@@ -78,7 +78,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override bool BeforeEvadeCheck(DamageContext ctx)
         {
-            if (ctx.Actor is not Character actor) return true;
+            if (ctx.Trigger is not Character actor) return true;
             if (actor == _targetCharacter)
             {
                 return false;
@@ -88,7 +88,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (ctx.Enemy is not Character enemy) return;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageResult damageResult = ctx.DamageResult;
@@ -103,7 +103,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             if (death == _targetCharacter)
             {
                 death.Effects.Remove(this);
@@ -116,7 +116,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (!已完成普攻任务 || !已完成指向性技能任务)
             {
                 放监.造成伤害(character, !已完成普攻任务 && !已完成指向性技能任务 ? 2 : 1);

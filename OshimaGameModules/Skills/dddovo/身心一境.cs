@@ -39,7 +39,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double pastHP = character.HP;
             double pastMaxHP = character.MaxHP;
             double pastMP = character.MP;
@@ -59,7 +59,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double pastHP = character.HP;
             double pastMaxHP = character.MaxHP;
             double pastMP = character.MP;
@@ -71,7 +71,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

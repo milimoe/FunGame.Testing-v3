@@ -16,7 +16,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (Durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -30,7 +30,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.MDF[魔法类型] -= 实际加成;
         }
 

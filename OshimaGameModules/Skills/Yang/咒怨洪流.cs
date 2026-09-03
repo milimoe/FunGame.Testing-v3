@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             实际比例 = 减伤比例;
             character.NormalAttack.SetMagicType(new(this, true, MagicType.None, 999), GamingQueue);
             if (character.Effects.Where(e => e is 蚀魂震击特效 && e.Skill.Character == character).FirstOrDefault() is 蚀魂震击特效 e)
@@ -54,7 +54,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             实际比例 = 0;
             character.NormalAttack.UnsetMagicType(this, GamingQueue);
             if (character.Effects.Where(e => e is 蚀魂震击特效 && e.Skill.Character == character).FirstOrDefault() is 蚀魂震击特效 e)
@@ -65,7 +65,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTurnStart(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             List<Character> enemys = ctx.Enemys;
             List<Character> teammates = ctx.Teammates;
             List<Skill> skills = ctx.Skills;
@@ -76,7 +76,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterCharacterNormalAttack(NormalAttackContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             NormalAttack? normalAttack = ctx.NormalAttack;
             List<Character> targets = ctx.Targets;
             本回合已攻击的目标.AddRange(targets);
@@ -90,7 +90,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterSelectListBeforeSelection(SelectionContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             ISkill? skill = ctx.Skill;
             List<Character> allEnemys = ctx.AllEnemys;
             List<Character> allTeammates = ctx.AllTeammates;
@@ -104,7 +104,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -120,7 +120,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

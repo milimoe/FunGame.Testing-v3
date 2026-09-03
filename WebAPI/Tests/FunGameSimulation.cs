@@ -642,7 +642,7 @@ namespace Milimoe.FunGameTesting.Tests
 
         private static bool ActionQueue_CharacterDeath(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return true;
+            if (ctx.Trigger is not Character death) return true;
             death.Items.Clear();
             return true;
         }

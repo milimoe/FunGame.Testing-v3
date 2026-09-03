@@ -35,7 +35,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             double damage = ctx.Damage;
             double actualDamage = ctx.ActualDamage;
             bool isNormalAttack = ctx.IsNormalAttack;
@@ -68,7 +68,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (是否支持普攻)
             {
                 double baseHardnessTime = ctx.BaseHardnessTime;
@@ -81,7 +81,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (ctx.Skill is Skill skill && skill.SkillType == SkillType.Magic)
             {
                 double baseHardnessTime = ctx.BaseHardnessTime;

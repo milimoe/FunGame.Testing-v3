@@ -41,7 +41,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.NormalAttack.SetMagicType(new(this, true, MagicType.None, 999), GamingQueue);
             实际物理伤害减免 = 物理伤害减免;
             实际魔法抗性 = 魔法抗性;
@@ -52,7 +52,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.NormalAttack.UnsetMagicType(this, GamingQueue);
             character.ExPDR -= 实际物理伤害减免;
             character.MDF[character.MagicType] -= 实际魔法抗性;
@@ -62,7 +62,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -78,13 +78,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             ctx.BaseHardnessTime *= 0.3;
         }
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

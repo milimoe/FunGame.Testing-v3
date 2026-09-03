@@ -41,7 +41,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            Character? caster = ctx.Actor;
+            Character? caster = ctx.Trigger;
             if (caster is null)
             {
                 return;
@@ -74,7 +74,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         ["expdr"] = dr,
                         ["mdftype"] = 0,
                         ["mdfvalue"] = dr
-                    }, ctx.Actor)
+                    }, ctx.Trigger)
                     {
                         Durative = false,
                         Duration = 0,

@@ -32,7 +32,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -48,7 +48,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AlterSelectListBeforeSelection(SelectionContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Skill is not ISkill skill) return;
+            if (ctx.Trigger is not Character character || ctx.Skill is not ISkill skill) return;
             List<Character> allEnemys = ctx.AllEnemys;
             List<Character> allTeammates = ctx.AllTeammates;
             List<Character> enemys = ctx.Enemys;

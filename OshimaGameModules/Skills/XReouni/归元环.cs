@@ -36,7 +36,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (character.Effects.Where(e => e is 八卦阵特效 && e.Skill.Character == character).FirstOrDefault() is 八卦阵特效 e)
             {
                 e.归元 = true;
@@ -45,7 +45,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (character.Effects.Where(e => e is 八卦阵特效 && e.Skill.Character == character).FirstOrDefault() is 八卦阵特效 e)
             {
                 e.归元 = false;
@@ -54,7 +54,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override bool BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Actor is not Character actor || ctx.Enemy is not Character enemy) return true;
+            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return true;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
@@ -65,7 +65,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

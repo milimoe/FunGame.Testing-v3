@@ -51,7 +51,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             IEnumerable<Effect> effects = character.Effects.Where(e => e is 灵能反射特效);
             if (effects.Any() && effects.First() is 灵能反射特效 e && e.Skill.Character == Skill.Character)
             {
@@ -63,7 +63,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             IEnumerable<Effect> effects = character.Effects.Where(e => e is 灵能反射特效);
             if (effects.Any() && effects.First() is 灵能反射特效 e && e.Skill.Character == Skill.Character)
             {
@@ -74,7 +74,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

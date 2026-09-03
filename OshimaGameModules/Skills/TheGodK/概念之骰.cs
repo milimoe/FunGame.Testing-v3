@@ -70,7 +70,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override double AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -88,7 +88,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             bool hasMaster = ctx.HasMaster;
             Character? killer = ctx.Killer;
             Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
@@ -151,13 +151,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             刷新技能效果(character);
         }
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             刷新技能效果(character);
             if (GamingQueue != null && GamingQueue.AssistDetails.TryGetValue(character, out AssistDetail? ad) && ad != null)

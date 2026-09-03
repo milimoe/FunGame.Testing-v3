@@ -33,7 +33,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             if (character.CharacterState == CharacterState.Actionable || character.CharacterState == CharacterState.Casting || character.CharacterState == CharacterState.PreCastSuperSkill)
             {

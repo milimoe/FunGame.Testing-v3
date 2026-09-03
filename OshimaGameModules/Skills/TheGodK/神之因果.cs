@@ -41,7 +41,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override bool OnExemptionCheck(ImmuneContext ctx)
         {
-            if (ctx.Actor is not Character character) return true;
+            if (ctx.Trigger is not Character character) return true;
             Character? source = ctx.Source;
             Effect? effect = ctx.Effect;
             bool isEvade = ctx.IsEvade;
@@ -54,7 +54,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             double damage = ctx.Damage;
             double actualDamage = ctx.ActualDamage;
             bool isNormalAttack = ctx.IsNormalAttack;
@@ -69,7 +69,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             bool hasMaster = ctx.HasMaster;
             Character? killer = ctx.Killer;
             Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
@@ -83,13 +83,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             因果伤害值 = 0;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (GamingQueue != null && 因果伤害值 > 0)
             {
                 WriteLine($"[ {character} ] 发动了神之因果！万象因果，命运既定！！！");
@@ -110,7 +110,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

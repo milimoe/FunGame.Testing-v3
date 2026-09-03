@@ -36,7 +36,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override bool BeforeCriticalCheck(DamageContext ctx)
         {
-            if (ctx.Actor is not Character actor || ctx.Enemy is not Character enemy) return true;
+            if (ctx.Trigger is not Character actor || ctx.Enemy is not Character enemy) return true;
             bool isNormalAttack = ctx.IsNormalAttack;
             if (actor == Skill.Character)
             {
@@ -47,7 +47,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {
-            if (ctx.Actor is not Character character || ctx.Enemy is not Character enemy) return;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             double damage = ctx.Damage;
             double actualDamage = ctx.ActualDamage;
             bool isNormalAttack = ctx.IsNormalAttack;

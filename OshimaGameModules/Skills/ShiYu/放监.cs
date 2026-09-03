@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override bool BeforeSkillCastedOnStatus(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster || ctx.Skill is not Skill skill) return true;
+            if (ctx.Trigger is not Character caster || ctx.Skill is not Skill skill) return true;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;
@@ -100,7 +100,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

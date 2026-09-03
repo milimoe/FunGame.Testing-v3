@@ -36,7 +36,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void AlterSelectListBeforeAction(SelectionContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             List<Character> enemys = ctx.Enemys;
             List<Character> teammates = ctx.Teammates;
             // 为了确保角色能够混乱行动，这里需要将角色设置为可行动
@@ -58,13 +58,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnTurnEnd(TurnContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.UpdateCharacterState();
         }
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (_durative && RemainDuration == 0)
             {
                 RemainDuration = Duration;
@@ -81,7 +81,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             GamingQueue?.SetCharactersToAIControl(true, true, character);
             RemoveEffectStatesFromCharacter(character);
             RemoveEffectTypesFromCharacter(character);

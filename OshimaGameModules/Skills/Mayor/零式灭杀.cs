@@ -42,7 +42,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectGained(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             实际暴击率提升 = 暴击率提升;
             实际暴击伤害提升 = 暴击伤害提升;
             实际物理穿透提升 = 物理穿透提升;
@@ -54,7 +54,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             character.ExCritRate -= 实际暴击率提升;
             character.ExCritDMG -= 实际暴击伤害提升;
             character.PhysicalPenetration -= 实际物理穿透提升;
@@ -62,7 +62,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {
-            if (ctx.Actor is not Character caster) return;
+            if (ctx.Trigger is not Character caster) return;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;

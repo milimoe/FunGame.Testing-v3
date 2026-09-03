@@ -56,7 +56,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void AfterDeathCalculation(DeathContext ctx)
         {
-            if (ctx.Actor is not Character death) return;
+            if (ctx.Trigger is not Character death) return;
             bool hasMaster = ctx.HasMaster;
             Character? killer = ctx.Killer;
             Dictionary<Character, int> continuousKilling = ctx.ContinuousKilling;
@@ -91,7 +91,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnTimeElapsed(TimeLapseContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             double elapsed = ctx.Elapsed;
             if (character == Skill.Character)
             {
@@ -113,7 +113,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public override void OnEffectLost(HookContext ctx)
         {
-            if (ctx.Actor is not Character character) return;
+            if (ctx.Trigger is not Character character) return;
             if (GamingQueue != null)
             {
                 if (GamingQueue is FunGame.Core.Model.Queue.GamingQueue queue)
