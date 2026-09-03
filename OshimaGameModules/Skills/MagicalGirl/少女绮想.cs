@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -33,9 +34,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 累计伤害 = 0;
         private double 下一次提升 = 7;
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -47,9 +48,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 double 实际伤害提升 = damage * 累计伤害;
                 if (实际伤害提升 > 0) WriteLine($"[ {character} ] 的伤害提升了 {累计伤害 * 100:0.##}% [ {实际伤害提升:0.##} ] 点！");
                 累计伤害 *= 0.7;
-                return 实际伤害提升;
+                return new AlterActualDamageResult { DamageDelta = 实际伤害提升 };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)

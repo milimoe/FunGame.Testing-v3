@@ -33,9 +33,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 基础冷却时间 { get; set; } = 10;
         private bool 是否是嵌套普通攻击 = false;
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -44,9 +44,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (character == Skill.Character && 是否是嵌套普通攻击 && isNormalAttack && damage > 0)
             {
-                return -(damage / 2);
+                return new AlterActualDamageResult { DamageDelta = -(damage / 2) };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)

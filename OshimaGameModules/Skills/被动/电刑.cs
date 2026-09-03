@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -30,9 +31,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => $"造成伤害时，标记目标 25 {GameplayEquilibriumConstant.InGameTime}并叠加 1 层数，当目标身上的电刑标记达到 3 层时，此次伤害提升 {伤害百分比 * 100:0.##}%。";
         private double 伤害百分比 => Skill.Character != null ? 0.2 + Skill.Character.Level * 0.004 : 0;
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -50,7 +51,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                         WriteLine($"[ {character} ] 发动了电刑的 3 层效果，伤害提升了 {伤害百分比 * 100:0.##}%！额外造成 {额外伤害:0.##} 点{CharacterSet.GetDamageTypeName(damageType)}！");
                         e.RemainDuration = 0;
                         enemy.Effects.Remove(e);
-                        return 额外伤害;
+                        return new AlterActualDamageResult { DamageDelta = 额外伤害 };
+
                     }
                 }
                 else
@@ -64,7 +66,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     enemy.Effects.Add(e);
                 }
             }
-            return 0;
+            return default;
+
         }
     }
 }

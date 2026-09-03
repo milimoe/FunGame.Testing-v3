@@ -3,6 +3,7 @@ using FunGame.Core.Entity;
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -102,9 +103,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -113,9 +114,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Dictionary<Effect, double> totalDamageBonus = ctx.TotalDamageBonus;
             if (enemy == Skill.Character)
             {
-                return -(damage * 实际比例);
+                return new AlterActualDamageResult { DamageDelta = -(damage * 实际比例) };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void OnSkillCasted(SkillCastContext ctx)

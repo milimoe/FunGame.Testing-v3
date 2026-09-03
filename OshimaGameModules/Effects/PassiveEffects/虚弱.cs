@@ -46,15 +46,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _healingReductionPercent = healingReductionPercent;
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character) return 0;
+            if (ctx.Trigger is not Character character) return default;
             double damage = ctx.Damage;
             if (character == _targetCharacter)
             {
-                return -(damage * _damageReductionPercent);
+                return new AlterActualDamageResult { DamageDelta = -(damage * _damageReductionPercent) };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override AlterHealValueResult AlterHealValueBeforeHealToTarget(HealContext ctx)

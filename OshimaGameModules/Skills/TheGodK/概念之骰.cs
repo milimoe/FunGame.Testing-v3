@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -68,9 +69,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Description = GeneralDescription;
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -81,9 +82,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             {
                 double reduce = damage * 实际受到伤害减少;
                 WriteLine($"[ {Skill.Character} ] 发动了概念之骰！伤害减少了 {reduce:0.##} 点！");
-                return -reduce;
+                return new AlterActualDamageResult { DamageDelta = -reduce };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void AfterDeathCalculation(DeathContext ctx)

@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -80,9 +81,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -93,9 +94,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             {
                 double bouns = -(damage * 熵核受到伤害提升);
                 WriteLine($"[ {enemy} ] 触发了宿命之潮，额外受到 {Math.Abs(bouns):0.##} 伤害！");
-                return bouns;
+                return new AlterActualDamageResult { DamageDelta = bouns };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)

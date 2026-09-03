@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -36,9 +37,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private int 目标连续攻击次数 = 0;
         private Character? 当前目标 = null;
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             bool isNormalAttack = ctx.IsNormalAttack;
             DamageType damageType = ctx.DamageType;
@@ -62,10 +63,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     目标连续攻击次数 = 0;
                     WriteLine($"[ {character} ] 对 [ {enemy} ] 施加了易损状态！[ {enemy} ] 的承受伤害提升 {易损伤害提升百分比 * 100:0.##}%！");
                     施加易损状态(character, enemy);
-                    return 额外伤害;
+                    return new AlterActualDamageResult { DamageDelta = 额外伤害 };
+
                 }
             }
-            return 0;
+            return default;
+
         }
 
         private void 施加易损状态(Character character, Character target)

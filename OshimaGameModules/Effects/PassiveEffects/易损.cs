@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -36,15 +37,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _exDamagePercent = exDamagePercent;
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             if (enemy == _targetCharacter)
             {
-                return damage * _exDamagePercent;
+                return new AlterActualDamageResult { DamageDelta = damage * _exDamagePercent };
+
             }
-            return 0;
+            return default;
+
         }
 
         public override void OnEffectGained(HookContext ctx)

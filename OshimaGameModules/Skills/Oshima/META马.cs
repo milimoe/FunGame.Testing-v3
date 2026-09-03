@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 {
@@ -29,11 +30,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public static double EP => 7;
 
-        public override void AlterEPAfterGetDamage(DamageContext ctx)
+        public override AlterEPResult AlterEPAfterGetDamage(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
-            ctx.BaseEP *= 1.5;
-            if (Skill.Character != null) WriteLine($"[ {Skill.Character} ] 发动了META马专属被动！本次获得了 {ctx.BaseEP:0.##} 能量！");
+            if (ctx.Trigger is not Character character) return default;
+            double baseEP = ctx.BaseEP * 1.5;
+            if (Skill.Character != null) WriteLine($"[ {Skill.Character } ] 发动了META马专属被动！本次获得了 {baseEP:0.##} 能量！");
+            return new AlterEPResult { BaseEP = baseEP };
         }
 
         public override void OnTurnStart(TurnContext ctx)

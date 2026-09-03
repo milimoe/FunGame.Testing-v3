@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -40,23 +41,26 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override double AlterActualDamageAfterCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character) return 0;
-            if (ctx.Enemy is not Character enemy) return 0;
+            if (ctx.Trigger is not Character character) return default;
+            if (ctx.Enemy is not Character enemy) return default;
             double damage = ctx.Damage;
             if (GamingQueue is null)
             {
-                return 0;
+                return default;
+
             }
             List<Character> teammates = GamingQueue.GetTeammates(character);
             if ((character == Source || teammates.Contains(Source)) && character.Effects.Any(e => e is 时雨标记) && enemy.Effects.Any(e => e is 时雨标记))
             {
                 double bonus = damage * 0.25;
                 WriteLine($"[ {character} ] 受到了{nameof(时雨标记)}的影响，伤害提高了 {bonus:0.##} 点！");
-                return bonus;
+                return new AlterActualDamageResult { DamageDelta = bonus };
+
             }
-            return 0;
+            return default;
+
         }
     }
 }
