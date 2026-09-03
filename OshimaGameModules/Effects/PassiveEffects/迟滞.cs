@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -35,14 +36,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _hardnessReductionPercent = healingReductionPercent;
         }
 
-        public override void AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
         {
-            ctx.BaseHardnessTime *= 1 + _hardnessReductionPercent;
+            return new AlterHardnessTimeResult { Factor = _hardnessReductionPercent };
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            ctx.BaseHardnessTime *= 1 + _hardnessReductionPercent;
+            return new AlterHardnessTimeResult { Factor = _hardnessReductionPercent };
         }
 
         public override void OnEffectGained(HookContext ctx)

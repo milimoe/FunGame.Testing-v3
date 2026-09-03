@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -55,20 +56,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override CharacterActionType AlterActionTypeBeforeAction(DecisionContext ctx)
+        public override AlterActionTypeResult AlterActionTypeBeforeAction(DecisionContext ctx)
         {
-            ctx.ForceAction = true;
             if (_targetCharacter.HP > 0)
             {
-                ctx.PNormalAttack = 1;
-                ctx.CanUseItem = false;
-                ctx.CanCastSkill = false;
-                return CharacterActionType.None;
+                // 目标存活：强制倾向普通攻击，禁止使用物品与技能
+                return new AlterActionTypeResult { ForceAction = true, PNormalAttack = 1, CanUseItem = false, CanCastSkill = false };
             }
             // 如果目标已死亡，则放弃本回合行动，并在回合结束后自动移除愤怒状态
             RemainDuration = 0;
             RemainDurationTurn = 0;
-            return CharacterActionType.EndTurn;
+            return new AlterActionTypeResult { ForceAction = true, ActionType = CharacterActionType.EndTurn };
         }
 
         public override void AfterDeathCalculation(DeathContext ctx)

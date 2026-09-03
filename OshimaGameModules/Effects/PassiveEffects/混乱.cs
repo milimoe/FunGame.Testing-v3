@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -49,11 +50,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             teammates.AddRange(enemys);
         }
 
-        public override CharacterActionType AlterActionTypeBeforeAction(DecisionContext ctx)
+        public override AlterActionTypeResult AlterActionTypeBeforeAction(DecisionContext ctx)
         {
             DecisionPoints dp = ctx.DP;
-            ctx.ForceAction = true;
-            return FunGame.Core.Model.Queue.GamingQueue.GetActionType(dp, ctx.PUseItem, ctx.PCastSkill, ctx.PNormalAttack);
+            return new AlterActionTypeResult
+            {
+                ForceAction = true,
+                ActionType = FunGame.Core.Model.Queue.GamingQueue.GetActionType(dp, ctx.PUseItem, ctx.PCastSkill, ctx.PNormalAttack)
+            };
         }
 
         public override void OnTurnEnd(TurnContext ctx)

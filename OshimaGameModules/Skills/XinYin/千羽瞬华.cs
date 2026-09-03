@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -72,10 +73,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override CharacterActionType AlterActionTypeBeforeAction(DecisionContext ctx)
+        public override AlterActionTypeResult AlterActionTypeBeforeAction(DecisionContext ctx)
         {
-            ctx.PNormalAttack += 0.1;
-            return CharacterActionType.None;
+            return new AlterActionTypeResult { PNormalAttack = ctx.PNormalAttack + 0.1 };
         }
 
         public override double AlterExpectedDamageBeforeCalculation(DamageContext ctx)
@@ -93,10 +93,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
-            ctx.BaseHardnessTime *= 0.8;
+            if (ctx.Trigger is not Character character) return default;
+            return new AlterHardnessTimeResult { Factor = -0.2 };
         }
 
         public override void OnSkillCasted(SkillCastContext ctx)

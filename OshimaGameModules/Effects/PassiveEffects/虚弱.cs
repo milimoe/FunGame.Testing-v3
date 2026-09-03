@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -56,15 +57,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return 0;
         }
 
-        public override double AlterHealValueBeforeHealToTarget(HealContext ctx)
+        public override AlterHealValueResult AlterHealValueBeforeHealToTarget(HealContext ctx)
         {
-            if (ctx.Target is not Character target) return 0;
+            if (ctx.Target is not Character target) return default;
             double heal = ctx.Heal;
             if (target == _targetCharacter)
             {
-                return -(heal * _healingReductionPercent);
+                return new AlterHealValueResult { HealDelta = -(heal * _healingReductionPercent) };
             }
-            return 0;
+            return default;
         }
 
         public override void OnEffectGained(HookContext ctx)

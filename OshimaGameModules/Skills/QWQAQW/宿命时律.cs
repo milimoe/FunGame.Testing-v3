@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -76,10 +77,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             return 0;
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
-            ctx.BaseHardnessTime *= 0.3;
+            if (ctx.Trigger is not Character character) return default;
+            return new AlterHardnessTimeResult { Factor = -0.7 };
         }
 
         public override void OnSkillCasted(SkillCastContext ctx)

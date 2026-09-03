@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -65,9 +66,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             _durationTurn = durationTurn;
         }
 
-        public override bool BeforeApplyRecoveryAtTimeLapsing(TimeLapseContext ctx)
+        public override BeforeApplyRecoveryResult BeforeApplyRecoveryAtTimeLapsing(TimeLapseContext ctx)
         {
-            return _allowRecovery;
+            return new BeforeApplyRecoveryResult { CancelRecovery = !_allowRecovery };
         }
 
         public override bool BeforeLifesteal(LifestealContext ctx)
@@ -75,9 +76,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return _allowLifeSteal;
         }
 
-        public override bool BeforeHealToTarget(HealContext ctx)
+        public override BeforeHealToTargetResult BeforeHealToTarget(HealContext ctx)
         {
-            return _allowHealing;
+            return new BeforeHealToTargetResult { CancelHeal = !_allowHealing };
         }
 
         public override void OnEffectGained(HookContext ctx)

@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -66,68 +67,61 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             }
         }
 
-        public override void AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterNormalAttack(HardnessContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
+            if (ctx.Trigger is not Character character) return default;
             if (是否支持普攻)
             {
-                double baseHardnessTime = ctx.BaseHardnessTime;
-                bool isCheckProtected = ctx.IsCheckProtected;
-                AlterHardnessTime(character, ref baseHardnessTime, ref isCheckProtected);
-                ctx.BaseHardnessTime = baseHardnessTime;
-                ctx.IsCheckProtected = isCheckProtected;
+                return new AlterHardnessTimeResult { ClearHardnessTime = ClearHardnessTime(character) };
             }
+            return default;
         }
 
-        public override void AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
+        public override AlterHardnessTimeResult AlterHardnessTimeAfterCastSkill(HardnessContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
+            if (ctx.Trigger is not Character character) return default;
             if (ctx.Skill is Skill skill && skill.SkillType == SkillType.Magic)
             {
-                double baseHardnessTime = ctx.BaseHardnessTime;
-                bool isCheckProtected = ctx.IsCheckProtected;
-                AlterHardnessTime(character, ref baseHardnessTime, ref isCheckProtected);
-                ctx.BaseHardnessTime = baseHardnessTime;
-                ctx.IsCheckProtected = isCheckProtected;
+                return new AlterHardnessTimeResult { ClearHardnessTime = ClearHardnessTime(character) };
             }
+            return default;
         }
 
-        public void AlterHardnessTime(Character character, ref double baseHardnessTime, ref bool isCheckProtected)
+        /// <summary>
+        /// 触发灵能反射副作用；返回是否清零硬直时间（框架据此将硬直置 0 并解除插队保护）
+        /// </summary>
+        private bool ClearHardnessTime(Character character)
         {
             释放次数++;
             if (释放次数 < 触发硬直次数)
             {
-                baseHardnessTime = 0;
-                isCheckProtected = false;
                 WriteLine($"[ {character} ] 发动了灵能反射，消除了硬直时间！！");
                 if (GamingQueue != null && GamingQueue.CharacterDecisionPoints.TryGetValue(character, out DecisionPoints? dp) && dp != null)
                 {
                     dp.ActionsTaken = 1;
                     dp.ActionsHardnessTime.Clear();
                 }
+                return true;
             }
-            else
+            释放次数 = 0;
+            IEnumerable<Effect> effects = character.Effects.Where(e => e is 三相灵枢特效);
+            if (effects.Any() && effects.First() is 三相灵枢特效 e && e.Skill.Character == Skill.Character)
             {
-                释放次数 = 0;
-                IEnumerable<Effect> effects = character.Effects.Where(e => e is 三相灵枢特效);
-                if (effects.Any() && effects.First() is 三相灵枢特效 e && e.Skill.Character == Skill.Character)
+                WriteLine($"[ {character} ] 发动了灵能反射，消除了硬直时间！！");
+                if (GamingQueue != null && GamingQueue.CharacterDecisionPoints.TryGetValue(character, out DecisionPoints? dp) && dp != null)
                 {
-                    baseHardnessTime = 0;
-                    isCheckProtected = false;
-                    WriteLine($"[ {character} ] 发动了灵能反射，消除了硬直时间！！");
-                    if (GamingQueue != null && GamingQueue.CharacterDecisionPoints.TryGetValue(character, out DecisionPoints? dp) && dp != null)
-                    {
-                        dp.ActionsTaken = 1;
-                        dp.ActionsHardnessTime.Clear();
-                    }
-                    e.剩余持续次数--;
-                    if (e.剩余持续次数 == 0)
-                    {
-                        character.Effects.Remove(e);
-                        e.OnEffectLost(new HookContext(GamingQueue, character));
-                    }
+                    dp.ActionsTaken = 1;
+                    dp.ActionsHardnessTime.Clear();
                 }
+                e.剩余持续次数--;
+                if (e.剩余持续次数 == 0)
+                {
+                    character.Effects.Remove(e);
+                    e.OnEffectLost(new HookContext(GamingQueue, character));
+                }
+                return true;
             }
+            return false;
         }
     }
 }
