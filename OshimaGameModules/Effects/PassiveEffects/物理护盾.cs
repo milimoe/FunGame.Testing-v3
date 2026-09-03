@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -68,16 +69,16 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             character.Shield.RemoveShieldOfEffect(this);
         }
 
-        public override bool OnShieldBroken(ShieldContext ctx)
+        public override OnShieldBrokenResult OnShieldBroken(ShieldContext ctx)
         {
-            if (ctx.Trigger is not Character character) return true;
+            if (ctx.Trigger is not Character character) return default;
             Effect? effet = ctx.ShieldEffect;
             if (effet == this)
             {
                 character.Shield.RemoveShieldOfEffect(this);
                 character.Effects.Remove(this);
             }
-            return true;
+            return default;
         }
     }
 }

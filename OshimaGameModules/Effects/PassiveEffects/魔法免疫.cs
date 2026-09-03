@@ -2,6 +2,7 @@
 using FunGame.Core.Interface.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -53,15 +54,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             RemoveImmuneTypesFromCharacter(character);
         }
 
-        public override bool OnImmuneCheck(ImmuneContext ctx)
+        public override OnImmuneCheckResult OnImmuneCheck(ImmuneContext ctx)
         {
-            if (ctx.Trigger is not Character character) return true;
+            if (ctx.Trigger is not Character character) return default;
             Character? target = ctx.Target;
             if (character == target)
             {
-                return false;
+                return new OnImmuneCheckResult { IgnoreImmunity = true };
             }
-            return true;
+            return default;
         }
     }
 }

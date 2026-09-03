@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -39,17 +40,14 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double 因果伤害值 { get; set; } = 0;
         public double 系数 => 1 + 0.2 * (Skill.Level - 1);
 
-        public override bool OnExemptionCheck(ImmuneContext ctx)
+        public override OnExemptionCheckResult OnExemptionCheck(ImmuneContext ctx)
         {
-            if (ctx.Trigger is not Character character) return true;
-            Character? source = ctx.Source;
-            Effect? effect = ctx.Effect;
-            bool isEvade = ctx.IsEvade;
+            if (ctx.Trigger is not Character character) return default;
             if (character == Skill.Character)
             {
-                ctx.ThrowingBonus += 300;
+                return new OnExemptionCheckResult { ThrowingBonusDelta = 300 };
             }
-            return true;
+            return default;
         }
 
         public override void AfterDamageCalculation(DamageContext ctx)
