@@ -2,7 +2,6 @@
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.EffectResult;
-using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects

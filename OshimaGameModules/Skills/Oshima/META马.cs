@@ -34,7 +34,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         {
             if (ctx.Trigger is not Character character) return default;
             double baseEP = ctx.BaseEP * 1.5;
-            if (Skill.Character != null) WriteLine($"[ {Skill.Character } ] 发动了META马专属被动！本次获得了 {baseEP:0.##} 能量！");
+            if (Skill.Character != null) WriteLine($"[ {Skill.Character} ] 发动了META马专属被动！本次获得了 {baseEP:0.##} 能量！");
             return new AlterEPResult { BaseEP = baseEP };
         }
 

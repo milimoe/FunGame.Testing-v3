@@ -49,7 +49,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             Dictionary<string, object> others = ctx.Others;
             if (Skill.Character != null && caster.Effects.FirstOrDefault(e => e is 宫监手标记 && e.Source == Source) is 宫监手标记 effect)
             {
-                WriteLine($"[ {Skill.Character } ] 高声呼喊：“宫监手，放监！”");
+                WriteLine($"[ {Skill.Character} ] 高声呼喊：“宫监手，放监！”");
                 复制技能 e = new(Skill, Skill.Character, skill)
                 {
                     Durative = false,
