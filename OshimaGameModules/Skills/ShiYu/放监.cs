@@ -2,6 +2,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 
@@ -40,15 +41,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override bool DurativeWithoutDuration => true;
         public override DispelledType DispelledType => DispelledType.CannotBeDispelled;
 
-        public override bool BeforeSkillCastedOnStatus(SkillCastContext ctx)
+        public override BeforeSkillCastedOnStatusResult BeforeSkillCastedOnStatus(SkillCastContext ctx)
         {
-            if (ctx.Trigger is not Character caster || ctx.Skill is not Skill skill) return true;
+            if (ctx.Trigger is not Character caster || ctx.Skill is not Skill skill) return default;
             List<Character> targets = ctx.Targets;
             List<Grid> grids = ctx.Grids;
             Dictionary<string, object> others = ctx.Others;
             if (Skill.Character != null && caster.Effects.FirstOrDefault(e => e is 宫监手标记 && e.Source == Source) is 宫监手标记 effect)
             {
-                WriteLine($"[ {Skill.Character} ] 高声呼喊：“宫监手，放监！”");
+                WriteLine($"[ {Skill.Character } ] 高声呼喊：“宫监手，放监！”");
                 复制技能 e = new(Skill, Skill.Character, skill)
                 {
                     Durative = false,
@@ -65,10 +66,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 Skill.Character.Effects.Add(e);
                 WriteLine($"[ {Skill.Character} ] 复制了 [ {caster} ] 的技能：{skill.Name}！！");
                 effect.指向性技能任务完成(caster);
-                // 返回 false 让框架处理阻止技能对该角色的释放
-                return false;
+                // 返回 RemoveFromTargets 让框架移除该目标（阻止技能对持有放监的角色释放）
+                return new BeforeSkillCastedOnStatusResult { RemoveFromTargets = true };
             }
-            return true;
+            return default;
         }
     }
 

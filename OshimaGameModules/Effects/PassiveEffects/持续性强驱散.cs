@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -38,9 +39,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override bool BeforeSkillCastWillBeInterrupted(SkillCastContext ctx)
+        public override BeforeSkillCastWillBeInterruptedResult BeforeSkillCastWillBeInterrupted(SkillCastContext ctx)
         {
-            return false;
+            return new BeforeSkillCastWillBeInterruptedResult { BlockInterruption = true };
         }
 
         public override void OnEffectGained(HookContext ctx)

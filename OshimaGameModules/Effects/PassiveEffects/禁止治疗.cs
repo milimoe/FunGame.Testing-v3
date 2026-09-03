@@ -2,6 +2,7 @@
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.EffectResult;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
@@ -71,9 +72,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return new BeforeApplyRecoveryResult { CancelRecovery = !_allowRecovery };
         }
 
-        public override bool BeforeLifesteal(LifestealContext ctx)
+        public override BeforeLifestealResult BeforeLifesteal(LifestealContext ctx)
         {
-            return _allowLifeSteal;
+            return new BeforeLifestealResult { CancelLifesteal = !_allowLifeSteal };
         }
 
         public override BeforeHealToTargetResult BeforeHealToTarget(HealContext ctx)

@@ -1,6 +1,7 @@
 ﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using FunGame.Core.Model.Framework;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
@@ -39,11 +40,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             }
         }
 
-        public override bool BeforeSkillCastedOnStatus(SkillCastContext ctx)
+        public override BeforeSkillCastedOnStatusResult BeforeSkillCastedOnStatus(SkillCastContext ctx)
         {
             LastType = CharacterActionType.CastSkill;
             LastSkill = ctx.Skill;
-            return true;
+            return default;
         }
 
         public override void AfterDeathCalculation(DeathContext ctx)
