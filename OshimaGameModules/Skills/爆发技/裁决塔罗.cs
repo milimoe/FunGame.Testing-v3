@@ -90,10 +90,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     };
                     if (e.EffectType == EffectType.Freeze)
                     {
-                        e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target], Grids = grids, Others = others });
+                        e.Activate(caster, [target], grids, others);
                         e = new 施加概率负面(Skill, EffectType.Vulnerable, false, 0, DurationTurn, 0, 1, 0, DamageType.Magical, 0.3);
                     }
-                    e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target], Grids = grids, Others = others });
+                    e.Activate(caster, [target], grids, others);
                 }
             }
         }

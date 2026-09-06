@@ -223,11 +223,11 @@ export default function ReplayPanel({ requestedRound, onRoundChange }: { request
                 )}
               </Section>
               <KillSection record={record} skillDesc={skillDesc} />
+              <InfoSection record={record} />
               <RoundDamageSection record={record} />
             </div>
             <div className="space-y-5">
               <EffectsSection record={record} skillDesc={skillDesc} />
-              <InfoSection record={record} />
             </div>
           </div>
         </>

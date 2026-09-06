@@ -3,6 +3,8 @@ import type { PanelKey } from '../App'
 import { reload, simulateTeam } from '../api'
 
 const NAV: { key: PanelKey; label: string; icon: string; desc: string }[] = [
+  { key: 'home', label: '门户', icon: '🏠', desc: '模拟器整合入口' },
+  { key: 'classplanner', label: '职业规划', icon: '⚔️', desc: '职业规划模拟器' },
   { key: 'stats', label: '赛后统计', icon: '🏆', desc: 'Rating 排行榜与战斗数据' },
   { key: 'replay', label: '回合回放', icon: '🎞️', desc: '逐回合浏览战斗过程' },
   { key: 'snapshot', label: '状态快照', icon: '📋', desc: '检查点回合角色状态' },
@@ -55,15 +57,14 @@ export default function Layout({
 
   return (
     <div className="flex min-h-screen flex-col bg-rose-50 text-slate-700 lg:flex-row">
-      {/* 顶栏（移动端）/ 侧边栏（桌面端） */}
+      {/* 侧栏（移动端横向 / 桌面纵向） */}
       <aside className="shrink-0 border-b border-rose-100 bg-white/80 lg:flex lg:w-56 lg:flex-col lg:border-b-0 lg:border-r">
-        {/* 标题 */}
         <div className="flex items-center justify-between border-b border-rose-100 px-4 py-3 lg:block lg:px-5 lg:py-4">
           <h1 className="text-base font-black tracking-wide text-rose-500">🎮 FunGame 测试台</h1>
-          <p className="hidden text-[11px] text-slate-400 lg:block lg:mt-0.5">AI 对战模拟 · 回合回放</p>
+          <p className="hidden text-[11px] text-slate-400 lg:mt-0.5 lg:block">模拟 · 回放 · 职业规划</p>
         </div>
 
-        {/* 操作按钮（顶部） */}
+        {/* 全局操作 */}
         <div className="flex gap-2 border-b border-rose-100 p-3 lg:block lg:space-y-2 lg:border-b-0 lg:pb-1">
           {confirming ? (
             <>
@@ -102,7 +103,7 @@ export default function Layout({
           </button>
         </div>
 
-        {/* 导航（移动端横向滚动 / 桌面端纵向） */}
+        {/* 导航 */}
         <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:space-y-1 lg:p-3">
           {NAV.map(item => (
             <a
@@ -127,7 +128,7 @@ export default function Layout({
       {/* 内容区 */}
       <main className="min-w-0 flex-1">{children}</main>
 
-      {/* Toast 提示 */}
+      {/* Toast */}
       {toast && (
         <div
           role="status"

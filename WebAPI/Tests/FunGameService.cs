@@ -2,6 +2,7 @@
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.PrefabricatedEntity;
 using Milimoe.FunGameTesting.OshimaGameModules.Characters;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Items;
@@ -47,7 +48,11 @@ namespace Milimoe.FunGameTesting.Tests
             Characters.Add(new TheGodK());
 
             Skills.AddRange([new 疾风步(), new 助威(), new 挑拨(), new 绞丝棍(), new 金刚击(), new 旋风轮(), new 双连击(), new 绝影(), new 胧(), new 魔眼(),
-                new 天堂之吻(), new 回复弹(), new 养命功(), new 镜花水月(), new 剑风闪(), new 鲨鱼锚击(), new 疾走(), new 闪现()]);
+                new 天堂之吻(), new 回复弹(), new 养命功(), new 镜花水月(), new 剑风闪(), new 鲨鱼锚击(), new 疾走(), new 闪现(),
+                new 风之鞭(), new 拘束之鞭(), new 狐媚暗随(), new 快速狙击(), new 精准射击(), new 欢乐激发(), new 乱心安魂曲(), new 斗魂(), new 岚(), new 公牛之怒(),
+                new 火焰碎击(), new 螺旋之刃(), new 霸王疾风(), new 导力装甲(), new 回复原状(), new 强打(), new 龙神功(), new 月华掌(), new 雷神脚(), new 弓刃交错(),
+                new 神圣祈祷(), new 牺牲之箭(), new 石化之矢(), new 死亡制裁(), new 落叶(), new 风花阵(), new 陀螺舞(), new 光破斩(), new 跳跃点射(), new 光鬼斩(),
+                new 雷索吸缚(), new 狂刃剑舞(), new 无相飞刀(), new 破邪显正(), new 号令(), new 千剑之雨(), new 无尽剑制(), new 灾难一掷(), new 血腥旋转(), new 断罪斩()]);
 
             SuperSkills.AddRange([new 极寒渴望(), new 身心一境(), new 绝对领域(), new 零式灭杀(), new 三相灵枢(), new 变幻之心(), new 熵灭极诣(), new 残香凋零(), new 饕餮盛宴(),
                 new 宿命时律(), new 千羽瞬华(), new 咒怨洪流(), new 放监(), new 归元环(), new 海王星的野望(), new 全军出击(), new 宿命之潮(), new 神之因果()]);
@@ -55,9 +60,13 @@ namespace Milimoe.FunGameTesting.Tests
             PassiveSkills.AddRange([new META马(), new 心灵之弦(), new 蚀魂震击(), new 灵能反射(), new 双生流转(), new 零式崩解(), new 少女绮想(), new 暗香疏影(), new 破釜沉舟(),
                 new 累积之压(), new 银隼之赐(), new 弱者猎手(), new 开宫(), new 八卦阵(), new 深海之戟(), new 雇佣兵团(), new 不息之流(), new 概念之骰()]);
 
-            CommonPassiveSkills.AddRange([new 征服者(), new 致命节奏(), new 强攻(), new 电刑(), new 黑暗收割(), new 迅捷步法(), new 贪欲猎手()]);
+            CommonPassiveSkills.AddRange([new 征服者(), new 致命节奏(), new 强攻(), new 电刑(), new 黑暗收割(), new 迅捷步法(), new 贪欲猎手(),
+                new 丛刃(), new 召唤艾黎(), new 相位猛冲(), new 奥术彗星(), new 风暴聚集(), new 不灭之握(), new 余震(), new 守护者(), new 骸骨镀层(), new 冰川增幅(),
+                new 先攻(), new 饼干配送(), new 折射(), new 恩赐解脱(), new 静电场(), new 竭心光环(), new 海妖外壳(), new 自然蔽护(), new 勇气之霎(),
+                new 深海重击(), new 反击螺旋(), new 刀光谍影(), new 幽冥剧毒()]);
 
-            CommonSuperSkills.AddRange([new 樱花无双击(), new 漆黑之牙(), new 女王之怒(), new 裁决塔罗(), new 光明之环(), new 圣星光旋()]);
+            CommonSuperSkills.AddRange([new 樱花无双击(), new 漆黑之牙(), new 女王之怒(), new 裁决塔罗(), new 光明之环(), new 圣星光旋(), new 炎龙倒海(), new 卫星激光(), new 泰山玄武靠(),
+                new 星杯领域(), new 魔枪洛亚(), new 八叶灭杀(), new 樱花残月(), new 圣洁祝福(), new 天堂阻灭(), new 歼灭()]);
 
             Magics.AddRange([new 冰霜攻击(), new 火之矢(), new 水之矢(), new 风之轮(), new 石之锤(), new 心灵之霞(), new 次元上升(), new 暗物质(),
                 new 回复术(), new 治愈术(), new 复苏术(), new 圣灵术(), new 时间加速(), new 时间减速(), new 反魔法领域(), new 沉默十字(), new 虚弱领域(), new 混沌烙印(), new 凝胶稠絮(),
@@ -575,44 +584,26 @@ namespace Milimoe.FunGameTesting.Tests
         {
             if (str > 0)
             {
-                skill.Effects.Add(Factory.OpenFactory.GetInstance<Effect>((long)EffectID.ExSTR, "", new()
-                    {
-                        { "skill", skill },
-                        {
-                            "values", new Dictionary<string, object>()
-                            {
-                                { "exstr", str }
-                            }
-                        }
-                    }));
+                skill.Effects.Add(Factory.OpenFactory.GetInstance((long)EffectID.ExSTR, "", skill, new()
+                {
+                    { "exstr", str }
+                }));
             }
 
             if (agi > 0)
             {
-                skill.Effects.Add(Factory.OpenFactory.GetInstance<Effect>((long)EffectID.ExAGI, "", new()
-                    {
-                        { "skill", skill },
-                        {
-                            "values", new Dictionary<string, object>()
-                            {
-                                { "exagi", agi }
-                            }
-                        }
-                    }));
+                skill.Effects.Add(Factory.OpenFactory.GetInstance((long)EffectID.ExAGI, "", skill, new()
+                {
+                    { "exagi", agi }
+                }));
             }
 
             if (intelligence > 0)
             {
-                skill.Effects.Add(Factory.OpenFactory.GetInstance<Effect>((long)EffectID.ExINT, "", new()
-                    {
-                        { "skill", skill },
-                        {
-                            "values", new Dictionary<string, object>()
-                            {
-                                { "exint", intelligence }
-                            }
-                        }
-                    }));
+                skill.Effects.Add(Factory.OpenFactory.GetInstance((long)EffectID.ExINT, "", skill, new()
+                {
+                    { "exint", intelligence }
+                }));
             }
         }
 
@@ -717,6 +708,116 @@ namespace Milimoe.FunGameTesting.Tests
             List<Item> magicCards = GenerateMagicCards(magicCardCount, qualityType, magicIds, values);
             Item? magicCardPack = ConflateMagicCardPack(magicCards);
             return magicCardPack;
+        }
+
+        /// <summary>
+        /// 以核心库 MagicCardPack 为载体的卡包（新做法）：三围写入原生 AttributeBoosts（exstr/exagi/exint），
+        /// 不再生成 Ex 被动特效技能。魔法合并 / 品质映射 / 描述口径与 ConflateMagicCardPack 保持一致。
+        /// </summary>
+        public static Item? GenerateCoreMagicCardPack(int magicCardCount, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
+        {
+            List<Item> magicCards = GenerateMagicCards(magicCardCount, qualityType, magicIds, values);
+            return ConflateCoreMagicCardPack(magicCards);
+        }
+
+        /// <summary>
+        /// 将若干魔法卡合成为核心库 MagicCardPack。
+        /// 说明：不修改原 ConflateMagicCardPack / 卡片生成流程；三围取自卡片被动技能的 Ex 特效（typed 优先、参数 Values 兜底）。
+        /// 宿主未注册特效工厂时 OpenFactory 只会产出 Id=0 且参数丢失的泛型 Effect——新方法与旧方法在该类宿主下的取值表现一致。
+        /// </summary>
+        public static Item? ConflateCoreMagicCardPack(IEnumerable<Item> magicCards)
+        {
+            if (!magicCards.Any())
+            {
+                return null;
+            }
+            List<Skill> magics = [.. magicCards.Where(i => i.Skills.Active != null).Select(i => i.Skills.Active!)];
+            double str = 0, agi = 0, intelligence = 0;
+            foreach (Item card in magicCards)
+            {
+                foreach (Skill skill in card.Skills.Passives)
+                {
+                    foreach (Effect effect in skill.Effects)
+                    {
+                        double ex = 0, ag = 0, it = 0;
+                        switch (effect)
+                        {
+                            case ExSTR s: ex = s.Value; break;
+                            case ExAGI a: ag = a.Value; break;
+                            case ExINT i: it = i.Value; break;
+                            default:
+                                foreach (KeyValuePair<string, object> kv in effect.Values)
+                                {
+                                    if (kv.Key.Equals("exstr", StringComparison.OrdinalIgnoreCase) && double.TryParse(kv.Value.ToString(), out double sx)) ex = sx;
+                                    else if (kv.Key.Equals("exagi", StringComparison.OrdinalIgnoreCase) && double.TryParse(kv.Value.ToString(), out double ax)) ag = ax;
+                                    else if (kv.Key.Equals("exint", StringComparison.OrdinalIgnoreCase) && double.TryParse(kv.Value.ToString(), out double ix)) it = ix;
+                                }
+                                break;
+                        }
+                        str += ex;
+                        agi += ag;
+                        intelligence += it;
+                    }
+                }
+            }
+            MagicCardPack item = new(new Dictionary<string, object>
+            {
+                { "exstr", str },
+                { "exagi", agi },
+                { "exint", intelligence }
+            })
+            {
+                Id = Convert.ToInt64("10" + Verification.CreateVerifyCode(VerifyCodeType.NumberVerifyCode, 8)),
+                Name = GenerateRandomChineseName()
+            };
+            List<string> strings = [];
+            if (str > 0) strings.Add($"{str:0.##} 点力量");
+            if (agi > 0) strings.Add($"{agi:0.##} 点敏捷");
+            if (intelligence > 0) strings.Add($"{intelligence:0.##} 点智力");
+            foreach (Skill skill in magics)
+            {
+                IEnumerable<Skill> has = item.Skills.Magics.Where(m => m.Id == skill.Id);
+                if (has.Any() && has.First() is Skill s)
+                {
+                    s.Level += skill.Level;
+                    if (s.Level > 1) s.Name = s.Name.Split(' ')[0] + $" +{s.Level - 1}";
+                }
+                else
+                {
+                    Skill magic = skill.Copy();
+                    magic.AssociatedItemGuid = item.Guid;
+                    magic.Level = skill.Level;
+                    item.Skills.Magics.Add(magic);
+                }
+            }
+            item.Description = $"包含魔法：{string.Join("，", item.Skills.Magics.Select(m => m.Name + (m.Level > 1 ? $" +{m.Level - 1}" : "")))}\r\n" +
+                $"增加角色属性：{string.Join("，", strings)}";
+            double total = str + agi + intelligence;
+            if (total > 18 && total <= 36)
+            {
+                item.QualityType = QualityType.Green;
+            }
+            else if (total > 36 && total <= 54)
+            {
+                item.QualityType = QualityType.Blue;
+            }
+            else if (total > 54 && total <= 72)
+            {
+                item.QualityType = QualityType.Purple;
+            }
+            else if (total > 72 && total <= 90)
+            {
+                item.QualityType = QualityType.Orange;
+            }
+            else if (total > 90 && total <= 108)
+            {
+                item.QualityType = QualityType.Red;
+            }
+            else if (total > 108)
+            {
+                item.QualityType = QualityType.Gold;
+            }
+            return item;
         }
 
         public static double CalculateRating(CharacterStatistics stats, Team? team = null, CharacterStatistics[]? allStats = null)

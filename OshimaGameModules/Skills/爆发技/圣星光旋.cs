@@ -58,7 +58,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
             }
             Effect e = new 造成眩晕(Skill);
-            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = valid, Grids = grids, Others = others });
+            e.Activate(caster, valid, grids, others);
         }
     }
 }

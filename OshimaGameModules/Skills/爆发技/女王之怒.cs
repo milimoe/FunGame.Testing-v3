@@ -141,7 +141,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
             }
             造成虚弱 e = new(Skill, Durative, Duration, DurationTurn, DurationLevelGrowth, DamageReductionPercent, DEFReductionPercent, MDFReductionPercent, HealingReductionPercent);
-            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = valid, Grids = grids, Others = others });
+            e.Activate(caster, valid, grids, others);
         }
     }
 }

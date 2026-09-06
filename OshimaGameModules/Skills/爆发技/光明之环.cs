@@ -49,12 +49,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             List<Character> deads = [.. ctx.Targets.Where(c => c.HP == 0)];
             List<Character> alives = [.. ctx.Targets.Where(c => c.HP > 0)];
             Effect e = new 强驱散特效(Skill);
-            e.OnSkillCasted(new SkillCastContext(GamingQueue, caster)
-            {
-                Targets = alives,
-                Grids = ctx.Grids,
-                Others = ctx.Others
-            });
+            e.Activate(caster, alives, ctx.Grids, ctx.Others);
             foreach (Character target in alives)
             {
                 HealToTarget(caster, target, Heal);

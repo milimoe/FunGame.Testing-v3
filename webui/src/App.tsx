@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import Layout from './components/Layout'
+import HomePanel from './components/HomePanel'
+import ClassPlannerPanel from './classplanner/ClassPlannerPanel'
 import StatsPanel from './components/StatsPanel'
 import ReplayPanel from './components/ReplayPanel'
 import SnapshotPanel from './components/SnapshotPanel'
 
-export type PanelKey = 'stats' | 'replay' | 'snapshot'
+export type PanelKey = 'home' | 'classplanner' | 'stats' | 'replay' | 'snapshot'
 
 const PANEL_PATHS: Record<PanelKey, string> = {
+  home: '/',
+  classplanner: '/classplanner',
   stats: '/stats',
   replay: '/replay',
   snapshot: '/snapshot',
@@ -15,8 +19,9 @@ const PANEL_PATHS: Record<PanelKey, string> = {
 function panelFromPath(pathname: string): PanelKey {
   if (pathname === '/snapshot' || /^\/snapshot\/\d+(?:\/[^/]+)?$/.test(pathname)) return 'snapshot'
   if (pathname === '/replay' || /^\/replay\/\d+$/.test(pathname)) return 'replay'
+  if (pathname === '/classplanner') return 'classplanner'
   const entry = (Object.entries(PANEL_PATHS) as [PanelKey, string][]).find(([, path]) => path === pathname)
-  return entry?.[0] ?? 'stats'
+  return entry?.[0] ?? 'home'
 }
 
 function snapshotRoundFromPath(pathname: string): number | undefined {
@@ -80,6 +85,8 @@ export default function App() {
 
   return (
     <Layout panel={panel} panelPaths={PANEL_PATHS}>
+      {panel === 'home' && <HomePanel />}
+      {panel === 'classplanner' && <ClassPlannerPanel />}
       {panel === 'stats' && <StatsPanel />}
       {panel === 'replay' && <ReplayPanel requestedRound={replayRound} onRoundChange={selectReplayRound} />}
       {panel === 'snapshot' && (

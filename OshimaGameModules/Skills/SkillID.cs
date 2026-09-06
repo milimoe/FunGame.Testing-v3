@@ -245,7 +245,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         灾难一掷 = 2054,
         血腥旋转 = 2055,
         疾走 = 2056,
-        闪现 = 2057
+        闪现 = 2057,
+        断罪斩 = 2099
     }
 
     /**

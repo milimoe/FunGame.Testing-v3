@@ -207,7 +207,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                 {
                     if (e is 打断施法 ddsf)
                     {
-                        ddsf.OnSkillCasted(new SkillCastContext(GamingQueue, caster) { Targets = [target] });
+                        ddsf.Activate(caster, [target]);
                         continue;
                     }
                     WriteLine(tip);

@@ -23,3 +23,61 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #fb7185;
 }
+
+/* 统一卡片 / 壳（清新粉白，门户与职业规划页共用，与观战面板同源） */
+.pp-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 380px at 90% -8%, rgba(253, 164, 175, 0.25), transparent 60%),
+    radial-gradient(760px 340px at -8% 108%, rgba(244, 114, 182, 0.12), transparent 55%),
+    #fff1f2;
+}
+.pp-card {
+  background: #ffffff;
+  border: 1px solid #fecdd3;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(244, 63, 94, 0.06);
+}
+.pp-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+.pp-btn,
+.pp-btn-primary {
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid #fecdd3;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.pp-btn {
+  color: #be123c;
+  background: #ffffff;
+}
+.pp-btn:hover {
+  border-color: #fb7185;
+  background: #fff1f2;
+}
+.pp-btn:disabled,
+.pp-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pp-btn-primary {
+  background: #fb7185;
+  color: #ffffff;
+  border-color: transparent;
+  font-weight: 600;
+}
+.pp-btn-primary:hover {
+  background: #f43f5e;
+}
+.pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  font-size: 12px;
+}

@@ -892,7 +892,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     {
                                         character.User.Inventory.Credits -= mcpCost;
                                         operation["买卡包"] = true;
-                                        Item? mcp = FunGameService.GenerateMagicCardPack(3, canBuyMCP);
+                                        Item? mcp = FunGameService.GenerateCoreMagicCardPack(3, canBuyMCP);
                                         if (mcp != null)
                                         {
                                             foreach (Skill magic in mcp.Skills.Magics)
@@ -1004,7 +1004,7 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                     }
                 }
-                Item? mcp = FunGameService.GenerateMagicCardPack(3, (QualityType)mQuality);
+                Item? mcp = FunGameService.GenerateCoreMagicCardPack(3, (QualityType)mQuality);
                 if (mcp != null)
                 {
                     foreach (Skill magic in mcp.Skills.Magics)
