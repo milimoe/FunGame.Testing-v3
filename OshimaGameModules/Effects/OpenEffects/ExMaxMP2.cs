@@ -13,34 +13,56 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         private readonly double 加成比例 = 0;
         private double 实际加成 = 0;
+        private bool 加成已应用 = false;
+        private double 已应用加成 = 0;
 
         public override void OnEffectGained(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            if (Durative && RemainDuration == 0)
+            if (!加成已应用)
             {
-                RemainDuration = Duration;
+                // 仅首次获得时初始化剩余时间，避免后续刷新时被重置
+                if (Durative && RemainDuration == 0)
+                {
+                    RemainDuration = Duration;
+                }
+                else if (RemainDurationTurn == 0)
+                {
+                    RemainDurationTurn = DurationTurn;
+                }
             }
-            else if (RemainDurationTurn == 0)
+            else
             {
-                RemainDurationTurn = DurationTurn;
+                // 已生效过：先还原旧值再套用新值，避免重复叠加
+                character.ExMP2 -= 已应用加成;
             }
             实际加成 = character.BaseMP * 加成比例;
-            character.ExMP2 += 实际加成;
+            已应用加成 = 实际加成;
+            character.ExMP2 += 已应用加成;
+            加成已应用 = true;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            character.ExMP2 -= 实际加成;
+            if (!加成已应用) return;
+            character.ExMP2 -= 已应用加成;
+            已应用加成 = 0;
+            实际加成 = 0;
+            加成已应用 = false;
         }
 
         public override void OnAttributeChanged(HookContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
-            // 刷新加成
-            OnEffectLost(new HookContext(GamingQueue, character));
-            OnEffectGained(new HookContext(GamingQueue, character));
+            // 注意：此处与 ExATK2 等百分比加成不同，ExMP2 是固定点数加成，
+            // 基础魔法值变化后不会自动跟随，必须重算并替换已生效的数值
+            if (ctx.Trigger is Character character && 加成已应用)
+            {
+                character.ExMP2 -= 已应用加成;
+                实际加成 = character.BaseMP * 加成比例;
+                已应用加成 = 实际加成;
+                character.ExMP2 += 已应用加成;
+            }
         }
 
         public ExMaxMP2(Skill skill, Dictionary<string, object> args, Character? source = null) : base(skill, args)

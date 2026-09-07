@@ -13,34 +13,53 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
 
         private readonly double 加成比例 = 0;
         private double 实际加成 = 0;
+        private bool 加成已应用 = false;
+        private double 已应用加成比例 = 0;
 
         public override void OnEffectGained(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            if (Durative && RemainDuration == 0)
+            if (!加成已应用)
             {
-                RemainDuration = Duration;
+                // 仅首次获得时初始化剩余时间，避免后续刷新时被重置
+                if (Durative && RemainDuration == 0)
+                {
+                    RemainDuration = Duration;
+                }
+                else if (RemainDurationTurn == 0)
+                {
+                    RemainDurationTurn = DurationTurn;
+                }
             }
-            else if (RemainDurationTurn == 0)
+            else
             {
-                RemainDurationTurn = DurationTurn;
+                // 已生效过：先还原旧值再套用新值，避免重复叠加
+                character.ExDEFPercentage -= 已应用加成比例;
             }
             实际加成 = character.BaseDEF * 加成比例;
-            character.ExDEFPercentage += 加成比例;
+            已应用加成比例 = 加成比例;
+            character.ExDEFPercentage += 已应用加成比例;
+            加成已应用 = true;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            character.ExDEFPercentage -= 加成比例;
+            if (!加成已应用) return;
+            character.ExDEFPercentage -= 已应用加成比例;
+            已应用加成比例 = 0;
+            实际加成 = 0;
+            加成已应用 = false;
         }
 
         public override void OnAttributeChanged(HookContext ctx)
         {
-            if (ctx.Trigger is not Character character) return;
-            // 刷新加成
-            OnEffectLost(new HookContext(GamingQueue, character));
-            OnEffectGained(new HookContext(GamingQueue, character));
+            // 属性侧是百分比加成，基础物理护甲变化时会实时反映到 ExDEF3，无需重新结算；
+            // 此处只更新描述中展示的点数
+            if (ctx.Trigger is Character character && 加成已应用)
+            {
+                实际加成 = character.BaseDEF * 加成比例;
+            }
         }
 
         public ExDEF2(Skill skill, Dictionary<string, object> args, Character? source = null) : base(skill, args)

@@ -31,18 +31,17 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override void OnSkillCasted(SkillCastContext ctx)
         {
             if (ctx.Trigger is not Character caster) return;
-            List<Effect> armored = [.. caster.Effects.Where(e => e.Skill?.Id == (long)SkillID.导力装甲).ToList()];
+            // 增益与封技的移除、导力装甲可用性的恢复、本技能的移除，统一交给导力装甲特效处理，避免效果被重复移除导致属性重复结算
+            List<导力装甲特效> armored = [.. caster.Effects.OfType<导力装甲特效>()];
             if (armored.Count == 0)
             {
                 WriteLine($"[ {caster} ] 当前并未处于导力装甲状态。");
                 return;
             }
-            foreach (Effect e in armored)
+            foreach (导力装甲特效 e in armored)
             {
-                e.OnEffectLost(new HookContext(GamingQueue, caster));
-                caster.Effects.Remove(e);
+                e.解除装甲(caster);
             }
-            WriteLine($"[ {caster} ] 解除了导力装甲，恢复了通常的战斗姿态！");
         }
     }
 }

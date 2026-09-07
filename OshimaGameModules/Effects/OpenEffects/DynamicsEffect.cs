@@ -12,32 +12,56 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
         public HashSet<string> Descriptions { get; } = [];
         public Dictionary<string, double> RealDynamicsValues { get; } = [];
 
+        /// <summary>
+        /// 加成是否已生效，用于保证移除与重复触发都只结算一次
+        /// </summary>
+        private bool 已应用 = false;
+
         public override void OnEffectGained(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            if (Durative && RemainDuration == 0)
+            if (!已应用)
             {
-                RemainDuration = Duration;
+                // 仅首次获得时初始化剩余时间，避免后续刷新时被重置
+                if (Durative && RemainDuration == 0)
+                {
+                    RemainDuration = Duration;
+                }
+                else if (RemainDurationTurn == 0)
+                {
+                    RemainDurationTurn = DurationTurn;
+                }
             }
-            else if (RemainDurationTurn == 0)
+            else
             {
-                RemainDurationTurn = DurationTurn;
+                // 已生效过：先还原旧值再套用，避免重复叠加
+                Resolve(character, true);
             }
             Resolve(character);
+            已应用 = true;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
+            if (!已应用) return;
             Resolve(character, true);
+            RealDynamicsValues.Clear();
+            已应用 = false;
         }
 
         public override void OnAttributeChanged(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            // 刷新加成
-            OnEffectLost(new HookContext(GamingQueue, character));
-            OnEffectGained(new HookContext(GamingQueue, character));
+            if (!已应用) return;
+            // 各键的加成要么是配置常量、要么是百分比（会随基础属性实时变化），属性侧无需重新结算；
+            // 这里通过「先还原再套用」重新生成描述中展示的点数，并保护剩余时间不被重置
+            double remainDuration = RemainDuration;
+            int remainDurationTurn = RemainDurationTurn;
+            Resolve(character, true);
+            Resolve(character);
+            RemainDuration = remainDuration;
+            RemainDurationTurn = remainDurationTurn;
         }
 
         private void Resolve(Character character, bool remove = false)
