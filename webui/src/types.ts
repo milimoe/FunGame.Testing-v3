@@ -28,6 +28,31 @@ export interface TeamRef {
   Members: CharacterRef[]
 }
 
+// ===== 询问记录（InquiryRecord，InquiryRecordHelper 输出格式）=====
+// 一次询问的概要：主题（标题）、描述、类型、选项与最终答复
+export interface InquiryRecord {
+  // 被询问的角色
+  Character: CharacterRef
+  // 询问主题（标题）
+  Topic: string
+  // 询问描述
+  Description: string
+  // 询问类型（InquiryType：0 未设置 / 1 单选 / 2 多选 / 3 二选一 / 4 文本输入 / 5 数值输入 / 6 自定义）
+  InquiryType: number
+  // 可选项（键 -> 说明）
+  Choices: Record<string, string>
+  // 最终选定的项（选择类询问）
+  Selected: string[]
+  // 文本结果（文本输入类询问）
+  TextResult: string
+  // 数值结果（数值输入类询问）
+  NumberResult: number
+  // 是否被取消
+  Cancel: boolean
+  // 答复来源（InquiryResponseSource：0 未设置 / 1 外部 / 2 特效 / 3 自定义 / 4 AI / 5 默认）
+  Source: number
+}
+
 // ===== 单次行动记录（ActionRecord）=====
 export interface ActionRecord {
   Round: number
@@ -51,6 +76,8 @@ export interface ActionRecord {
   Heals: Record<string, number>
   ApplyEffects: Record<string, number[]>
   Messages: string[]
+  // 本次行动期间发生的询问（按发生顺序；旧档无此字段）
+  Inquiries?: InquiryRecord[]
   IsSuccess: boolean
   FailReason?: string
   CastTime: number
@@ -88,6 +115,8 @@ export interface RoundRecord {
   RoundRewards: SkillRef[]
   OtherMessages: string[]
   Actions: ActionRecord[]
+  // 本回合全部询问（含各行动内的询问；旧档无此字段）
+  Inquiries?: InquiryRecord[]
   Checkpoint: CharacterStateSnapshot[] | null
   TotalTime: number
   GameResult: RankingEntry[]

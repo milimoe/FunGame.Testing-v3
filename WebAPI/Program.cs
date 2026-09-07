@@ -5,6 +5,9 @@ using FunGame.Testing.WebAPI.Services;
 using Microsoft.Extensions.FileProviders;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.Tests;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 
 // ============ 初始化游戏模块（与 Testing-v3 的 Program.cs Main 一致，进程内直接调用模拟类） ============
 CharacterModule characterModule = new();
@@ -70,10 +73,12 @@ static void MoveSimulationZipIfNeeded(string targetZipPath)
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ArchiveStore>();
+builder.Services.AddSingleton<SoloGameRegistry>();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 WebApplication app = builder.Build();
 app.UseCors();
+app.UseWebSockets();
 
 // ============ 游戏数据字典（AllSkills / AllItems / Characters），供前端按 id 匹配显示描述 ============
 app.MapGet("/api/gamedata", () =>
@@ -249,6 +254,132 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
     {
         simulateLock.Release();
     }
+});
+
+// ============ 单人模式：WebSocket 对局端点（协议对齐 Server-v3 的 gaming.*） ============
+// 服务端权威计算：Core 战斗全部在本进程内完成，客户端只负责渲染与回传玩家决策。
+app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsync("仅支持 WebSocket 连接");
+        return;
+    }
+
+    using WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
+    SoloWebSocketSink sink = new(socket);
+    SoloGameSession? session = registry.Current;
+
+    // 断线重连：挂载到仍在运行的对局并补发完整快照
+    if (session is { Running: true })
+    {
+        session.AttachSink(sink);
+    }
+
+    byte[] buffer = new byte[64 * 1024];
+    try
+    {
+        while (socket.State == WebSocketState.Open)
+        {
+            WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), context.RequestAborted);
+            if (result.MessageType == WebSocketMessageType.Close) break;
+
+            JsonElement envelope;
+            try
+            {
+                JsonElement? parsed = JsonSerializer.Deserialize<JsonElement>(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                if (parsed is null) continue;
+                envelope = parsed.Value;
+            }
+            catch
+            {
+                continue;
+            }
+
+            string type = envelope.TryGetProperty("t", out JsonElement t) ? t.GetString() ?? "" : "";
+            JsonElement data = envelope.TryGetProperty("d", out JsonElement d) ? d : default;
+
+            switch (type)
+            {
+                case SoloMessageTypes.GamingStart:
+                {
+                    SoloGameOptions options = new();
+                    if (data.ValueKind == JsonValueKind.Object)
+                    {
+                        if (data.TryGetProperty("characterCount", out JsonElement v)) options.CharacterCount = v.GetInt32();
+                        if (data.TryGetProperty("level", out v)) options.Level = v.GetInt32();
+                        if (data.TryGetProperty("skillLevel", out v)) options.SkillLevel = v.GetInt32();
+                        if (data.TryGetProperty("normalAttackLevel", out v)) options.NormalAttackLevel = v.GetInt32();
+                        if (data.TryGetProperty("maxRound", out v)) options.MaxRound = v.GetInt32();
+                        if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
+                        if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
+                        if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
+                    }
+                    session = registry.Create(options);
+                    session.Start(sink, options);
+                    break;
+                }
+
+                case SoloMessageTypes.GamingAction:
+                {
+                    if (session is null) break;
+                    if (!data.TryGetProperty("requestId", out JsonElement rid)) break;
+                    JsonElement? payload = data.TryGetProperty("payload", out JsonElement p)
+                        && p.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? p : null;
+                    session.TryResolve(rid.GetString() ?? "", payload);
+                    break;
+                }
+
+                case SoloMessageTypes.GamingEnd:
+                    session?.Stop();
+                    registry.Stop();
+                    break;
+
+                case SoloMessageTypes.Ping:
+                    await sink.SendAsync(SoloMessageTypes.Pong, new { ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, context.RequestAborted);
+                    break;
+            }
+        }
+    }
+    catch
+    {
+        /* 连接中断 */
+    }
+    finally
+    {
+        // 断线不终止对局：交由 AI 托管并等待重连（/api/solo/stop 或 gaming.end 才会真正停止）
+        session?.MarkDisconnected();
+    }
+});
+
+// ============ 单人模式：REST 辅助端点（状态查询 / 停止 / 结算） ============
+app.MapGet("/api/solo/state", (SoloGameRegistry registry) =>
+{
+    SoloGameSession? session = registry.Current;
+    if (session is null) return Results.NotFound(new { error = "当前没有进行中的单人局" });
+    try
+    {
+        return Results.Ok(new { gameId = session.Id, running = session.Running, finished = session.Finished, state = session.Snapshot() });
+    }
+    catch (Exception ex)
+    {
+        // 游戏线程正在推进，快照读取竞争失败时返回状态提示（REST 仅为诊断用途）
+        return Results.Ok(new { gameId = session.Id, running = session.Running, finished = session.Finished, state = default(GameStateDto), note = ex.Message });
+    }
+});
+
+app.MapPost("/api/solo/stop", (SoloGameRegistry registry) =>
+{
+    registry.Stop();
+    return Results.Ok(new { ok = true });
+});
+
+app.MapGet("/api/solo/ranking", (SoloGameRegistry registry) =>
+{
+    SoloGameSession? session = registry.Current;
+    if (session is null) return Results.NotFound(new { error = "当前没有进行中的单人局" });
+    return Results.Ok(session.BuildRanking());
 });
 
 // ============ 可选：托管前端构建产物（npm run build 之后可单后端部署） ============

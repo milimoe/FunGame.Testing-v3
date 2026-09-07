@@ -2,21 +2,23 @@ import { useEffect, useState } from 'react'
 import BattleView from './components/BattleView'
 import ReplayPanel from './components/ReplayPanel'
 import RoomPanel from './components/RoomPanel'
+import SoloPanel from './components/solo/SoloPanel'
 import TestCenter from './components/TestCenter'
 import TopBar from './components/TopBar'
 
-type Tab = 'test' | 'battle' | 'replay' | 'room'
+type Tab = 'test' | 'battle' | 'replay' | 'room' | 'solo'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'test', label: '测试中心', icon: '⚗' },
   { id: 'room', label: '房间', icon: '🚪' },
+  { id: 'solo', label: '单人模式', icon: '🎮' },
   { id: 'battle', label: '战斗对局', icon: '⚔' },
   { id: 'replay', label: '回放', icon: '📜' },
 ]
 
 function readInitialTab(): Tab {
   const hash = window.location.hash.replace(/^#/, '')
-  if (hash === 'battle' || hash === 'replay' || hash === 'test' || hash === 'room') return hash
+  if (hash === 'battle' || hash === 'replay' || hash === 'test' || hash === 'room' || hash === 'solo') return hash
   return 'test'
 }
 
@@ -63,6 +65,7 @@ export default function App() {
       <main className="flex min-h-0 flex-1 flex-col">
         {tab === 'test' && <TestCenter />}
         {tab === 'room' && <RoomPanel />}
+        {tab === 'solo' && <SoloPanel />}
         {tab === 'battle' && <BattleView />}
         {tab === 'replay' && <ReplayPanel />}
       </main>

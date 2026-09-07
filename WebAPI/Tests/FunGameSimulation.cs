@@ -71,7 +71,7 @@ namespace Milimoe.FunGameTesting.Tests
                         c.Level = clevel;
                         c.NormalAttack.Level = mlevel;
                         FunGameService.AddCharacterSkills(c, 1, slevel, slevel);
-                        foreach (Skill skillLoop in FunGameService.Skills.Where(s => s is not 疾走).OrderBy(o => Random.Shared.Next()).Take(3))
+                        foreach (Skill skillLoop in FunGameService.Skills.Where(s => s is not 疾走 && s is not 回复原状).OrderBy(o => Random.Shared.Next()).Take(3))
                         {
                             Skill skill = skillLoop.Copy();
                             skill.Character = c;

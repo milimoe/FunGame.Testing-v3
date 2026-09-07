@@ -1,4 +1,4 @@
-import type { CharacterRef, CharacterStateSnapshot } from './types'
+import type { CharacterRef, CharacterStateSnapshot, InquiryRecord } from './types'
 
 // ===== 数值格式化 =====
 export function fmt(n: number, digits = 0): string {
@@ -81,6 +81,54 @@ export const EFFECT_TYPE_NAMES: Record<number, string> = {
 
 export const EQUIP_SLOT_NAMES: Record<number, string> = {
   1: '魔法卡包', 2: '武器', 3: '护甲', 4: '鞋子', 5: '饰品1', 6: '饰品2',
+}
+
+// InquiryType：0 未设置 / 1 单选 / 2 多选 / 3 二选一 / 4 文本输入 / 5 数值输入 / 6 自定义
+export const INQUIRY_TYPE_NAMES: Record<number, string> = {
+  0: '未设置', 1: '单选', 2: '多选', 3: '二选一', 4: '文本输入', 5: '数值输入', 6: '自定义',
+}
+
+// InquiryResponseSource：0 未设置 / 1 外部（玩家或服务器）/ 2 特效 / 3 自定义 / 4 AI / 5 默认
+export const INQUIRY_SOURCE_NAMES: Record<number, string> = {
+  0: '未设置', 1: '外部', 2: '特效', 3: '自定义', 4: 'AI', 5: '默认',
+}
+
+export const inquiryTypeName = (t: number) => INQUIRY_TYPE_NAMES[t] ?? `询问${t}`
+export const inquirySourceName = (s: number) => INQUIRY_SOURCE_NAMES[s] ?? `来源${s}`
+
+export const INQUIRY_TYPE = {
+  None: 0,
+  Choice: 1,
+  MultipleChoice: 2,
+  BinaryChoice: 3,
+  TextInput: 4,
+  NumberInput: 5,
+  Custom: 6,
+} as const
+
+// 询问是否为"选择类"（单选 / 多选 / 二选一）
+export const isChoiceInquiry = (t: number) =>
+  t === INQUIRY_TYPE.Choice || t === INQUIRY_TYPE.MultipleChoice || t === INQUIRY_TYPE.BinaryChoice
+
+// 询问结果的可读文本（与核心库 InquiryRecord.ToString() 的结果段一致）
+export function inquiryResultText(inq: InquiryRecord): string {
+  if (!inq) return '—'
+  if (inq.Cancel) return '已取消'
+  if (isChoiceInquiry(inq.InquiryType)) {
+    const selected = inq.Selected ?? []
+    return selected.length > 0 ? selected.join(' / ') : '无结果'
+  }
+  if (inq.InquiryType === INQUIRY_TYPE.TextInput) return (inq.TextResult ?? '').length > 0 ? inq.TextResult : '（空）'
+  if (inq.InquiryType === INQUIRY_TYPE.NumberInput) return fmt(inq.NumberResult ?? 0, 2)
+  // 自定义 / 未设置：优先文本结果，其次选中项
+  if ((inq.TextResult ?? '').length > 0) return inq.TextResult
+  const selected = inq.Selected ?? []
+  return selected.length > 0 ? selected.join(' / ') : '—'
+}
+
+// 询问的同一性键，用于剔除回合级 Inquiries 中已在行动内展示过的重复项
+export function inquiryKey(inq: InquiryRecord): string {
+  return `${inq?.Character?.Guid ?? ''}|${inq?.Topic ?? ''}|${inq?.InquiryType ?? 0}|${inquiryResultText(inq)}|${inq?.Source ?? 0}`
 }
 
 export const skillTypeName = (t: number) => SKILL_TYPE_NAMES[t] ?? `类型${t}`

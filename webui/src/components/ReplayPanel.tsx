@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchRound, fetchSummary } from '../api'
-import type { ActionRecord, CharacterRef, RoundRecord, RoundSummaryDto } from '../types'
+import type { ActionRecord, CharacterRef, InquiryRecord, RoundRecord, RoundSummaryDto } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, HBar, Section, Spinner } from './ui'
 import {
   ACTION_TYPE_ICONS,
@@ -12,6 +12,11 @@ import {
   effectTypeName,
   fmt,
   fmtTime,
+  INQUIRY_TYPE,
+  inquiryKey,
+  inquirySourceName,
+  inquiryTypeName,
+  isChoiceInquiry,
   keyedToEntries,
   skillTypeName,
 } from '../util'
@@ -222,6 +227,7 @@ export default function ReplayPanel({ requestedRound, onRoundChange }: { request
                   </div>
                 )}
               </Section>
+              <RoundInquirySection record={record} />
               <KillSection record={record} skillDesc={skillDesc} />
               <InfoSection record={record} />
               <RoundDamageSection record={record} />
@@ -272,6 +278,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
   const icon = ACTION_TYPE_ICONS[action.ActionType] ?? '·'
   const damages = keyedToEntries(action.Damages)
   const heals = keyedToEntries(action.Heals)
+  const inquiries = action.Inquiries ?? []
   const hasEffect = keyedToEntries(action.ApplyEffects).length > 0
   const desc = action.Skill
     ? skillDesc.get(action.Skill.Id)
@@ -307,6 +314,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
           <span className="font-semibold text-slate-800">{name}</span>
           {action.Skill?.Name && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
           {action.IsSuccess === false && <Badge tone="red">失败</Badge>}
+          {inquiries.length > 0 && <Badge tone="cyan">💬 {inquiries.length} 次询问</Badge>}
         </div>
 
         {/* 技能 / 物品描述 */}
@@ -401,8 +409,134 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
             ))}
           </div>
         )}
+
+        {/* 本次行动期间发生的询问：标题 / 描述 / 结果 */}
+        {inquiries.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            {inquiries.map((q, i) => (
+              <InquiryBlock key={`${inquiryKey(q)}-${i}`} inquiry={q} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+// ===== 单条询问（标题 / 描述 / 结果）=====
+function InquiryBlock({ inquiry }: { inquiry: InquiryRecord }) {
+  const choices = Object.entries(inquiry.Choices ?? {})
+  const selected = new Set(inquiry.Selected ?? [])
+  const showChoices = choices.length > 0
+
+  return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-2.5">
+      {/* 标题行 */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs">💬</span>
+        <span className="text-sm font-semibold text-slate-800">{inquiry.Topic || '（未命名询问）'}</span>
+        <Badge tone="indigo">{inquiryTypeName(inquiry.InquiryType)}</Badge>
+        {inquiry.Cancel && <Badge tone="red">已取消</Badge>}
+      </div>
+
+      {/* 描述 */}
+      {inquiry.Description ? (
+        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">{inquiry.Description}</p>
+      ) : null}
+
+      {/* 结果 */}
+      <div className="mt-1.5">
+        {inquiry.Cancel ? (
+          <p className="text-xs text-slate-400">结果：<span className="text-slate-500">未作答（已取消）</span></p>
+        ) : isChoiceInquiry(inquiry.InquiryType) ? (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-slate-400">结果：</span>
+            {showChoices ? (
+              choices.map(([key, text]) => {
+                const isSelected = selected.has(key)
+                const label = text ? `${key} · ${text}` : key
+                return (
+                  <span
+                    key={key}
+                    className={`rounded-full px-2 py-0.5 ${
+                      isSelected
+                        ? 'bg-rose-100 font-semibold text-rose-600 ring-1 ring-rose-300'
+                        : 'bg-white text-slate-400 ring-1 ring-rose-100'
+                    }`}
+                  >
+                    {isSelected ? `✔ ${label}` : label}
+                  </span>
+                )
+              })
+            ) : selected.size > 0 ? (
+              [...selected].map(key => (
+                <span key={key} className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600 ring-1 ring-rose-300">
+                  ✔ {key}
+                </span>
+              ))
+            ) : (
+              <span className="text-slate-400">无结果</span>
+            )}
+          </div>
+        ) : inquiry.InquiryType === INQUIRY_TYPE.TextInput ? (
+          <p className="text-xs text-slate-400">
+            结果：<span className="whitespace-pre-wrap break-words text-slate-700">{inquiry.TextResult || '（空）'}</span>
+          </p>
+        ) : inquiry.InquiryType === INQUIRY_TYPE.NumberInput ? (
+          <p className="text-xs text-slate-400">
+            结果：<span className="font-semibold tabular-nums text-slate-700">{fmt(inquiry.NumberResult ?? 0, 2)}</span>
+          </p>
+        ) : (
+          <p className="text-xs text-slate-400">
+            结果：
+            <span className="text-slate-700">
+              {inquiry.TextResult ||
+                (inquiry.Selected ?? []).join(' / ') ||
+                (inquiry.NumberResult ? fmt(inquiry.NumberResult, 2) : '—')}
+            </span>
+          </p>
+        )}
+      </div>
+
+      {/* 归属与来源 */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
+        <span>被询问：{charName(inquiry.Character)}</span>
+        <span>来源：{inquirySourceName(inquiry.Source)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ===== 回合级询问（行动之外的询问，已剔除行动内展示过的重复项）=====
+function RoundInquirySection({ record }: { record: RoundRecord }) {
+  const rest = useMemo(() => {
+    const inActions = (record.Actions ?? []).flatMap(a => a.Inquiries ?? [])
+    // 同一条询问会同时写入 ActionRecord.Inquiries 与 RoundRecord.Inquiries，按同一性键做多重集比对
+    const used = new Map<string, number>()
+    for (const q of inActions) {
+      const key = inquiryKey(q)
+      used.set(key, (used.get(key) ?? 0) + 1)
+    }
+    const others: InquiryRecord[] = []
+    for (const q of record.Inquiries ?? []) {
+      const key = inquiryKey(q)
+      const count = used.get(key) ?? 0
+      if (count > 0) used.set(key, count - 1)
+      else others.push(q)
+    }
+    return others
+  }, [record.Actions, record.Inquiries])
+
+  if (rest.length === 0) return null
+
+  return (
+    <Section title="回合询问" subtitle={`行动之外的 ${rest.length} 条询问`}>
+      <div className="space-y-2">
+        {rest.map((q, i) => (
+          <InquiryBlock key={`${inquiryKey(q)}-${i}`} inquiry={q} />
+        ))}
+      </div>
+    </Section>
   )
 }
 
