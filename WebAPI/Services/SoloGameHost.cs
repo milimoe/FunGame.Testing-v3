@@ -64,27 +64,67 @@ public sealed class SoloWebSocketSink : IGameEventSink
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    /// <summary>
+    /// 单次发送的最长时间。对端不读取（浏览器切后台被节流、连接半开等）时
+    /// WebSocket.SendAsync 会永久挂起，进而卡死游戏线程，因此必须设上限。
+    /// </summary>
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(5);
+
     private readonly WebSocket _socket;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _seq;
+    private volatile bool _broken;
 
     public SoloWebSocketSink(WebSocket socket) => _socket = socket;
 
-    public bool IsOpen => _socket.State == WebSocketState.Open;
+    public bool IsOpen => !_broken && _socket.State == WebSocketState.Open;
 
     public async Task SendAsync(string type, object data, CancellationToken ct)
     {
         if (!IsOpen) return;
         SoloEnvelope envelope = SoloEnvelope.Ok(type, Interlocked.Increment(ref _seq), data);
         byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(envelope, JsonOptions));
-        await _gate.WaitAsync(ct);
+
+        // 闸门等待也要设上限：一旦某次发送挂住，不能让后续所有发送无限排队
+        if (!await _gate.WaitAsync(SendTimeout, ct).ConfigureAwait(false))
+        {
+            MarkBroken();
+            return;
+        }
         try
         {
-            await _socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
+            Task send = _socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
+            Task finished = await Task.WhenAny(send, Task.Delay(SendTimeout, ct)).ConfigureAwait(false);
+            if (finished != send)
+            {
+                // 发送超时：判定连接不可用并中断，避免游戏线程被永久拖住
+                MarkBroken();
+                return;
+            }
+            await send.ConfigureAwait(false);
+        }
+        catch
+        {
+            MarkBroken();
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>标记连接不可用并中断底层连接（触发对局侧的 AI 托管接管）</summary>
+    private void MarkBroken()
+    {
+        if (_broken) return;
+        _broken = true;
+        try
+        {
+            _socket.Abort();
+        }
+        catch
+        {
+            /* 忽略 */
         }
     }
 

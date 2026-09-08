@@ -27,6 +27,8 @@ public static class SoloMessageTypes
     public const string GamingRequest = "gaming.request";
     /// <summary>已解决决策（广播，用于多端同步）</summary>
     public const string GamingResolved = "gaming.resolved";
+    /// <summary>重连后显式接管仍在运行的对局（替代「新连接无条件挂载旧会话」的旧行为）</summary>
+    public const string GamingResume = "gaming.resume";
 }
 
 /// <summary>错误体</summary>

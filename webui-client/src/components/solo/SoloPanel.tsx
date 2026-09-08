@@ -6,6 +6,7 @@ import SoloLog from './SoloLog'
 import SoloMap from './SoloMap'
 import SoloQueue from './SoloQueue'
 import SoloRoster from './SoloRoster'
+import { SoloTurnBanner } from './SoloTurnBanner'
 
 const DEFAULT_BASE_URL = 'http://localhost:11030'
 const LS_URL = 'fungame.solo.baseUrl'
@@ -30,6 +31,8 @@ export default function SoloPanel() {
   const [showLog, setShowLog] = useState(true)
   const [opt, setOpt] = useState<SoloOptions>({ characterCount: 10, level: 60, skillLevel: 6, roundDelayMs: 350 })
   const [starting, setStarting] = useState(false)
+  // 技能意图：记住玩家点的是「战技/魔法」还是「爆发技」，用于过滤后续技能列表
+  const [skillIntent, setSkillIntent] = useState<'all' | 'normal' | 'super'>('all')
   const game = useSoloGame(baseUrl)
   const { state } = game
 
@@ -43,6 +46,7 @@ export default function SoloPanel() {
     try {
       const ok = await game.connect()
       if (!ok) return // 保持设置页，展示连接错误
+      setSkillIntent('all')
       game.start({
         characterCount: opt.characterCount,
         level: opt.level,
@@ -65,6 +69,14 @@ export default function SoloPanel() {
     (ids: number[]) => {
       if (ids.length === 0) game.cancel()
       else game.submit({ gridIds: ids } as SoloDecisionReply)
+    },
+    [game],
+  )
+  // 地图直接点选角色作为目标
+  const submitTargets = useCallback(
+    (guids: string[]) => {
+      if (guids.length === 0) game.cancel()
+      else game.submit({ targetGuids: guids } as SoloDecisionReply)
     },
     [game],
   )
@@ -214,17 +226,20 @@ export default function SoloPanel() {
               decision={state.decision}
               onPickGrid={submitGrid}
               onSubmitGrids={submitGrids}
+              onPickTargets={submitTargets}
+              onCancelDecision={() => game.cancel()}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-[13px] text-ink-400">等待地图数据…</div>
           )}
 
-          {/* 玩家回合提示条 */}
-          {state.decision?.kind === 'ActionType' ? null : state.decision && state.decision.kind !== 'TargetGrid' && state.decision.kind !== 'TargetGrids' ? null : (
-            <div className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-full bg-ink-900/70 px-3.5 py-1 text-[11.5px] text-parchment-100">
-              {state.decision ? '在地图上选择目标格子…' : '战斗进行中…'}
-            </div>
-          )}
+          {/* 回合状态横幅：轮到谁 / 剩余多久 / 是否被 AI 托管 */}
+          <SoloTurnBanner
+            hasDecision={state.decision !== null}
+            decisionDeadline={state.decisionDeadline}
+            aiEscalated={state.aiEscalated}
+            round={state.round}
+          />
         </section>
 
         {/* 右：角色列表 */}
@@ -233,6 +248,21 @@ export default function SoloPanel() {
         </aside>
       </div>
 
+      {/* 回合内决策：停靠操作栏（位于战场下方、日志之上，不遮挡地图与角色信息） */}
+      {state.decision && state.decision.kind !== 'SelectCharacter' && (
+        <SoloDecisionModal
+          mode="dock"
+          decision={state.decision}
+          player={player}
+          skillIntent={skillIntent}
+          onSubmit={(p, intent) => {
+            if (intent && intent !== 'all') setSkillIntent(intent)
+            game.submit(p)
+          }}
+          onCancel={() => game.cancel()}
+        />
+      )}
+
       {/* 底部日志 */}
       {showLog && (
         <div className="h-[150px] shrink-0 rounded-xl border border-ink-800/10 bg-parchment-200/40 p-2">
@@ -240,11 +270,13 @@ export default function SoloPanel() {
         </div>
       )}
 
-      {/* 决策弹层 */}
-      {state.decision && (
+      {/* 开局选角色：居中浮层（此时尚无战场信息可看） */}
+      {state.decision && state.decision.kind === 'SelectCharacter' && (
         <SoloDecisionModal
+          mode="modal"
           decision={state.decision}
           player={player}
+          skillIntent="all"
           onSubmit={(p) => game.submit(p)}
           onCancel={() => game.cancel()}
         />

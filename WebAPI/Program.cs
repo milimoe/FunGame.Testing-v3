@@ -269,13 +269,11 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
 
     using WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
     SoloWebSocketSink sink = new(socket);
-    SoloGameSession? session = registry.Current;
-
-    // 断线重连：挂载到仍在运行的对局并补发完整快照
-    if (session is { Running: true })
-    {
-        session.AttachSink(sink);
-    }
+    // 注意：此处不再无条件挂载仍在运行的旧会话。
+    // 否则「上一局未停止」时，新连接会先收到旧局的状态与结算（gaming.over），
+    // 造成「人还没选完、背后已经跑完并弹出结算」的串台现象。
+    // 真要重连接管，由客户端显式发送 gaming.resume。
+    SoloGameSession? session = null;
 
     byte[] buffer = new byte[64 * 1024];
     try
@@ -328,6 +326,22 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                     JsonElement? payload = data.TryGetProperty("payload", out JsonElement p)
                         && p.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? p : null;
                     session.TryResolve(rid.GetString() ?? "", payload);
+                    break;
+                }
+
+                case SoloMessageTypes.GamingResume:
+                {
+                    // 重连：接管仍在运行的对局并补发完整快照
+                    SoloGameSession? running = registry.Current;
+                    if (running is { Running: true })
+                    {
+                        session = running;
+                        running.AttachSink(sink);
+                    }
+                    else
+                    {
+                        await sink.SendAsync(SoloMessageTypes.Notice, new { message = "当前没有进行中的对局" }, context.RequestAborted);
+                    }
                     break;
                 }
 

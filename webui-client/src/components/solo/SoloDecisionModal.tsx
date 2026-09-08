@@ -5,8 +5,12 @@ interface SoloDecisionProps {
   decision: SoloDecisionRequest | null
   player: SoloCharacterDto | null
   /** 提交决策（不同 kind 的 payload 见各 UI） */
-  onSubmit: (payload: SoloDecisionReply) => void
+  onSubmit: (payload: SoloDecisionReply, intent?: SkillIntent) => void
   onCancel: () => void
+  /** modal=居中浮层（仅开局选角色用）；dock=底部停靠栏（回合内决策，不遮挡战场信息） */
+  mode?: 'modal' | 'dock'
+  /** 技能意图：由行动按钮传入，用于过滤后续技能列表 */
+  skillIntent?: SkillIntent
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -112,11 +116,19 @@ function CharacterSelect({ options, onSubmit }: {
   )
 }
 
+/**
+ * 技能意图：引擎的 PreCastSkill 分支会把「战技 / 魔法 / 爆发技」放在同一个列表里，
+ * 之后由 skill.SkillType == SuperSkill 自行分流为 CastSkill / CastSuperSkill。
+ * 因此玩家端一律发送 PreCastSkill（发 CastSkill / CastSuperSkill 会绕过选技能流程导致崩溃），
+ * 这里仅用 intent 在客户端过滤后续技能列表。
+ */
+export type SkillIntent = 'all' | 'normal' | 'super'
+
 /** 行动类型选择 */
 function ActionTypeSelect({ payload, player, onSubmit }: {
   payload: Extract<SoloDecisionRequest['payload'], { kind: 'ActionType' }>
   player: SoloCharacterDto | null
-  onSubmit: (actionType: string) => void
+  onSubmit: (actionType: string, intent: SkillIntent) => void
 }) {
   const anyUsableSkill = payload.skills.some((s) => s.usable && !s.isSuperSkill)
   const anyUsableSuper = payload.skills.some((s) => s.usable && s.isSuperSkill)
@@ -134,39 +146,40 @@ function ActionTypeSelect({ payload, player, onSubmit }: {
         )}
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Btn variant="primary" className="!py-3" onClick={() => onSubmit('Move')}>
+        <Btn variant="primary" className="!py-3" onClick={() => onSubmit('Move', 'all')}>
           🏃 移动
         </Btn>
-        <Btn variant="primary" className="!py-3" onClick={() => onSubmit('NormalAttack')}>
+        <Btn variant="primary" className="!py-3" onClick={() => onSubmit('NormalAttack', 'all')}>
           ⚔ 普通攻击
         </Btn>
         <Btn
           variant="primary"
           className="!py-3"
           disabled={!anyUsableSkill}
-          title={anyUsableSkill ? '施放战技 / 魔法' : '没有可用技能'}
-          onClick={() => onSubmit('CastSkill')}
+          title={anyUsableSkill ? '施放战技 / 魔法（统一发送 PreCastSkill，由引擎按技能类型分流）' : '没有可用技能'}
+          onClick={() => onSubmit('PreCastSkill', 'normal')}
         >
-          ✨ 技能
+          ✨ 战技 / 魔法
         </Btn>
         <Btn
           variant="primary"
           className="!py-3"
           disabled={!anyUsableSuper}
-          title={anyUsableSuper ? '施放爆发技' : '没有可用爆发技'}
-          onClick={() => onSubmit('CastSuperSkill')}
+          title={anyUsableSuper ? '施放爆发技（消耗 EP，统一发送 PreCastSkill）' : '没有可用爆发技'}
+          onClick={() => onSubmit('PreCastSkill', 'super')}
         >
           💥 爆发技
         </Btn>
-        <Btn variant="primary" className="!py-3" disabled={!anyUsableItem} title={anyUsableItem ? '使用物品' : '没有可用物品'} onClick={() => onSubmit('UseItem')}>
+        <Btn variant="primary" className="!py-3" disabled={!anyUsableItem} title={anyUsableItem ? '使用物品' : '没有可用物品'} onClick={() => onSubmit('UseItem', 'all')}>
           🎒 物品
         </Btn>
-        <Btn variant="ghost" className="!py-3" onClick={() => onSubmit('EndTurn')}>
+        <Btn variant="ghost" className="!py-3" onClick={() => onSubmit('EndTurn', 'all')}>
           ⏭ 结束回合
         </Btn>
       </div>
       <p className="mt-3 text-[10.5px] leading-relaxed text-ink-400">
-        提示：选择移动后地图会高亮可移动格子；技能/物品后续需再选择具体条目与目标。
+        提示：选择移动后地图会高亮可移动格子；战技 / 魔法 / 爆发技均走同一套「吟唱」流程（PreCastSkill），
+        由引擎按技能类型自动分流，选中条目后再挑目标。
       </p>
     </div>
   )
@@ -371,17 +384,19 @@ function InquirySelect({ payload, onSubmit, onCancel }: {
 }
 
 /** 主入口：按决策类型渲染（TargetGrid / TargetGrids 由地图组件就地处理，这里不弹窗） */
-export default function SoloDecisionModal({ decision, player, onSubmit, onCancel }: SoloDecisionProps) {
+export default function SoloDecisionModal({
+  decision,
+  player,
+  onSubmit,
+  onCancel,
+  mode = 'modal',
+  skillIntent = 'all',
+}: SoloDecisionProps) {
   const payload = decision?.payload
   const kind = payload?.kind
 
   if (!payload) return null
   if (kind === 'TargetGrid' || kind === 'TargetGrids') return null // 由地图处理
-
-  const commonFooter =
-    kind === 'Skill' || kind === 'Item' || kind === 'Targets'
-      ? (<div className="flex justify-end"><Btn variant="ghost" onClick={onCancel}>取消</Btn></div>)
-      : undefined
 
   let body: React.ReactNode = null
   let title: React.ReactNode = kind ? KIND_LABEL[kind] ?? kind : ''
@@ -391,14 +406,21 @@ export default function SoloDecisionModal({ decision, player, onSubmit, onCancel
     body = <CharacterSelect options={payload.characters} onSubmit={(g) => onSubmit({ characterGuid: g })} />
     tone = 'gold'
   } else if (kind === 'ActionType') {
-    body = <ActionTypeSelect payload={payload} player={player} onSubmit={(t) => onSubmit({ actionType: t })} />
+    body = <ActionTypeSelect payload={payload} player={player} onSubmit={(t, intent) => onSubmit({ actionType: t }, intent)} />
     title = `⚔ 你的回合 · ${player?.displayName ?? ''}`
     tone = 'gold'
   } else if (kind === 'Skill') {
+    // 按行动按钮的意图过滤（爆发技 / 战技·魔法）；若筛选后为空则退回全量，避免空列表卡死
+    const superOnly = payload.skills.filter((s) => s.isSuperSkill)
+    const normalOnly = payload.skills.filter((s) => !s.isSuperSkill)
+    const list =
+      skillIntent === 'super' ? (superOnly.length > 0 ? superOnly : payload.skills)
+      : skillIntent === 'normal' ? (normalOnly.length > 0 ? normalOnly : payload.skills)
+      : payload.skills
     body = (
       <EntryList
-        header="选择一个要施放的技能："
-        entries={payload.skills.map((s) => ({
+        header={skillIntent === 'super' ? '选择要施放的爆发技：' : '选择要施放的战技 / 魔法：'}
+        entries={list.map((s) => ({
           guid: s.guid,
           name: s.name,
           usable: s.usable,
@@ -463,14 +485,34 @@ export default function SoloDecisionModal({ decision, player, onSubmit, onCancel
     tone = 'blue'
   }
 
-  const footer =
-    commonFooter ??
-    (!KIND_LABEL[kind ?? '']
-      ? (<div className="flex justify-end"><Btn variant="danger" onClick={onCancel}>取消该决策</Btn></div>)
-      : undefined)
+  // 可取消：技能 / 物品 / 目标选择，以及未知类型兜底（行动类型与开局选角色不可取消）
+  const known = !!KIND_LABEL[kind ?? '']
+  const canCancel = kind === 'Skill' || kind === 'Item' || kind === 'Targets' || !known
+  const cancelBtn = canCancel ? (
+    <Btn variant={known ? 'ghost' : 'danger'} onClick={onCancel}>{known ? '取消' : '取消该决策'}</Btn>
+  ) : null
+
+  // 停靠模式：底部操作栏，不遮挡地图与角色信息
+  if (mode === 'dock') {
+    return (
+      <div className="shrink-0 rounded-xl border border-gold-500/40 bg-parchment-200/90 px-3 py-2 shadow-sm">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="font-fantasy text-[13px] font-bold tracking-wide text-gold-700">{title}</span>
+          <span className="flex shrink-0 items-center gap-2">{cancelBtn}</span>
+        </div>
+        <div className="max-h-[170px] overflow-y-auto pr-1">{body}</div>
+      </div>
+    )
+  }
 
   return (
-    <ModalShell title={title} tone={tone} canCancel={kind !== 'ActionType' && kind !== 'SelectCharacter'} onCancel={onCancel} footer={footer}>
+    <ModalShell
+      title={title}
+      tone={tone}
+      canCancel={canCancel}
+      onCancel={onCancel}
+      footer={cancelBtn ? <div className="flex justify-end">{cancelBtn}</div> : undefined}
+    >
       {body}
     </ModalShell>
   )

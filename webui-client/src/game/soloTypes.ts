@@ -26,6 +26,8 @@ export const SoloMsg = {
   Pong: 'system.pong',
   GamingStart: 'gaming.start',
   GamingAction: 'gaming.action',
+  /** 重连时显式接管仍在运行的对局（避免新连接被旧会话的状态/结算污染） */
+  GamingResume: 'gaming.resume',
   GamingEnd: 'gaming.end',
   GamingOver: 'gaming.over',
   GamingRound: 'gaming.round',
@@ -150,6 +152,8 @@ export interface SoloStateDto {
   playerGuid: string | null
   currentActorGuid: string | null
   roundRewards: Record<string, string[]>
+  /** 玩家角色是否已被服务端交给 AI 托管（决策超时或断线） */
+  aiEscalated?: boolean
 }
 
 export interface SoloRankingDto {
@@ -237,6 +241,8 @@ export interface SoloDecisionRequest {
   requestId: string
   kind: SoloDecisionKind
   payload: SoloDecisionPayload
+  /** 服务端等待上限（ms）；超时后服务端会把玩家角色交 AI 托管并推进回合 */
+  timeoutMs?: number
 }
 
 // ==================== 决策回传负载（gaming.action 的 payload，按 request kind 对应） ====================
@@ -268,6 +274,7 @@ export interface SoloOverEvent {
 }
 
 export interface SoloRoundEvent {
+  gameId?: string
   round: number
   actorGuid: string
 }

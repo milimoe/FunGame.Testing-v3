@@ -9,6 +9,10 @@ interface SoloMapProps {
   /** 选中格子（TargetGrid 单击即提交；TargetGrids 点选后点确定提交） */
   onPickGrid: (gridId: number) => void
   onSubmitGrids: (gridIds: number[]) => void
+  /** 直接点选地图上的角色作为目标（Targets 决策） */
+  onPickTargets: (guids: string[]) => void
+  /** 取消当前决策（回传 cancelled） */
+  onCancelDecision: () => void
 }
 
 interface TokenStyle {
@@ -29,11 +33,20 @@ function shortName(c: SoloCharacterDto): string {
   return [...src][0] ?? '?'
 }
 
-export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickGrid, onSubmitGrids }: SoloMapProps) {
+export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickGrid, onSubmitGrids, onPickTargets, onCancelDecision }: SoloMapProps) {
   const [multiSel, setMultiSel] = useState<Set<number>>(new Set())
   const [hoverId, setHoverId] = useState<number | null>(null)
 
   const selectKind = decision?.payload.kind
+
+  // 选目标（Targets）：允许直接点击地图上的角色
+  const targetPayload = decision?.payload.kind === 'Targets' ? decision.payload : null
+  const targetMulti = (targetPayload?.maxTargets ?? 1) > 1
+  const targetByGrid = useMemo(() => {
+    const m = new Map<number, string>()
+    if (targetPayload) for (const t of targetPayload.targets) if (t.gridId >= 0) m.set(t.gridId, t.guid)
+    return m
+  }, [targetPayload])
   // TargetGrid 的 requestId 变化时清空点选状态
   const requestKey = decision?.requestId ?? 'none'
   useEffect(() => {
@@ -57,6 +70,24 @@ export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickG
   const handleCellClick = (gridId: number) => {
     if (!decision) return
     const p = decision.payload
+
+    // 选目标：直接点地图上的角色
+    if (p.kind === 'Targets') {
+      const guid = targetByGrid.get(gridId)
+      if (!guid) return
+      if (!targetMulti) {
+        onPickTargets([guid])
+        return
+      }
+      setMultiSel((prev) => {
+        const next = new Set(prev)
+        if (next.has(gridId)) next.delete(gridId)
+        else if (next.size < (targetPayload?.maxTargets ?? 1)) next.add(gridId)
+        return next
+      })
+      return
+    }
+
     if (p.kind !== 'TargetGrid' && p.kind !== 'TargetGrids') return
     if (!moveIds.has(gridId)) return
     if (p.kind === 'TargetGrid') {
@@ -75,6 +106,51 @@ export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickG
 
   return (
     <div className="flex h-full flex-col gap-2">
+      {/* 选目标操作条：可直接点地图上的角色 */}
+      {decision && selectKind === 'Targets' && targetPayload && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-horde-500/40 bg-horde-500/10 px-3 py-1.5 text-[12px] text-ink-700">
+          <span className="flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-sm border border-horde-600/60 bg-horde-500/40" />
+            {targetMulti
+              ? `为「${targetPayload.skillName || '技能'}」点选地图上的角色（最多 ${targetPayload.maxTargets} 个）`
+              : `为「${targetPayload.skillName || '技能'}」点击地图上的角色作为目标`}
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            {targetMulti ? (
+              <>
+                <span className="text-ink-500">已选 {multiSel.size}</span>
+                <button
+                  className="rounded-lg border border-horde-600/50 bg-horde-500/85 px-2.5 py-1 font-medium text-white hover:bg-horde-500 disabled:opacity-40"
+                  disabled={multiSel.size === 0}
+                  onClick={() =>
+                    onPickTargets(
+                      [...multiSel]
+                        .map((id) => targetByGrid.get(id))
+                        .filter((g): g is string => typeof g === 'string'),
+                    )
+                  }
+                >
+                  确认目标
+                </button>
+                <button
+                  className="rounded-lg border border-ink-400/30 bg-parchment-200/70 px-2.5 py-1 text-ink-600 hover:bg-parchment-300/70"
+                  onClick={onCancelDecision}
+                >
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                className="rounded-lg border border-ink-400/30 bg-parchment-200/70 px-2.5 py-1 text-ink-600 hover:bg-parchment-300/70"
+                onClick={onCancelDecision}
+              >
+                取消
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* 选区操作条 */}
       {decision && (selectKind === 'TargetGrid' || selectKind === 'TargetGrids') && (
         <div className="flex items-center justify-between gap-2 rounded-xl border border-gold-500/40 bg-gold-300/15 px-3 py-1.5 text-[12px] text-ink-700">
@@ -137,6 +213,9 @@ export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickG
             const inRange = moveIds.has(g.id)
             const multiOn = multiSel.has(g.id)
             const isCurrent = currentGridId === g.id
+            // 可选目标所在格（Targets 决策）
+            const targetGuid = targetByGrid.get(g.id)
+            const targetOn = targetGuid !== undefined && multiSel.has(g.id)
 
             let cellBg = 'rgba(255, 252, 240, 0.55)'
             let cellBorder = '1px solid rgba(133, 95, 18, 0.16)'
@@ -152,6 +231,10 @@ export default function SoloMap({ map, charByGuid, playerGuid, decision, onPickG
             } else if (isCurrent) {
               cellBg = 'rgba(212, 168, 56, 0.22)'
               cellBorder = '1px dashed rgba(138, 95, 18, 0.7)'
+            } else if (targetGuid !== undefined) {
+              cellBg = targetOn ? 'rgba(220, 38, 38, 0.42)' : 'rgba(220, 38, 38, 0.14)'
+              cellBorder = targetOn ? '2px solid rgba(153, 27, 27, 0.9)' : '1px dashed rgba(220, 38, 38, 0.6)'
+              cursor = 'pointer'
             }
 
             let ts: TokenStyle | null = null

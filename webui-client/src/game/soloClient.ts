@@ -30,6 +30,8 @@ export interface SoloGameClient {
   startGame(options: SoloStartOptions): void
   /** 回传玩家决策（gaming.action）；requestId 对应服务器下发的决策请求 */
   sendDecision(requestId: string, payload: unknown): boolean
+  /** 重连后显式接管仍在运行的对局（服务端据此挂接，避免残留局消息串台） */
+  resume(): void
   /** 主动结束对局 */
   endGame(): void
   /** 订阅服务器事件，返回取消订阅函数 */
@@ -165,6 +167,10 @@ export function createSoloGameClient(baseUrl: string): SoloGameClient {
   const sendDecision = (requestId: string, payload: unknown): boolean =>
     rawSend(SoloMsg.GamingAction, { requestId, payload })
 
+  const resume = () => {
+    rawSend(SoloMsg.GamingResume, { ts: Date.now() })
+  }
+
   const endGame = () => {
     rawSend(SoloMsg.GamingEnd, { ts: Date.now() })
   }
@@ -177,6 +183,7 @@ export function createSoloGameClient(baseUrl: string): SoloGameClient {
     },
     startGame,
     sendDecision,
+    resume,
     endGame,
     subscribe: (cb) => {
       listeners.add(cb)

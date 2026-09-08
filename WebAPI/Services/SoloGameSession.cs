@@ -32,6 +32,8 @@ public sealed class SoloGameSession : IDisposable
     private readonly List<string> _log = [];
     private readonly object _logLock = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement?>> _pending = new();
+    /// <summary>挂起决策的元信息（重连时用于补发，避免玩家看不到待决策而永久卡住）</summary>
+    private readonly ConcurrentDictionary<string, (string Kind, object Payload)> _pendingRequests = new();
 
     private MixGamingQueue? _queue;
     private GameMap? _map;
@@ -42,6 +44,34 @@ public sealed class SoloGameSession : IDisposable
     private int _round;
     private int _logSent;
     private bool _disposed;
+    /// <summary>玩家决策已超时升级为 AI 托管（避免反复等满超时导致回合/游戏停滞）</summary>
+    private volatile bool _aiEscalated;
+
+    // ---- 回合内决策次数护栏（外层限时强制结束回合）----
+    // 引擎对「手动控制」角色的内层决策循环没有 cancelTimes 上限：一旦玩家给出的动作无法成立
+    // （典型：普攻选了射程外的目标），decided 始终为 false，循环会无限向客户端重复索要同一类决策。
+    // Core 不改，因此在宿主侧加护栏：同一回合内同类决策连续重复或总次数超阈值时，
+    // 立即把玩家角色交 AI 托管，让本回合由 AI 收尾，保证对局一定能推进。
+    private int _turnDecisionCount;
+    private string? _lastDecisionKind;
+    private int _sameKindRepeat;
+    private const int MaxSameKindRepeat = 4;   // 同类决策连续出现 4 次 ⇒ 判定为打转
+    private const int MaxDecisionsPerTurn = 16; // 单回合决策总数硬上限
+
+    /// <summary>
+    /// 玩家角色在本回合【中途】被托管（决策超时/打转/断线）。
+    /// Core 内层决策循环里的 isAI 是外层循环开头求值的局部变量：回合中途托管后局部 isAI 仍是 false，
+    /// 引擎仍按"手动角色"走无界内层循环；此时若 WebAPI 的 OnDecideAction 返回 None（IsPlayer 已变 false），
+    /// 引擎会落回 GetActionType 随机兜底——角色一旦无可行动作（无路可走/无人可打）就永久空转（100% CPU）。
+    /// 对策：托管发生在回合中途时，对玩家角色一律回答 EndTurn（decided=true → 当前回合立即正常收尾）；
+    /// 下个回合开始时引擎会以真实 isAI=true 驱动（AI 托管）或交还玩家，届时再恢复正常决策。
+    /// </summary>
+    private volatile bool _escalatedMidTurn;
+
+    // ---- 临时诊断：回合看门狗（定位 AI 托管阶段的引擎内死循环；定位完成后删除）----
+    private System.Threading.Timer? _diagTimer;
+    private volatile Character? _diagActor;
+    private long _diagTurnStartMs;
 
     // 状态广播节流：战斗事件很密集，但只需 ~8-10 次/秒的刷新率即可流畅渲染
     private readonly System.Diagnostics.Stopwatch _pushClock = System.Diagnostics.Stopwatch.StartNew();
@@ -90,21 +120,25 @@ public sealed class SoloGameSession : IDisposable
     {
         PlayerConnected = true;
         _sink = sink;
-        // 重连后夺回玩家角色的控制权（此前断线时已交还 AI）
-        if (_player is not null && _queue is not null)
+        // 重连后夺回玩家角色的控制权（此前断线/超时托管已交还 AI）
+        ReleasePlayerFromAI("玩家重新连接");
+        // 重连：补发完整快照（地图必须每次携带：前端棋子位置由 grid.characters 驱动）
+        PushState();
+
+        // 补发仍在等待的决策请求：否则重连后玩家看不到待办操作，对局会一直卡在这里
+        foreach (KeyValuePair<string, (string Kind, object Payload)> kv in _pendingRequests)
         {
             try
             {
-                // cancel: true => 将玩家移出系统 AI 托管集合，夺回控制权
-                _queue.SetCharactersToAIControl(bySystem: true, cancel: true, [_player]);
+                _sink?.SendAsync(SoloMessageTypes.GamingRequest,
+                    new { requestId = kv.Key, kind = kv.Value.Kind, payload = kv.Value.Payload },
+                    CancellationToken.None).GetAwaiter().GetResult();
             }
             catch
             {
-                /* 对局已结束则忽略 */
+                /* 忽略 */
             }
         }
-        // 重连：补发完整快照
-        PushState();
     }
 
     /// <summary>玩家断开：取消所有挂起的决策（按各自兜底策略执行），并将玩家角色交给 AI 托管</summary>
@@ -121,6 +155,60 @@ public sealed class SoloGameSession : IDisposable
             {
                 // cancel: false => 将玩家加入系统 AI 托管集合（断线时由 AI 接管，避免决策等待挂死）
                 _queue.SetCharactersToAIControl(bySystem: true, cancel: false, [_player]);
+                // 必须同步置位，否则重连时 ReleasePlayerFromAI 会提前 return，导致玩家一直被 AI 托管
+                _aiEscalated = true;
+                _escalatedMidTurn = true; // 若断线发生在玩家回合中途，回答 EndTurn 结束本回合，避免 isAI 局部旧值空转
+                WriteLine($"[托管] 玩家断线，[ {_player} ] 暂由 AI 托管，重连后自动夺回控制权。");
+            }
+            catch
+            {
+                /* 对局已结束则忽略 */
+            }
+        }
+    }
+
+    /// <summary>
+    /// 玩家在线但决策超时（如 UI 未弹出菜单）→ 将角色交 AI 托管。
+    /// 与旧版 Desktop 的「自动模式」等价：托管后 <see cref="IsPlayer"/> 立即返回 false，
+    /// 引擎改由 AI 驱动该角色，本回合可正常收尾，不会卡死在手动玩家的无限决策循环里。
+    /// 托管只持续到本回合结束，下一个玩家回合开始时由 <see cref="OnTurnStart"/> 自动夺回。
+    /// </summary>
+    private void EscalatePlayerToAI(string reason)
+    {
+        if (_aiEscalated) return;
+        _aiEscalated = true;
+        _escalatedMidTurn = true; // 视为"回合中途"托管：OnDecideAction 将回答 EndTurn 结束本回合，避免空转
+        if (_player is not null && _queue is not null)
+        {
+            try
+            {
+                _queue.SetCharactersToAIControl(bySystem: true, cancel: false, [_player]);
+                WriteLine($"[托管] 玩家决策超时（{reason}），[ {_player} ] 本回合暂由 AI 托管，下回合自动夺回控制权。");
+            }
+            catch
+            {
+                /* 对局已结束则忽略 */
+            }
+        }
+        foreach (TaskCompletionSource<JsonElement?> tcs in _pending.Values)
+        {
+            tcs.TrySetResult(null);
+        }
+    }
+
+    /// <summary>解除 AI 托管，把玩家角色交还给手动控制</summary>
+    private void ReleasePlayerFromAI(string reason)
+    {
+        if (!_aiEscalated) return;
+        _aiEscalated = false;
+        _escalatedMidTurn = false;
+        if (_player is not null && _queue is not null)
+        {
+            try
+            {
+                // cancel: true => 将玩家移出系统 AI 托管集合，夺回控制权
+                _queue.SetCharactersToAIControl(bySystem: true, cancel: true, [_player]);
+                WriteLine($"[托管解除] {reason}，玩家重新掌控 [ {_player} ]。");
             }
             catch
             {
@@ -143,6 +231,8 @@ public sealed class SoloGameSession : IDisposable
 
     private void RunGame(SoloGameOptions options)
     {
+        // 临时诊断看门狗：单回合耗时 >15s 即周期性落盘角色引擎状态（删除本诊断时一并移除）
+        _diagTimer = new System.Threading.Timer(_ => DiagTick(), null, 3000, 2000);
         try
         {
             List<Character> candidates = [.. FunGameService.Characters
@@ -249,6 +339,8 @@ public sealed class SoloGameSession : IDisposable
                     }
 
                     bool isGameEnd = false;
+                    _diagActor = actor;
+                    _diagTurnStartMs = Environment.TickCount64;
                     try
                     {
                         isGameEnd = queue.ProcessTurn(actor);
@@ -257,8 +349,12 @@ public sealed class SoloGameSession : IDisposable
                     {
                         WriteLine(ex.ToString());
                     }
+                    finally
+                    {
+                        _diagActor = null;
+                    }
 
-                    Send(SoloMessageTypes.GamingRound, new { round = _round, actorGuid = actor.Guid.ToString() });
+                    Send(SoloMessageTypes.GamingRound, new { gameId = Id, round = _round, actorGuid = actor.Guid.ToString() });
 
                     if (isGameEnd)
                     {
@@ -302,6 +398,58 @@ public sealed class SoloGameSession : IDisposable
         {
             WriteLine(ex.ToString());
             Finish(null);
+        }
+        finally
+        {
+            _diagTimer?.Dispose();
+            _diagTimer = null;
+            _diagActor = null;
+        }
+    }
+
+    /// <summary>临时诊断：回合看门狗——检测 ProcessTurn 长时间不返回（引擎内死循环）并落盘角色状态</summary>
+    private void DiagTick()
+    {
+        Character? actor = _diagActor;
+        if (actor is null) return;
+        long elapsedMs = Environment.TickCount64 - _diagTurnStartMs;
+        if (elapsedMs < 15_000) return; // 前 15s 视为正常回合
+        try
+        {
+            GamingQueue? queue = _queue;
+            string line =
+                $"[{DateTime.Now:HH:mm:ss}] ProcessTurn 已运行 {elapsedMs / 1000}s 未返回！角色=[ {actor} ] " +
+                $"guid={actor.Guid} isAI={queue?.IsCharacterInAIControlling(actor)} " +
+                $"bySystem={queue?.IsCharacterInAIControllingBySystem(actor)} byUser={queue?.IsCharacterInAIControllingByUser(actor)} " +
+                $"state={actor.CharacterState} HP={actor.HP}/{actor.MaxHP} EP={actor.EP} " +
+                $"grid={queue?.Map?.GetCharacterCurrentGrid(actor)?.Id} 死亡={queue?.Eliminated.Contains(actor)}";
+            if (queue is not null && queue.CharacterDecisionPoints.TryGetValue(actor, out DecisionPoints? dp) && dp is not null)
+            {
+                line += $" DP={dp.CurrentDecisionPoints}/{dp.MaxDecisionPoints} 动作总数={dp.ActionsTaken} 动作类型数={dp.ActionTypes.Count}";
+            }
+            // 决策子系统状态：若存在挂起决策说明引擎在等客户端，否则说明在请求决策之前的区域空转
+            lock (_logLock)
+            {
+                line += $" PlayerConnected={PlayerConnected} 挂起决策数={_pending.Count}";
+                if (_pending.Count > 0)
+                {
+                    line += " 种类=[" + string.Join(",", _pending.Values.Select(_ => "?")) + "]";
+                    foreach (KeyValuePair<string, TaskCompletionSource<JsonElement?>> kv in _pending.Take(3))
+                    {
+                        _pendingRequests.TryGetValue(kv.Key, out (string Kind, object Payload) r);
+                        line += $" {kv.Key[..Math.Min(6, kv.Key.Length)]}:{r.Kind}";
+                    }
+                }
+            }
+            lock (_logLock)
+            {
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "turn-diag.log"), line + "\n"); }
+                catch { /* 磁盘/权限问题忽略 */ }
+            }
+        }
+        catch
+        {
+            /* 诊断本身失败不影响对局 */
         }
     }
 
@@ -382,6 +530,19 @@ public sealed class SoloGameSession : IDisposable
 
     private bool OnTurnStart(TurnContext ctx)
     {
+        // 回合边界：清除"回合中途托管"标记（下个回合引擎会以真实的 isAI 驱动角色）
+        _escalatedMidTurn = false;
+        // 玩家在线且上回合因超时/打转被 AI 托管 → 新回合自动夺回控制权，避免玩家被永久锁在托管状态。
+        // 注意：断线（PlayerConnected=false）时【不】夺回——AI 应继续代打直至玩家重连（AttachSink 里才夺回）。
+        if (_aiEscalated && PlayerConnected && _player is not null && ctx.Trigger is not null
+            && (ReferenceEquals(ctx.Trigger, _player) || ReferenceEquals(ctx.Trigger.Master, _player)))
+        {
+            ReleasePlayerFromAI("新回合开始");
+        }
+        // 每个回合重置决策计数护栏
+        _turnDecisionCount = 0;
+        _lastDecisionKind = null;
+        _sameKindRepeat = 0;
         PushState();
         return true;
     }
@@ -399,8 +560,18 @@ public sealed class SoloGameSession : IDisposable
 
     private CharacterActionType OnDecideAction(TurnContext ctx)
     {
-        if (!IsPlayer(ctx.Trigger)) return CharacterActionType.None; // 交给 AI
-
+        if (!IsPlayer(ctx.Trigger))
+        {
+            // 玩家角色在本回合中途被托管（超时/打转/断线）且 Core 的 isAI 局部值仍是 false：
+            // 直接回答 EndTurn 让 decided=true 结束当前回合。若这里返回 None，引擎会落回
+            // GetActionType 随机兜底，角色无可行动作时内层循环永久空转（见 _escalatedMidTurn 注释）。
+            if (_escalatedMidTurn && _player is not null && ctx.Trigger is not null
+                && (ReferenceEquals(ctx.Trigger, _player) || ReferenceEquals(ctx.Trigger.Master, _player)))
+            {
+                return CharacterActionType.EndTurn;
+            }
+            return CharacterActionType.None; // 交给 AI
+        }
         Character actor = ctx.Trigger!;
         JsonElement? res = RequestDecision(DecisionKind.ActionType, new
         {
@@ -664,16 +835,36 @@ public sealed class SoloGameSession : IDisposable
     {
         if (_cts.IsCancellationRequested) return null;
 
+        // ---- 回合内决策护栏：手动角色的决策循环在 Core 里没有次数上限，
+        //      这里识别"同一类决策被反复索要"的打转，并把玩家交 AI 托管以强制结束本回合 ----
+        if (kind == _lastDecisionKind) _sameKindRepeat++;
+        else
+        {
+            _lastDecisionKind = kind;
+            _sameKindRepeat = 1;
+        }
+        _turnDecisionCount++;
+
+        if (_sameKindRepeat >= MaxSameKindRepeat || _turnDecisionCount > MaxDecisionsPerTurn)
+        {
+            WriteLine($"[护栏] 本回合决策打转（{kind} 连续 {_sameKindRepeat} 次 / 共 {_turnDecisionCount} 次），强制结束玩家回合。");
+            EscalatePlayerToAI($"决策打转 {kind}");
+            return null;
+        }
+
         string requestId = Guid.NewGuid().ToString("N");
         TaskCompletionSource<JsonElement?> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[requestId] = tcs;
+        _pendingRequests[requestId] = (kind, payload);
 
         // 决策下发前先强制推送一次完整状态，保证 UI 处于最新
         FlushState();
 
         try
         {
-            _sink?.SendAsync(SoloMessageTypes.GamingRequest, new { requestId, kind, payload }, _cts.Token)
+            // 下发决策时携带超时时长，前端据此显示倒计时，玩家能明确知道"现在轮到我、还剩多久"
+            _sink?.SendAsync(SoloMessageTypes.GamingRequest,
+                new { requestId, kind, payload, timeoutMs = (int)DecisionTimeout.TotalMilliseconds }, _cts.Token)
                 .GetAwaiter().GetResult();
         }
         catch (Exception ex)
@@ -683,10 +874,16 @@ public sealed class SoloGameSession : IDisposable
 
         try
         {
-            bool completed = tcs.Task.Wait(DecisionTimeout);
+            // 托管中：IsPlayer 已为 false，理论上不会再走到这里；
+            // 但仍保留一道短超时保险，避免任何边界情况下每个决策都空等一个完整超时。
+            TimeSpan timeout = _aiEscalated ? TimeSpan.FromSeconds(3) : DecisionTimeout;
+            bool completed = tcs.Task.Wait(timeout);
             if (!completed)
             {
                 WriteLine($"[{kind}] 等待玩家决策超时，自动采用默认行为。");
+                // 玩家在线但长时间未响应（如 UI 未弹出决策菜单）→ 升级为 AI 托管，
+                // 避免后续每个决策都再等一个完整超时、回合迟迟不结束（2026-09-09）
+                EscalatePlayerToAI(kind);
                 return null;
             }
             return tcs.Task.Result;
@@ -698,6 +895,7 @@ public sealed class SoloGameSession : IDisposable
         finally
         {
             _pending.TryRemove(requestId, out _);
+            _pendingRequests.TryRemove(requestId, out _);
         }
     }
 
@@ -774,6 +972,8 @@ public sealed class SoloGameSession : IDisposable
             int order = 0;
             foreach (Character c in _queue.HardnessTime.OrderBy(kv => kv.Value).Select(kv => kv.Key))
             {
+                // 已死亡（未复活）的角色不参与后续行动，不出现在行动顺序表中；复活后会重新入队并再次显示
+                if (eliminated.Contains(c)) continue;
                 _queue.HardnessTime.TryGetValue(c, out double ht);
                 queueEntries.Add(new QueueEntryDto(
                     c.Guid.ToString(), c.ToStringWithLevel(), ht, order++,
@@ -804,7 +1004,8 @@ public sealed class SoloGameSession : IDisposable
             SoloGameMapper.ToDP(dp),
             playerGuid,
             null,
-            rewards);
+            rewards,
+            _aiEscalated);
     }
 
     public List<RankingDto> BuildRanking()
@@ -845,7 +1046,8 @@ public sealed class SoloGameOptions
     public int NormalAttackLevel { get; set; } = 8;
     public int MaxRound { get; set; } = 999;
     public int MaxRespawnTimes { get; set; } = 1;
-    public int DecisionTimeoutSeconds { get; set; } = 120;
+    /// <summary>单个决策的等待上限。超时即把玩家角色交 AI 托管，保证回合一定能推进（外层限时）</summary>
+    public int DecisionTimeoutSeconds { get; set; } = 30;
     public bool RequireContinue { get; set; } = false;
     public int RoundDelayMs { get; set; } = 250;
 }

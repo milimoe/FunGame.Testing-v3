@@ -45,7 +45,7 @@ public sealed record GameStateDto(
     string GameId, string Mode, int Round, double TotalTime, bool Running, bool GameOver,
     MapDto? Map, List<CharacterDto> Characters, List<QueueEntryDto> Queue,
     DecisionPointsDto? PlayerDP, string? PlayerGuid, string? CurrentActorGuid,
-    Dictionary<string, List<string>> RoundRewards);
+    Dictionary<string, List<string>> RoundRewards, bool AiEscalated = false);
 
 /// <summary>赛后结算条目</summary>
 public sealed record RankingDto(
