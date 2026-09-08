@@ -75,7 +75,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
                         break;
                     case EffectType.Taunt:
                         tip = $"[ {target} ] 被 [ {caster} ] 嘲讽了！持续时间：{持续时间}！";
-                        e = new 愤怒(Skill, caster, target, _durative, duration, durationTurn);
+                        e = new 愤怒(Skill, caster, caster, _durative, duration, durationTurn);
                         break;
                     case EffectType.Delay:
                         double healingReductionPercent = 0.3;
