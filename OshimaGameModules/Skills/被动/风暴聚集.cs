@@ -48,7 +48,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 已应用 = 0;
         private double 距离下次提升 = 0;
 
-        private double 间隔时间 => Skill.Character != null ? 15 - Skill.Character.Level * 0.1 : 15;
+        private double 间隔时间 => Skill.Character != null ? 60 - Skill.Character.Level * 0.15 : 60;
         private double 每次提升 => Skill.Character != null ? 1 + Skill.Character.Level * 0.08 : 1;
 
         public override void OnEffectGained(HookContext ctx)

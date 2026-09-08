@@ -33,9 +33,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             (Improvement > 0 ? $"灵魂绑定伤害加成： {Improvement * 100:0.##}% [ {ImprovementDamage:0.##} ] 点，" : "") + $"总伤害 {Damage + ImprovementDamage:0.##} 点。" +
             $"随后，有 25% 概率对受到伤害的目标造成眩晕 1 回合。眩晕：进入完全行动不能状态。";
 
-        public double PACoefficient => 0.35 + 0.05 * (Skill.Level - 1);
+        public double PACoefficient => 0.25 + 0.04 * (Skill.Level - 1);
         public double PADamage => (Skill.Character?.PrimaryAttributeValue ?? 0) * PACoefficient;
-        public double GeneralDamage => 70 * Skill.Level;
+        public double GeneralDamage => 30 * Skill.Level;
         public double Damage => GeneralDamage + PADamage;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
 

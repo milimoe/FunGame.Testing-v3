@@ -40,7 +40,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         {
             if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             if (Skill.Character == null) return;
-            if (Skill.Character == character)
+            if (Skill.Character == character && enemy.HP > 0)
             {
                 // 出伤侧：艾黎飞向敌人造成额外魔法伤害
                 if (ctx.DamageResult != DamageResult.Normal && ctx.DamageResult != DamageResult.Critical) return;

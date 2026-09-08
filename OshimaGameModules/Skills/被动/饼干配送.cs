@@ -30,7 +30,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private double 剩余时间 = 0;
 
-        private double 配送间隔 => Skill.Character != null ? 12 - Skill.Character.Level * 0.1 : 12;
+        private double 配送间隔 => Skill.Character != null ? 50 - Skill.Character.Level * 0.2 : 45;
         private double 生命回复 => Skill.Character != null ? 0.06 + Skill.Character.Level * 0.001 : 0.06;
         private double 魔法回复 => Skill.Character != null ? 0.1 + Skill.Character.Level * 0.001 : 0.1;
 
