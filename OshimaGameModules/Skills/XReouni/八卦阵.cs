@@ -64,7 +64,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     WriteLine($"[ {Skill.Character} ] 发动了八卦阵！伤害减少了 {Math.Abs(bonus):0.##} 点！");
                 }
             }
-            bool result = 归元 || (!归元 && Random.Shared.Next(10) % 2 == 0);
+            bool result = 归元 || (!归元 && Random.Next(10) % 2 == 0);
             WriteLine($"[ {Skill.Character} ] 的八卦阵投掷结果为：{(result ? "偶数" : "奇数")}。");
             if (damage > 0 && result)
             {

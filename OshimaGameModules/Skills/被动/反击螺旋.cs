@@ -38,7 +38,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (Skill.Character == null || Skill.Character != character) return;
             if (attacker == character) return;
             if (ctx.ActualDamage <= 0) return;
-            if (Random.Shared.NextDouble() > 触发概率) return;
+            if (Random.NextDouble() > 触发概率) return;
             WriteLine($"[ {character} ] 发动了反击螺旋！");
             DamageToEnemy(character, attacker, DamageType.True, MagicType.None, 反击伤害, new(character)
             {
@@ -46,7 +46,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             });
             foreach (Character target in GamingQueue?.AllCharacters
                          .Where(c => c != character && c != attacker && c.HP > 0)
-                         .OrderBy(_ => Random.Shared.Next())
+                         .OrderBy(_ => Random.Next())
                          .Take(额外目标数) ?? [])
             {
                 DamageToEnemy(character, target, DamageType.True, MagicType.None, 反击伤害, new(character)

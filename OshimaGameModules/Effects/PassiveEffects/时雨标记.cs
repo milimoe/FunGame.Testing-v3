@@ -32,7 +32,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
                 return;
             }
             List<Character> enemies = GamingQueue.GetEnemies(character);
-            if (enemies.Contains(Source) && Random.Shared.NextDouble() < 0.65)
+            if (enemies.Contains(Source) && Random.NextDouble() < 0.65)
             {
                 WriteLine($"[ {character} ] 受到了{nameof(时雨标记)}的影响，陷入了混乱！！！");
                 Effect e = new 混乱(Skill, character, false, 0, 1);

@@ -84,7 +84,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             foreach (Character target in targets)
             {
                 DamageToEnemy(caster, target, DamageType.Magical, MagicType, Damage);
-                if (target.HP > 0 && Random.Shared.NextDouble() < ActualConfusionProbability)
+                if (target.HP > 0 && Random.NextDouble() < ActualConfusionProbability)
                 {
                     混乱 e = new(Skill, caster);
                     if (!CheckExemption(caster, target, e))

@@ -44,7 +44,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 enemies.AddRange(ctx.Targets.Where(c => c.HP > 0));
             }
             if (enemies.Count == 0) return;
-            Character target = enemies[Random.Shared.Next(enemies.Count)];
+            Character target = enemies[Random.Next(enemies.Count)];
             WriteLine($"[ {caster} ] 使用[快速狙击]，命中了随机的 [ {target} ]！");
             DamageToEnemy(caster, target, DamageType.Physical, MagicType.None, Damage);
         }

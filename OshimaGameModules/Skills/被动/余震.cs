@@ -94,7 +94,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         {
             return GamingQueue?.AllCharacters
                 .Where(c => c != self && c != exclude && c.HP > 0)
-                .OrderBy(_ => Random.Shared.Next())
+                .OrderBy(_ => Random.Next())
                 .Take(count) ?? [];
         }
     }

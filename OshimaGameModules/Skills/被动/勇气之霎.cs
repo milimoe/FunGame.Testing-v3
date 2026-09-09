@@ -40,7 +40,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (Skill.Character == null || Skill.Character != character) return;
             if (attacker == character) return;
             if (ctx.ActualDamage <= 0) return;
-            if (Random.Shared.NextDouble() > 触发概率) return;
+            if (Random.NextDouble() > 触发概率) return;
             // 刷新勇气 buff（不叠加）
             List<Effect> olds = character.Effects.Where(e => e is DynamicsEffect && e.Name == nameof(勇气之霎) + "·勇气").ToList();
             foreach (Effect e in olds)

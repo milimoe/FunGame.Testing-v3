@@ -37,7 +37,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             if (Skill.Character == null || Skill.Character != character) return;
             if (ctx.DamageResult != DamageResult.Normal && ctx.DamageResult != DamageResult.Critical) return;
-            if (Random.Shared.NextDouble() > 触发概率) return;
+            if (Random.NextDouble() > 触发概率) return;
             if (character.Effects.Any(e => e is 完全免疫 && ReferenceEquals(e.Skill, Skill))) return;
             WriteLine($"[ {character} ] 发动了刀光谍影，进入了不可选中状态！");
             Effect e = new 完全免疫(Skill, character, true, 持续时间, 0)

@@ -103,7 +103,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 bool result = false;
                 do
                 {
-                    switch (Random.Shared.Next(4))
+                    switch (Random.Next(4))
                     {
                         case 0:
                             if (skill.力层数 < 最多层数)

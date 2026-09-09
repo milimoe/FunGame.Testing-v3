@@ -56,7 +56,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects
             return new AlterActionTypeResult
             {
                 ForceAction = true,
-                ActionType = FunGame.Core.Model.Queue.GamingQueue.GetActionType(dp, ctx.PUseItem, ctx.PCastSkill, ctx.PNormalAttack)
+                ActionType = GamingQueue?.GetActionType(dp, ctx.PUseItem, ctx.PCastSkill, ctx.PNormalAttack) ?? CharacterActionType.EndTurn
             };
         }
 

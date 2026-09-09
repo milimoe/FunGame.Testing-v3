@@ -13,18 +13,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Units
             Id = id;
             Name = name;
             NickName = name;
-            PrimaryAttribute = (PrimaryAttribute)Random.Shared.Next(1, 4);
-            InitialATK = Random.Shared.Next(55, 101);
-            InitialHP = Random.Shared.Next(80, 201);
-            InitialMP = Random.Shared.Next(50, 131);
+            PrimaryAttribute = (PrimaryAttribute)Random.Next(1, 4);
+            InitialATK = Random.Next(55, 101);
+            InitialHP = Random.Next(80, 201);
+            InitialMP = Random.Next(50, 131);
 
             int value = 61;
             int valueGrowth = 61;
             for (int i = 0; i < 3; i++)
             {
                 if (value == 0) break;
-                int attribute = i < 2 ? Random.Shared.Next(value) : (value - 1);
-                int growth = i < 2 ? Random.Shared.Next(0, valueGrowth) : (valueGrowth - 1);
+                int attribute = i < 2 ? Random.Next(value) : (value - 1);
+                int growth = i < 2 ? Random.Next(0, valueGrowth) : (valueGrowth - 1);
                 switch (i)
                 {
                     case 1:
@@ -44,9 +44,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Units
                 value -= attribute;
                 valueGrowth -= growth;
             }
-            InitialSPD = Random.Shared.Next(220, 451);
-            InitialHR = Random.Shared.Next(3, 9);
-            InitialMR = Random.Shared.Next(3, 9);
+            InitialSPD = Random.Next(220, 451);
+            InitialHR = Random.Next(3, 9);
+            InitialMR = Random.Next(3, 9);
             foreach (Func<Region, bool> predicate in predicates)
             {
                 GenerationPredicates.Add(predicate);

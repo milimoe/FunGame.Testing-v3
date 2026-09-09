@@ -149,7 +149,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     { "熵核", 熵核描述 },
                     { "守护", 守护描述 }
                 },
-                DefaultChoice = Random.Shared.Next() % 2 == 0 ? "熵核" : "守护",
+                DefaultChoice = Random.Next() % 2 == 0 ? "熵核" : "守护",
                 CanCancel = false
             });
             if (response.Choices.Count > 0)

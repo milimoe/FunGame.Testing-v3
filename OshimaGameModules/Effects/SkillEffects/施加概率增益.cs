@@ -57,7 +57,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
             List<Character> targets = ctx.Targets;
             foreach (Character target in targets)
             {
-                if (target.HP <= 0 || Random.Shared.NextDouble() > ActualProbability) continue;
+                if (target.HP <= 0 || Random.NextDouble() > ActualProbability) continue;
                 Effect? e = null;
                 double duration = _duration + _levelGrowth * (Level - 1);
                 int durationTurn = Convert.ToInt32(_durationTurn + _levelGrowth * (Level - 1));

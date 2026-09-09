@@ -41,7 +41,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (character == Skill.Character && (damageResult == DamageResult.Normal || damageResult == DamageResult.Critical) && !是否是嵌套伤害 && enemy.HP > 0)
             {
                 // 减少能量
-                double EP = Random.Shared.Next(7, 15);
+                double EP = Random.Next(7, 15);
                 enemy.EP -= EP;
                 WriteLine($"[ {character} ] 发动了暗香疏影！[ {enemy} ] 的能量值被减少了 {EP:0.##} 点！现有能量：{enemy.EP:0.##}。");
                 // 额外伤害

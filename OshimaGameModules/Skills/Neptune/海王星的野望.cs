@@ -143,7 +143,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                     if (targets.Count < 3)
                     {
                         count = 3 - targets.Count;
-                        targets.AddRange(allEnemys.OrderBy(o => Random.Shared.Next()).Take(count));
+                        targets.AddRange(allEnemys.OrderBy(o => Random.Next()).Take(count));
                     }
                 }
             }

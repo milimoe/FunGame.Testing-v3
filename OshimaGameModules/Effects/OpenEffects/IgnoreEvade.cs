@@ -17,7 +17,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
         public override BeforeEvadeCheckResult BeforeEvadeCheck(DamageContext ctx)
         {
             if (ctx.Trigger is not Character actor) return default;
-            if (actor == Skill.Character && Random.Shared.NextDouble() < 概率)
+            if (actor == Skill.Character && Random.NextDouble() < 概率)
             {
                 if (GamingQueue != null) WriteLine($"[ {actor} ] 的普通攻击无视了 [ {ctx.Enemy} ] 的闪避！");
                 return new BeforeEvadeCheckResult { SkipEvadeCheck = true };

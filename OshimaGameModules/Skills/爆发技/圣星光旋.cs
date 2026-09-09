@@ -51,7 +51,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 DamageCalculationOptions options = new(caster);
                 if (DamageToEnemy(caster, target, DamageType.True, MagicType.None, Damage + ImprovementDamage, options).ActualDamage > 0)
                 {
-                    if (Random.Shared.NextDouble() < 0.25)
+                    if (Random.NextDouble() < 0.25)
                     {
                         valid.Add(target);
                     }

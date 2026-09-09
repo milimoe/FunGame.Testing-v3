@@ -82,7 +82,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 DamageCalculationOptions options = new(caster);
                 if (DamageToEnemy(caster, target, DamageType.Magical, MagicType.None, Damage + ImprovementDamage, options).ActualDamage > 0)
                 {
-                    Effect e = Random.Shared.Next(3) switch
+                    Effect e = Random.Next(3) switch
                     {
                         0 => new 施加概率负面(Skill, EffectType.Freeze, false, 0, DurationTurn, 0, 1, 0),
                         1 => new 施加概率负面(Skill, EffectType.Confusion, false, 0, DurationTurn, 0, 1, 0),

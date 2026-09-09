@@ -63,7 +63,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 if (target.HP <= 0) continue;
 
                 double percent = 基础迟滞;
-                bool extra = Random.Shared.NextDouble() < 额外概率;
+                bool extra = Random.NextDouble() < 额外概率;
                 if (extra) percent += 额外迟滞;
 
                 迟滞 e = new(Skill, caster, true, 持续时间, 0, percent);

@@ -83,7 +83,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 }
                 else
                 {
-                    targets.AddRange(allEnemys.OrderBy(o => Random.Shared.Next()).Take(2));
+                    targets.AddRange(allEnemys.OrderBy(o => Random.Next()).Take(2));
                 }
                 double 分裂伤害 = actualDamage * 分裂百分比;
                 foreach (Character target in targets)

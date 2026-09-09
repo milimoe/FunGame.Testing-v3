@@ -61,11 +61,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             {
                 if (character.HP > character.MaxHP * 0.4)
                 {
-                    系数 = (Random.Shared.Next(高于40的加成下限, 高于40的加成上限) + 0.0) / 100;
+                    系数 = (Random.Next(高于40的加成下限, 高于40的加成上限) + 0.0) / 100;
                 }
                 else
                 {
-                    系数 = (Random.Shared.Next(低于40的加成下限, 低于40的加成上限) + 0.0) / 100;
+                    系数 = (Random.Next(低于40的加成下限, 低于40的加成上限) + 0.0) / 100;
                 }
                 return 系数 * 累计受到的伤害;
             }
@@ -94,7 +94,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 if (enemy.HP > enemy.MaxHP * 0.4)
                 {
                     // 额外受到伤害
-                    double 系数 = (Random.Shared.Next(高于40额外伤害下限, 高于40额外伤害上限) + 0.0) / 100;
+                    double 系数 = (Random.Next(高于40额外伤害下限, 高于40额外伤害上限) + 0.0) / 100;
                     这次受到的额外伤害 = damage * 系数;
                     WriteLine($"[ {enemy} ] 的破釜沉舟触发，将额外受到 {这次受到的额外伤害:0.##} 点伤害！");
                 }

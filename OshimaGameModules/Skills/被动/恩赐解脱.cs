@@ -38,7 +38,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
             if (Skill.Character == null || Skill.Character != character) return;
             if (ctx.DamageResult != DamageResult.Normal && ctx.DamageResult != DamageResult.Critical) return;
-            if (Random.Shared.NextDouble() > 触发概率) return;
+            if (Random.NextDouble() > 触发概率) return;
             // 刷新自身暴击伤害提升
             List<Effect> olds = character.Effects.Where(e => e is DynamicsEffect && e.Name == nameof(恩赐解脱) + "·暴伤").ToList();
             foreach (Effect e in olds)
