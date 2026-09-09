@@ -313,6 +313,8 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                         if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
                         if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
                         if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
+                        if (data.TryGetProperty("enableTurnDiagnostics", out v)) options.EnableTurnDiagnostics = v.GetBoolean();
+                        if (data.TryGetProperty("seed", out v) && v.ValueKind == JsonValueKind.Number) options.Seed = v.GetInt32();
                     }
                     session = registry.Create(options);
                     session.Start(sink, options);

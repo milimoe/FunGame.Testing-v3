@@ -19,6 +19,10 @@ export interface SoloStartOptions {
   roundDelayMs?: number
   decisionTimeoutSeconds?: number
   requireContinue?: boolean
+  /** 回合看门狗诊断（默认关闭）：开启后服务端会把超时未返回的回合状态写入 turn-diag.log */
+  enableTurnDiagnostics?: boolean
+  /** 随机种子；指定后同种子可复现整局（便于复现偶发卡死） */
+  seed?: number
 }
 
 export interface SoloGameClient {

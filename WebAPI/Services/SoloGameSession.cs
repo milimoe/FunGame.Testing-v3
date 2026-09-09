@@ -59,6 +59,14 @@ public sealed class SoloGameSession : IDisposable
     private const int MaxDecisionsPerTurn = 16; // 单回合决策总数硬上限
 
     /// <summary>
+    /// 本回合开始时，行动角色在引擎侧的 AI 托管判定（引擎在回合开头求值一次 isAI，
+    /// 中途加入/移出 AI 集合都不会改变当前回合的局部值）。
+    /// 用于识别"引擎认为它不是 AI"的角色：这类角色的内层决策循环无界，
+    /// WebAPI 必须用 EndTurn 兜底，不能返回 None。
+    /// </summary>
+    private volatile bool _turnStartIsAI;
+
+    /// <summary>
     /// 玩家角色在本回合【中途】被托管（决策超时/打转/断线）。
     /// Core 内层决策循环里的 isAI 是外层循环开头求值的局部变量：回合中途托管后局部 isAI 仍是 false，
     /// 引擎仍按"手动角色"走无界内层循环；此时若 WebAPI 的 OnDecideAction 返回 None（IsPlayer 已变 false），
@@ -231,8 +239,12 @@ public sealed class SoloGameSession : IDisposable
 
     private void RunGame(SoloGameOptions options)
     {
-        // 临时诊断看门狗：单回合耗时 >15s 即周期性落盘角色引擎状态（删除本诊断时一并移除）
-        _diagTimer = new System.Threading.Timer(_ => DiagTick(), null, 3000, 2000);
+        // 回合看门狗诊断（默认关闭；由 SoloGameOptions.EnableTurnDiagnostics 开启）
+        if (options.EnableTurnDiagnostics)
+        {
+            _diagTimer = new System.Threading.Timer(_ => DiagTick(), null, 3000, 2000);
+            WriteLine("[诊断] 回合看门狗已启用（日志：bin 目录下 turn-diag.log）。");
+        }
         try
         {
             List<Character> candidates = [.. FunGameService.Characters
@@ -259,8 +271,9 @@ public sealed class SoloGameSession : IDisposable
             WriteLine($"选择了 [ {player} ]！");
 
             // ---- 构建队列与地图 ----
-            MixGamingQueue queue = new(candidates, WriteLine) { MaxRespawnTimes = options.MaxRespawnTimes };
+            MixGamingQueue queue = new(candidates, WriteLine, seed: options.Seed) { MaxRespawnTimes = options.MaxRespawnTimes };
             _queue = queue;
+            if (options.Seed is int seed) WriteLine($"[种子] 本局使用固定随机种子 {seed}（同种子对局可复现）。");
             queue.IsDebug = true;
             queue.LoadGameMap(new SoloMap());
             queue.UseQueueProtected = false;
@@ -294,8 +307,11 @@ public sealed class SoloGameSession : IDisposable
             WriteLine("");
 
             queue.InitActionQueue();
-            // AI 托管全部角色（系统集合），随后仅将玩家移出托管
-            queue.SetCharactersToAIControl(bySystem: true, cancel: false, candidates);
+            // Core 约定：只允许一级附属关系，且【所有 Master 角色若不由玩家控制，必须在开局显式加入 AI 托管】，
+            // 否则其附属单位会因 Master 不在 AI 集合而被判定为非 AI（isAI=false），
+            // 走进无界的手动决策循环（等同"被当成实际玩家运行"）。
+            // 因此这里对队列中【全部】角色（含 Master 与附属单位）加入系统 AI 托管，再把玩家移出。
+            queue.SetCharactersToAIControl(bySystem: true, cancel: false, [.. queue.AllCharacters]);
             queue.SetCharactersToAIControl(bySystem: true, cancel: true, [player]);
             queue.CustomData["player"] = player;
             queue.DisplayQueue();
@@ -328,6 +344,16 @@ public sealed class SoloGameSession : IDisposable
 
                 if (actor is not null)
                 {
+                    // "孤儿角色"兜底：既非玩家可控、又不在任何 AI 托管集合中的角色（典型：雇佣兵/召唤物
+                    // 未被加入 AI 集合）。引擎对 isAI=false 的角色内层决策循环无界，一旦它无法行动
+                    // （无路可走/无可打击目标）就会 100% CPU 永久空转。此处在回合开始前补入 AI 托管，
+                    // 让引擎以 isAI=true 正常驱动它。
+                    if (!IsPlayer(actor) && !queue.IsCharacterInAIControlling(actor))
+                    {
+                        queue.SetCharactersToAIControl(bySystem: true, cancel: false, [actor]);
+                        WriteLine($"[兜底] 角色 [ {actor} ] 既非玩家控制也未托管，已交由 AI 驱动。");
+                    }
+
                     _round = i++;
                     WriteLine($"=== 回合 {_round} ===");
                     WriteLine($"现在是 [ {actor} ] 的回合！");
@@ -530,6 +556,9 @@ public sealed class SoloGameSession : IDisposable
 
     private bool OnTurnStart(TurnContext ctx)
     {
+        // 记录本回合引擎侧的 AI 判定（引擎在回合开头求值一次，中途变更对当前回合无效）
+        _turnStartIsAI = _queue is not null && ctx.Trigger is not null
+            && _queue.IsCharacterInAIControlling(ctx.Trigger);
         // 回合边界：清除"回合中途托管"标记（下个回合引擎会以真实的 isAI 驱动角色）
         _escalatedMidTurn = false;
         // 玩家在线且上回合因超时/打转被 AI 托管 → 新回合自动夺回控制权，避免玩家被永久锁在托管状态。
@@ -567,6 +596,13 @@ public sealed class SoloGameSession : IDisposable
             // GetActionType 随机兜底，角色无可行动作时内层循环永久空转（见 _escalatedMidTurn 注释）。
             if (_escalatedMidTurn && _player is not null && ctx.Trigger is not null
                 && (ReferenceEquals(ctx.Trigger, _player) || ReferenceEquals(ctx.Trigger.Master, _player)))
+            {
+                return CharacterActionType.EndTurn;
+            }
+            // 兜底：引擎本回合判定该角色【不是 AI】（isAI=false ⇒ 内层决策循环无界），
+            // 且它又不受玩家控制 —— 若返回 None 引擎会落回 GetActionType 随机兜底，
+            // 角色无可行动作时即 100% CPU 永久空转。统一用 EndTurn 收尾本回合。
+            if (!_turnStartIsAI)
             {
                 return CharacterActionType.EndTurn;
             }
@@ -1050,6 +1086,14 @@ public sealed class SoloGameOptions
     public int DecisionTimeoutSeconds { get; set; } = 30;
     public bool RequireContinue { get; set; } = false;
     public int RoundDelayMs { get; set; } = 250;
+    /// <summary>
+    /// 回合看门狗诊断开关（默认关闭）。开启后，若某个回合的 ProcessTurn 超过 15s 未返回，
+    /// 每 2s 把当前角色的引擎状态追加写入 bin 目录下的 turn-diag.log，用于定位引擎内死循环。
+    /// 关闭时不会创建定时器、不写任何文件。
+    /// </summary>
+    public bool EnableTurnDiagnostics { get; set; } = false;
+    /// <summary>随机种子；为 null 时引擎自动随机。指定后同种子可复现整局（便于复现偶发卡死）</summary>
+    public int? Seed { get; set; } = null;
 }
 
 /// <summary>单人模式专用地图（12 x 12 平面，与 WPF GameMapTesting 的 TestMap 一致）</summary>
@@ -1063,6 +1107,18 @@ public sealed class SoloMap : GameMap
     public override int Width => 12;
     public override int Height => 1;
     public override float Size => 32;
+
+    /// <summary>
+    /// 钳制过大的射程：本图仅 12×12，曼哈顿距离达到 (长-1)+(宽-1) 即可覆盖全图。
+    /// 引擎默认实现按 O(range²) 遍历 —— 实测出现过 range=144（某物品/技能的"全图"射程），
+    /// 单次调用约 8.4 万次迭代；该调用位于回合内层决策循环中，被高频重复时对局近乎停滞
+    /// （看门狗实测 100+ 秒不返回，CPU 100%）。这里把射程上限压到"刚好覆盖全图"。
+    /// </summary>
+    public override List<Grid> GetGridsByRange(Grid grid, int range, bool includeCharacter = false)
+    {
+        int maxUseful = (Length - 1) + (Width - 1);
+        return base.GetGridsByRange(grid, Math.Min(range, maxUseful), includeCharacter);
+    }
 
     public override GameMap InitGamingQueue(IGamingQueue queue)
     {
