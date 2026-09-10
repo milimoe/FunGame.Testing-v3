@@ -331,6 +331,29 @@ public static class ClassPlanEndpoints
             return BuildActionResult(session, result);
         });
 
+        // ============ 整体应用快照（兜底通道）：前端本地算完但内核没有对应动作时（撤销职业 / 遗忘技能），
+        // 把本地结果导出为 ClassPlanSnapshot 全量提交，避免「前端已撤销、服务端仍保留」的状态撕裂 ============
+        group.MapPost("/sessions/{id}/apply-snapshot", (string id, ApplySnapshotRequest request, ClassPlanSessionStore sessions) =>
+        {
+            ClassPlanSession? session = sessions.Get(id);
+            if (session is null)
+            {
+                return Results.NotFound(new { error = $"会话不存在：{id}" });
+            }
+            if (request.Snapshot is null)
+            {
+                return Results.BadRequest(new { error = "快照为空。" });
+            }
+            List<string> errors = request.Snapshot.ApplyTo(session.Planner.Plan, session.Character);
+            return Results.Ok(new
+            {
+                ok = true,
+                message = errors.Count == 0 ? "已整体应用职业计划快照。" : "已应用快照，但有部分条目未注册。",
+                errors,
+                plan = ClassPlanSnapshot.Capture(session.Planner.Plan)
+            });
+        });
+
         // ============ 设置角色等级（重算职业点数；会话角色默认取 1 级模板，需手动提升才能推进规划） ============
         group.MapPost("/sessions/{id}/set-character-level", (string id, SetCharacterLevelRequest request, ClassPlanSessionStore sessions) =>
         {
@@ -538,3 +561,6 @@ public record ActivateTalentRequest(string TalentId);
 
 /// <summary>设置会话角色的等级（1–60），用于重算职业点数</summary>
 public record SetCharacterLevelRequest(int Level);
+
+/// <summary>整体应用职业计划快照（前端本地动作的兜底同步通道）</summary>
+public record ApplySnapshotRequest(ClassPlanSnapshot? Snapshot);

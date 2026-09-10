@@ -41,7 +41,7 @@ import {
 } from '../classplanner/types'
 import { allLearnedTalents, candidatesOf, roleTypesOfPlan, samplePlanFromCatalog, talentRoleOf } from '../classplanner/content'
 import AttributeAllocationPanel from '../classplanner/AttributeAllocationPanel'
-import { createSession, fetchDefinitions, performAction, type ServerDefinitionsDto, type ServerRoute } from '../classplanner/api'
+import { applySnapshot, createSession, fetchDefinitions, performAction, type ServerDefinitionsDto, type ServerRoute } from '../classplanner/api'
 import { applyCatalog, catalogFromServer, classIdName, subClassIdName, talentIdName } from '../classplanner/catalog'
 import { planFromSnapshot, toClassPlanSnapshot, type ClassPlanSnapshotJson } from '../classplanner/snapshot'
 
@@ -106,13 +106,16 @@ export default function ClassPlannerPanel() {
     const prev = plan
     setPlan(r.state)
     toastFlash(r.msg, true)
-    if (!route) return
     if (!sessionId) {
       toastFlash('尚未连接服务端会话，本次改动仅保存在本地。', false)
       return
     }
     setSyncing(true)
-    const res = await performAction(sessionId, route)
+    // route 为空 = 内核没有对应端点（撤销职业 / 遗忘技能）：把本地结果整体作为快照提交，
+    // 否则服务端仍保留旧状态，下一次同步（如升级）时会被服务端快照覆盖而「复活」
+    const res = route
+      ? await performAction(sessionId, route)
+      : await applySnapshot(sessionId, toClassPlanSnapshot(r.state))
     setSyncing(false)
     if (res === null) {
       toastFlash('服务端连接失败，改动仅保存在本地。', false)

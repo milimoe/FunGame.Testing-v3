@@ -266,6 +266,31 @@ export async function performAction(sessionId: string, route: ServerRoute): Prom
     })
 }
 
+/**
+ * 整体应用职业计划快照（本地动作的兜底同步通道）
+ * <para/>用于内核没有对应动作的操作（撤销职业 / 遗忘技能）：把前端算完的结果全量提交，
+ * 由 ClassPlanSnapshot.ApplyTo 重建服务端计划，避免「前端已撤销、服务端仍保留」的状态撕裂
+ */
+export async function applySnapshot(sessionId: string, snapshot: unknown): Promise<ServerActionResult | null> {
+  return fetch(`${BASE}/sessions/${sessionId}/apply-snapshot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snapshot }),
+  })
+    .then(async r => {
+      const res = (await r.json()) as { ok?: boolean; message?: string; error?: string; errors?: string[]; plan?: unknown }
+      return {
+        ok: res.ok ?? r.ok,
+        message: res.message ?? res.error ?? `HTTP ${r.status}`,
+        plan: res.plan ?? null,
+      }
+    })
+    .catch(err => {
+      console.error('服务端应用快照失败：', err)
+      return null
+    })
+}
+
 /** 保存职业计划到服务端存档 */
 export async function savePlan(sessionId: string): Promise<{ ok: boolean; path?: string } | null> {
   return fetch(`${BASE}/sessions/${sessionId}/save`, { method: 'POST' })
