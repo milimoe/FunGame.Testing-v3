@@ -365,3 +365,5 @@ FodyWeavers.xsd
 # Web UI
 dist/
 /rounds_archive.zip
+docs_internal/
+.*/

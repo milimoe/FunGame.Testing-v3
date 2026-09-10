@@ -20,6 +20,8 @@ itemModule.Load();
 FunGameService.InitFunGame();
 // 注册职业内容（职业 / 流派 / 转换战斗天赋战技），供职业规划与存档重建使用
 OshimaClasses.RegisterAll();
+// 筽祀牻世界观职业：3 职业 × 2 流派（铎京导械师 / META🐴熵噬者 / 深海同盟深潮行者）
+OshimaWorldClasses.RegisterAll();
 
 // ============ 辅助方法（局部函数） ============
 static CharacterRefDto ToRef(Character character) =>

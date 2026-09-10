@@ -1,5 +1,7 @@
 // 幻想风内容数据（mock）+ 示例角色。小字注：此处即内核「模组注册侧」的前端替身。
-import type { ClassDef, ClassLevelReward, PlanState, SubClassDef, TalentDef, RoleType } from './types'
+// 这些数组会被 catalog.applyCatalog() **原地替换**为服务端真实数据（保持引用，故所有读取点自动生效）
+import { emptyPlan } from './types'
+import type { ClassDef, ClassLevelReward, PlanState, RoleType, SkillDef, SubClassDef, TalentDef } from './types'
 
 // —— 职业 ——
 export const CLASSES: ClassDef[] = [
@@ -29,7 +31,7 @@ export const SUBCLASSES: SubClassDef[] = [
 ]
 
 // —— 技能池（职业共享；仅示意少量，Level>0 视为已学）——
-export const SKILLS: { id: number; classId: number; name: string; skillType: 'Skill' | 'Magic' | 'SuperSkill' | 'Passive'; desc: string }[] = [
+export const SKILLS: SkillDef[] = [
   { id: 101, classId: 1, name: '断罪斩', skillType: 'Skill', desc: '对单体造成高额物理伤害。' },
   { id: 102, classId: 1, name: '圣焰审判', skillType: 'Magic', desc: '圣焰属性魔法伤害。' },
   { id: 103, classId: 1, name: '誓约庇护', skillType: 'Passive', desc: '每层圣焰减伤。' },
@@ -99,11 +101,64 @@ export function samplePlan(): PlanState {
     numericBoosts: 3,
     initialAllocationAvailable: false,
     appliedAttribute: { STR: 12, AGI: 10, INT: 8, STRGrowth: 1.2, AGIGrowth: 1.2, INTGrowth: 0.6 },
+    // 已确认（提交）的职业等级：主职 10 级、兼职 1 级；确认后等级只升不降（回退只能洗点）
+    committedLevels: { 1: 10, 2: 1 },
+    // 默认路线图未自带数值提升额度 → 回落 RULES.numericBoostBudget（9 点 + 0.9 成长）
+    numericBoostBudget: null,
   }
 }
 
 export const SAMPLE_NOTE =
   '示例 · 誓剑士 60 级：圣焰骑士 10 级(满) + 兼职 时序贤者 1 级；定位 核心/先锋/治疗；已学三天赋，激活核心天赋「圣剑祈愿」。'
+
+/**
+ * 基于**当前目录**（可能是服务端真实数据）生成一个示例计划
+ * <para/>取第一个职业 + 其第一个流派，按 10 级铺满：已学 3 主动 + 1 被动、激活该定位的第一个天赋
+ */
+export function samplePlanFromCatalog(): PlanState {
+  const plan = emptyPlan(60)
+  const cls = CLASSES[0]
+  const sub = SUBCLASSES.find(s => s.classId === cls?.id) ?? SUBCLASSES[0]
+  const classId = cls?.id ?? 1
+  const role: RoleType = sub?.roleTypes?.[0] ?? 'Core'
+
+  const pool = SKILLS.filter(s => s.classId === classId)
+  const actives = pool.filter(s => s.skillType !== 'Passive').slice(0, 3).map(s => s.id)
+  const passives = pool.filter(s => s.skillType === 'Passive').slice(0, 1).map(s => s.id)
+  const talent = TALENTS.find(t => t.classId === classId && t.roleType === role)
+
+  plan.classPoints = 0
+  plan.classes = { [classId]: 10 }
+  plan.subClasses = sub ? [sub.id] : []
+  plan.learnedSkillIds = [...actives, ...passives]
+  plan.primaryRoleType = role
+  plan.secondaryRoleTypes = (sub?.roleTypes ?? []).filter(r => r !== role)
+  plan.learnedTalents = talent ? { [role]: [talent.id] } : {}
+  plan.activeTalentId = talent?.id ?? null
+  plan.activeTalentRole = talent ? role : 'None'
+  plan.defaultClasses = [classId]
+  plan.defaultSubClasses = sub ? [sub.id] : []
+  plan.phase = '示例'
+  // 10 级累计发放 主动 8 / 被动或数值提升 3
+  plan.pendingActiveChoices = Math.max(0, 8 - actives.length)
+  plan.pendingPassiveChoices = Math.max(0, 3 - passives.length)
+  plan.numericBoosts = 3
+  plan.initialAllocationAvailable = false
+  plan.appliedAttribute = { STR: 12, AGI: 10, INT: 8, STRGrowth: 1.2, AGIGrowth: 1.2, INTGrowth: 0.6 }
+  plan.committedLevels = { [classId]: 10 }
+  plan.numericBoostBudget = null
+  return plan
+}
+
+/** 当前目录的示例说明文字（随数据来源变化） */
+export function sampleNote(source: 'server' | 'mock'): string {
+  if (source === 'server') {
+    const cls = CLASSES[0]
+    const sub = SUBCLASSES.find(s => s.classId === cls?.id)
+    return `示例 · 服务端数据：${cls?.name ?? '未知职业'} 10 级（流派 ${sub?.name ?? '无'}），已学 3 主动 + 1 被动。`
+  }
+  return SAMPLE_NOTE
+}
 
 // 帮助函数
 export function classById(id: number): ClassDef | undefined {

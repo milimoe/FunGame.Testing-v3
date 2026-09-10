@@ -22,6 +22,8 @@ export function roleLabel(r: RoleType): string {
 // 职业（Class 定义，对应内核 Entity/Character/Class.cs）
 export interface ClassDef {
   id: number
+  /** 内核 IdName（"7101.导械师"）：调用服务端接口时用；本地 mock 数据没有该字段 */
+  idName?: string
   name: string
   epithet: string // 称号
   hue: string // 职业专属色
@@ -32,6 +34,8 @@ export interface ClassDef {
 // 流派（SubClass 定义：提供定位候选 + 固有被动门槛；构造注入所属职业）
 export interface SubClassDef {
   id: number
+  /** 内核 IdName（"7111.晶枢术士"）：调用服务端接口时用；本地 mock 数据没有该字段 */
+  idName?: string
   classId: number
   name: string
   roleTypes: RoleType[]
@@ -51,6 +55,8 @@ export interface SkillDef {
 // 战斗天赋（绑定职业，按定位分组；核心天赋自带「全等级 +1」被动）
 export interface TalentDef {
   id: number
+  /** 内核 IdName；本地 mock 数据没有该字段 */
+  idName?: string
   classId: number
   roleType: RoleType
   name: string
@@ -66,6 +72,8 @@ export interface ClassLevelReward {
   numericBoost: boolean
   skillLevelUp: number
   magicExtra: number
+  /** 该档数值提升的自带额度（对齐 ClassLevelUpReward.NumericBoost，null/缺省时回落 RULES.numericBoostBudget） */
+  numericBoostBudget?: AttributeBudget | null
 }
 
 // 核心属性分配（对齐内核 ClassAttributeAllocation）
@@ -122,6 +130,16 @@ export interface PlanState {
   numericBoosts: number // 剩余数值提升次数（4 / 9 级档位）
   initialAllocationAvailable: boolean // 1 级初始分配权是否可领取
   appliedAttribute: AttributeAllocation // 已施加的属性分配（洗点回退）
+  /**
+   * 已确认（提交）的职业等级下限：缺省（未登记）视为 −1，即仍是草稿态。
+   * 对齐 ClassRewardLedger.CommittedLevel —— 已确认后职业等级只升不降，回退只能洗点。
+   */
+  committedLevels: Record<number, number>
+  /**
+   * 数值提升的额度覆盖：取「已结算等级区间内最高一档」的路线图自带额度，随等级升降一并重算；
+   * null 表示回落 RULES.numericBoostBudget。对齐 ClassRewardLedger.NumericBoostBudget
+   */
+  numericBoostBudget: AttributeBudget | null
 }
 
 export const RULES = {
@@ -237,7 +255,57 @@ export function emptyPlan(level = 1): PlanState {
     numericBoosts: 0,
     initialAllocationAvailable: false,
     appliedAttribute: emptyAllocation(),
+    committedLevels: {},
+    numericBoostBudget: null,
   }
+}
+
+/** 取某职业已确认到的等级下限（未登记视为 −1 = 尚未确认）；对齐 ClassRewardLedger.CommittedLevel */
+export const COMMITTED_NONE = -1
+
+/** 该职业的可下调下限：已确认等级；从未确认过则为 1 级 */
+export function levelFloor(plan: PlanState, classId: number): number {
+  const v = plan.committedLevels[classId] ?? COMMITTED_NONE
+  return v < 0 ? 1 : v
+}
+
+/** 结算计费基准：从未确认过时以 1 级为基准（1 级由「选择职业」消耗覆盖，不重复计费） */
+export function settleBaseline(plan: PlanState, classId: number): number {
+  const v = plan.committedLevels[classId] ?? COMMITTED_NONE
+  return v < 0 ? 1 : v
+}
+
+/**
+ * 该职业的**未结算等级占用**：相对「结算基准」多出来的级数
+ * <para/>草稿期升降级只改变这个占用（用于即时点数校验与「可用点数」显示），
+ * 真正的扣点发生在 <see cref="commitClass"/> / 物化结算时
+ */
+export function settleDebt(plan: PlanState, classId: number): number {
+  return Math.max(0, (plan.classes[classId] ?? 1) - settleBaseline(plan, classId))
+}
+
+/** 全部职业的未结算等级占用合计（= 提交/结算时需要扣掉的职业点数） */
+export function draftOccupied(plan: PlanState): number {
+  return Object.keys(plan.classes).reduce((sum, id) => sum + settleDebt(plan, Number(id)), 0)
+}
+
+/**
+ * 可用职业点数 = 账本余额 − 未结算占用
+ * <para/>草稿升降级会立即改变这个数字（校验口径与提交口径一致），提交后账本余额减少、
+ * 占用归零，可用点数保持不变
+ */
+export function availablePoints(plan: PlanState): number {
+  return plan.classPoints - draftOccupied(plan)
+}
+
+/** 该职业是否从未确认过（仅未确认过的职业可以撤销） */
+export function isUnconfirmed(plan: PlanState, classId: number): boolean {
+  return (plan.committedLevels[classId] ?? COMMITTED_NONE) < 0
+}
+
+/** 该职业是否存在尚未结算的等级调整（当前等级高于结算基准） */
+export function hasPendingAdjustment(plan: PlanState, classId: number): boolean {
+  return settleDebt(plan, classId) > 0
 }
 
 export const initialPlan = (level: number): PlanState => emptyPlan(level)
