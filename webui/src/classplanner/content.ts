@@ -3,9 +3,19 @@ import type { ClassDef, ClassLevelReward, PlanState, SubClassDef, TalentDef, Rol
 
 // —— 职业 ——
 export const CLASSES: ClassDef[] = [
-  { id: 1, name: '誓剑士', epithet: '誓约之锋', hue: '#c94f3d', desc: '以血为誓的近战者，剑锋所至即契约所成。' },
-  { id: 2, name: '奥术师', epithet: '秘律织者', hue: '#4f6fc9', desc: '拨动世界法则的织法者，用咒语重写战场。' },
-  { id: 3, name: '影行者', epithet: '暮影猎手', hue: '#3f9c6a', desc: '生于暗影的猎手，先于敌意抵达。' },
+  {
+    id: 1, name: '誓剑士', epithet: '誓约之锋', hue: '#c94f3d', desc: '以血为誓的近战者，剑锋所至即契约所成。',
+    // 职业模板限值：约束 1 级初始分配（30 点 + 3.0 成长），数值提升不受此限
+    attributeLimit: { STRMin: 8, STRMax: 24, AGIMax: 16, INTMax: 10, STRGrowthMax: 2.4, AGIGrowthMax: 1.6, INTGrowthMax: 1.0 },
+  },
+  {
+    id: 2, name: '奥术师', epithet: '秘律织者', hue: '#4f6fc9', desc: '拨动世界法则的织法者，用咒语重写战场。',
+    attributeLimit: { INTMin: 8, INTMax: 24, STRMax: 12, AGIMax: 16, INTGrowthMax: 2.4, STRGrowthMax: 1.0, AGIGrowthMax: 1.4 },
+  },
+  {
+    id: 3, name: '影行者', epithet: '暮影猎手', hue: '#3f9c6a', desc: '生于暗影的猎手，先于敌意抵达。',
+    attributeLimit: { AGIMin: 8, AGIMax: 24, STRMax: 18, INTMax: 14, AGIGrowthMax: 2.4, STRGrowthMax: 1.6, INTGrowthMax: 1.2 },
+  },
 ]
 
 // —— 流派（SubClass：提供定位候选 + 固有被动门槛）——
@@ -75,14 +85,20 @@ export function samplePlan(): PlanState {
     classes: { 1: 10, 2: 1 },
     subClasses: [11, 22],
     learnedSkillIds: [101, 102, 103, 201],
-    firstRoleType: 'Core',
-    secondRoleType: 'Vanguard',
-    thirdRoleType: 'Medic',
-    learnedTalents: { Core: 1101, Vanguard: 1111, Medic: 2211 },
+    primaryRoleType: 'Core', // 生效天赋「圣剑祈愿」属核心定位
+    secondaryRoleTypes: ['Vanguard', 'Medic'], // 由已选流派按职业等级降序推导
+    learnedTalents: { Core: [1101], Vanguard: [1111], Medic: [2211] },
+    activeTalentId: 1101,
     activeTalentRole: 'Core',
     defaultClasses: [1],
     defaultSubClasses: [11],
     phase: '誓约达成',
+    // 账本：主职 10 级累计发放 主动 8 / 被动 3 / 数值提升 3；已学 3 主动 + 1 被动
+    pendingActiveChoices: 5,
+    pendingPassiveChoices: 2,
+    numericBoosts: 3,
+    initialAllocationAvailable: false,
+    appliedAttribute: { STR: 12, AGI: 10, INT: 8, STRGrowth: 1.2, AGIGrowth: 1.2, INTGrowth: 0.6 },
   }
 }
 
@@ -99,8 +115,26 @@ export function subById(id: number): SubClassDef | undefined {
 export function talentById(id?: number | null): TalentDef | undefined {
   return id ? TALENTS.find(t => t.id === id) : undefined
 }
+/** 全部已学战斗天赋 id（同一定位可掌握多个） */
+export function allLearnedTalents(plan: PlanState): number[] {
+  return Object.values(plan.learnedTalents).flat().filter((id): id is number => typeof id === 'number')
+}
+
+/** 反查某天赋所属定位（未学习返回 None） */
+export function talentRoleOf(plan: PlanState, talentId: number | null | undefined): RoleType {
+  if (talentId === null || talentId === undefined) return 'None'
+  for (const [role, ids] of Object.entries(plan.learnedTalents)) {
+    if (ids?.includes(talentId)) return role as RoleType
+  }
+  return 'None'
+}
+
 export function roleTypesOfPlan(plan: PlanState): RoleType[] {
-  return [plan.firstRoleType, plan.secondRoleType, plan.thirdRoleType].filter(r => r !== 'None')
+  const all: RoleType[] = plan.primaryRoleType !== 'None' ? [plan.primaryRoleType] : []
+  for (const r of plan.secondaryRoleTypes) {
+    if (r !== 'None' && !all.includes(r)) all.push(r)
+  }
+  return all
 }
 export function candidatesOf(plan: PlanState): RoleType[] {
   const set = new Set<RoleType>()

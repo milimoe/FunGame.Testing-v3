@@ -246,6 +246,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         血腥旋转 = 2055,
         疾走 = 2056,
         闪现 = 2057,
+        转换战斗天赋 = 2058,
         断罪斩 = 2099
     }
 

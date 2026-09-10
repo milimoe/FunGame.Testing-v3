@@ -3,14 +3,13 @@ import { talentById, subById, classById } from '../classplanner/content'
 import {
   activateTalent,
   changeLevel,
-  clearRoleTypes,
   downgradeClass,
   learnSkill,
   learnTalent,
+  refreshRoleTypes,
   removeClass,
   resetPlan,
   selectClass,
-  selectRoleTypes,
   unlearnSkill,
   upgradeClass,
   validate,
@@ -27,7 +26,9 @@ import {
   type RoleType,
   type SkillDef,
 } from '../classplanner/types'
-import { candidatesOf, roleTypesOfPlan } from '../classplanner/content'
+import { allLearnedTalents, candidatesOf, roleTypesOfPlan, talentRoleOf } from '../classplanner/content'
+import AttributeAllocationPanel from '../classplanner/AttributeAllocationPanel'
+import { fetchDefinitions, type ServerDefinitionsDto } from '../classplanner/api'
 
 // 调用方保证传入非 None（候选/已选列表均已过滤）
 function roleMeta(r: RoleType): (typeof ROLE_META)[Exclude<RoleType, 'None'>] {
@@ -48,7 +49,7 @@ function skillLevelOf(plan: PlanState, classLevel: number, skill: SkillDef): { b
   return { base, buffed: base + (coreBuff ? 1 : 0) }
 }
 
-const STEPS = ['① 选择职业', '② 选择定位', '③ 选择天赋', '④ 完成']
+const STEPS = ['① 选择职业', '② 定位推导', '③ 选择天赋', '④ 完成']
 
 // 职业点数获取等级（含 60 满级档），− / + 在此之间跳转
 const POINT_LEVELS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
@@ -57,10 +58,9 @@ export default function ClassPlannerPanel() {
   // 干净的初始角色：1 级、1 职业点、无任何规划
   const [plan, setPlan] = useState<PlanState>(() => emptyPlan(1))
   const [step, setStep] = useState(0)
-  const [pendingRoles, setPendingRoles] = useState<RoleType[]>([])
-  const [rolesConfirmed, setRolesConfirmed] = useState(false)
   const [lvText, setLvText] = useState('1')
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [serverDefs, setServerDefs] = useState<ServerDefinitionsDto | null>(null)
 
   useEffect(() => {
     setLvText(String(plan.level))
@@ -75,7 +75,6 @@ export default function ClassPlannerPanel() {
   const candidates = candidatesOf(plan)
   const validation = useMemo(() => validate(plan), [plan])
   const totalPoints = classPointsForLevel(plan.level)
-  const rolesLocked = rolesConfirmed && selectedRoles.length > 0
 
   const applyLevel = (level: number) => {
     const c = Math.min(60, Math.max(1, Math.round(level)))
@@ -109,12 +108,14 @@ export default function ClassPlannerPanel() {
     if (step === 0) return Object.keys(plan.classes).length > 0
       ? { next: true, hint: '' }
       : { next: false, hint: '请先选择一个职业与流派' }
-    if (step === 1) return selectedRoles.length > 0
+    if (step === 1) return Object.keys(plan.classes).length > 0
       ? { next: true, hint: '' }
-      : { next: false, hint: '请确认至少一个定位' }
+      : { next: false, hint: '请先选择一个职业与流派（定位由流派自动推导）' }
     if (step === 2) {
-      const ok = selectedRoles.length > 0 && selectedRoles.every(r => plan.learnedTalents[r] !== undefined)
-      return ok ? { next: true, hint: '' } : { next: false, hint: '请为每个定位学习一个战斗天赋' }
+      const learned = allLearnedTalents(plan).length
+      return learned > 0
+        ? { next: true, hint: '' }
+        : { next: false, hint: '请至少学习一个战斗天赋（主要定位由生效天赋决定）' }
     }
     return { next: false, hint: '' }
   }
@@ -132,9 +133,20 @@ export default function ClassPlannerPanel() {
     window.setTimeout(() => setToast(null), 2200)
   }
 
+  // 拉取内核真实职业内容（/api/classplan/definitions），用于对照原型数据与正式数值口径
+  const loadServerDefs = () => {
+    fetchDefinitions().then(d => {
+      if (d) {
+        setServerDefs(d)
+        toastFlash(`已加载内核职业内容：${d.classes.length} 个职业 · 选择制${d.rules.selectionEnabled ? '开启' : '关闭'}。`, true)
+      } else {
+        toastFlash('无法连接职业规划端点（WebAPI 未启动或未注册职业内容）。', false)
+      }
+    })
+  }
+
   const newPlan = () => {
     setPlan(emptyPlan(1))
-    setPendingRoles([])
     setStep(0)
     toastFlash('已创建干净的新角色（1 级 · 1 职业点）。', true)
   }
@@ -148,42 +160,11 @@ export default function ClassPlannerPanel() {
     URL.revokeObjectURL(a.href)
   }
 
-  const coreTalent = talentById(plan.learnedTalents.Core)
+  const coreTalent = talentById(plan.activeTalentId)
   const coreActive = plan.activeTalentRole === 'Core' && !!coreTalent?.isCoreBuff
 
-  const rolePick = (r: RoleType) => {
-    const next = pendingRoles.includes(r) ? pendingRoles.filter(x => x !== r) : [...pendingRoles, r]
-    if (next.length > 3) {
-      toastFlash('角色至多拥有 3 个定位。', false)
-      setPendingRoles(next.slice(0, 3))
-      return
-    }
-    setPendingRoles(next)
-  }
-
-  // 提交定位（顺序 = 勾选顺序 → 第 1/2/3 定位）；成功后写入角色并锁定，直到撤销
-  const submitRoles = () => {
-    const rs = pendingRoles.filter((x, i, a) => x !== 'None' && a.indexOf(x) === i)
-    const r = selectRoleTypes(plan, rs)
-    if (r.ok) {
-      setPlan(r.state) // 关键：把确认结果写入角色（三个定位），否则界面会保持空白
-      setRolesConfirmed(true)
-    }
-    setPendingRoles([])
-    setToast({ msg: r.msg, ok: r.ok })
-    window.setTimeout(() => setToast(null), 2400)
-  }
-  // 撤销已确认的定位：清空后把原定位预填回待选，便于调整顺序
-  const revokeRoles = () => {
-    const r = clearRoleTypes(plan)
-    if (r.ok) {
-      setPlan(r.state)
-      setPendingRoles(selectedRoles)
-    }
-    setRolesConfirmed(false)
-    setToast({ msg: r.ok ? '已解锁定位，可重新排列顺序。' : r.msg, ok: r.ok })
-    window.setTimeout(() => setToast(null), 2400)
-  }
+  // 定位不再手动选择：主要跟随生效天赋、次要由流派推导，此处仅提供手动刷新入口
+  const refreshRoles = () => act(refreshRoleTypes(plan))
 
   return (
     <div className="pp-shell p-4 lg:px-8 lg:py-6">
@@ -208,7 +189,7 @@ export default function ClassPlannerPanel() {
             <button className="pp-btn !px-2 !py-0.5" title="跳到下一个职业点获取等级" onClick={() => jumpLevel(1)}>+</button>
             <span className="ml-1">· 职业点 {plan.classPoints} / {totalPoints}</span>
           </span>
-          <button className="pp-btn" onClick={() => { act(resetPlan(plan)); setPendingRoles([]); setRolesConfirmed(false); setStep(0) }}>洗点</button>
+          <button className="pp-btn" onClick={() => { act(resetPlan(plan)); setStep(0) }}>洗点</button>
         </div>
       </header>
 
@@ -301,68 +282,60 @@ export default function ClassPlannerPanel() {
           </div>
         )}
 
-        {/* ═══ ② 选择定位 ═══ */}
+        {/* ═══ ② 定位推导（自动） ═══ */}
         {step === 1 && (
           <div className="pp-card space-y-4 p-5">
             <div>
-              <h2 className="text-sm font-bold text-rose-500">从流派候选中选择定位（至多 3 个）</h2>
+              <h2 className="text-sm font-bold text-rose-500">角色定位（自动推导，无需手选）</h2>
               <p className="pp-note mt-1">
-                当前候选：
-                {candidates.length ? candidates.filter(r => r !== 'None').map(r => `${ROLE_META[r].glyph}${roleLabel(r)}`).join(' · ') : '尚未选择流派（请回上一步）'}
+                主要定位 = 当前生效战斗天赋所属的定位（未激活天赋时为空，MOV 取默认 3）；
+                次要定位 = 已选流派按「所属职业等级降序、同级按选择顺序」展开候选并去重。
               </p>
             </div>
 
-            {/* 选择区（锁定后禁用） */}
+            <div className="rounded-lg border border-rose-100 bg-rose-50/50 px-3 py-2 text-xs text-slate-600">
+              <b className="text-rose-500">主要定位：</b>
+              {plan.primaryRoleType === 'None'
+                ? <span>无 —— 尚未激活战斗天赋（在下一步学习并激活天赋后自动生效）</span>
+                : <b style={{ color: roleMeta(plan.primaryRoleType).hue }}>
+                  {roleMeta(plan.primaryRoleType).glyph} {roleLabel(plan.primaryRoleType)}
+                </b>}
+              <span className="pp-note ml-2">MOV 等按此定位取值的属性会随之变化</span>
+            </div>
+
+            <div className="rounded-lg border border-rose-100 px-3 py-2 text-xs text-slate-600">
+              <b className="text-rose-500">次要定位：</b>
+              {plan.secondaryRoleTypes.length === 0
+                ? <span>无 —— 流派候选不足或尚未选择流派</span>
+                : plan.secondaryRoleTypes.map(r => (
+                  <b key={r} className="mx-0.5" style={{ color: roleMeta(r).hue }}>
+                    {roleMeta(r).glyph} {roleLabel(r)}
+                  </b>
+                ))}
+            </div>
+
             <div className="flex flex-wrap gap-2">
               {(['Core', 'Vanguard', 'Guardian', 'Support', 'Medic'] as Exclude<RoleType, 'None'>[]).map(r => {
                 const m = ROLE_META[r]
-                const enabled = candidates.includes(r)
-                const chosen = selectedRoles.includes(r)
-                const pendingIndex = pendingRoles.indexOf(r)
-                const inPending = pendingIndex >= 0
+                const inCandidates = candidates.includes(r)
+                const isPrimary = plan.primaryRoleType === r
+                const isSecondary = plan.secondaryRoleTypes.includes(r)
+                const label = isPrimary ? '（主要）' : isSecondary ? '（次要）' : inCandidates ? '（候选）' : ''
                 return (
-                  <button key={r} disabled={!enabled || rolesLocked} onClick={() => rolePick(r)}
-                    className={`pp-chip border px-3 py-1.5 transition-all ${!enabled || rolesLocked ? 'cursor-not-allowed border-rose-50 text-slate-300' : 'border-rose-200 hover:border-rose-400'}`}
-                    style={chosen ? { borderColor: m.hue, background: `${m.hue}1f`, color: m.hue } : inPending && !chosen ? { borderColor: '#fb7185', background: '#fff1f2', color: '#be123c' } : undefined}>
-                    {m.glyph} {m.label}
-                    {chosen ? ` ✓（#${selectedRoles.indexOf(r) + 1}）` : inPending ? `（#${pendingIndex + 1} 待确认）` : ''}
-                  </button>
+                  <span key={r}
+                    className={`pp-chip border px-3 py-1.5 ${inCandidates ? 'border-rose-200' : 'border-rose-50 text-slate-300'}`}
+                    style={isPrimary ? { borderColor: m.hue, background: `${m.hue}1f`, color: m.hue }
+                      : isSecondary ? { borderColor: '#fda4af', background: '#fff1f2', color: '#be123c' } : undefined}>
+                    {m.glyph} {m.label}{label}
+                  </span>
                 )
               })}
             </div>
 
-            {/* 待确认顺序预览 */}
-            {!rolesLocked && pendingRoles.length > 0 && (
-              <div className="rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2 text-xs text-slate-600">
-                确认顺序（按勾选先后）：{pendingRoles.map((r, i) => (
-                  <b key={r} className="mx-0.5 text-rose-600">#{i + 1} {roleLabel(r)}</b>
-                ))}
-              </div>
-            )}
-            {rolesLocked && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                ✓ 定位已确认并锁定：{selectedRoles.map((r, i) => (
-                  <b key={r} className="mx-0.5">#{i + 1} {roleLabel(r)}</b>
-                ))}
-                —— 修改定位请点右下「撤销定位」
-              </div>
-            )}
-
             <div className="pp-note">· 五个定位：{(['Core', 'Vanguard', 'Guardian', 'Support', 'Medic'] as Exclude<RoleType, 'None'>[]).map(r => `${roleLabel(r)}（${ROLE_META[r].desc}）`).join('、')}</div>
             <div className="flex items-center justify-between border-t border-dashed border-rose-200 pt-3">
-              {rolesLocked ? (
-                <>
-                  <span className="pp-note">重新选择会清空已学天赋（见下一步）</span>
-                  <button className="pp-btn" onClick={revokeRoles}>↺ 撤销定位</button>
-                </>
-              ) : (
-                <>
-                  <span className="pp-note">勾选顺序将作为第 1 / 2 / 3 定位</span>
-                  <button className="pp-btn-primary" disabled={pendingRoles.filter(r => r !== 'None').length === 0} onClick={submitRoles}>
-                    确认定位{pendingRoles.length ? `（${pendingRoles.length}）` : ''}
-                  </button>
-                </>
-              )}
+              <span className="pp-note">定位随「激活 / 转换天赋」与「职业等级」实时重算</span>
+              <button className="pp-btn" onClick={refreshRoles}>↻ 刷新定位</button>
             </div>
           </div>
         )}
@@ -370,33 +343,43 @@ export default function ClassPlannerPanel() {
         {/* ═══ ③ 选择天赋 ═══ */}
         {step === 2 && (
           <div className="space-y-3">
+            <div className="pp-card p-3 text-xs text-slate-600">
+              <b className="text-rose-500">已学天赋 {allLearnedTalents(plan).length} / {RULES.maxRoleTypes}</b>
+              <span className="pp-note ml-2">学习只做记录、不会挂载到角色；只有激活的那一个会以 1 级挂载生效。</span>
+            </div>
             {selectedRoles.map(role => {
               const m = roleMeta(role)
               const pool = TALENTS.filter(t => t.roleType === role && plan.classes[t.classId] !== undefined)
-              const learnedId = plan.learnedTalents[role]
-              const active = plan.activeTalentRole === role
+              const learnedIds = plan.learnedTalents[role] ?? []
+              const full = allLearnedTalents(plan).length >= RULES.maxRoleTypes
               return (
                 <div key={role} className="pp-card p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: m.hue }}>
                     <span>{m.glyph}</span>{m.label} 定位天赋
-                    <span className="pp-note font-normal">（须学 1 个 · 至多激活 1 个）</span>
-                    {active && <span className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">生效中</span>}
+                    <span className="pp-note font-normal">（同一定位可学多个 · 全场至多激活 1 个）</span>
+                    {plan.activeTalentRole === role && <span className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">该定位生效中</span>}
                   </div>
                   <div className="space-y-2">
                     {pool.map(t => {
-                      const isLearned = learnedId === t.id
+                      const isLearned = learnedIds.includes(t.id)
+                      const isActive = plan.activeTalentId === t.id
                       return (
-                        <div key={t.id} className={`rounded-lg border p-2.5 ${isLearned ? 'border-rose-300 bg-rose-50' : 'border-rose-100'}`}>
+                        <div key={t.id} className={`rounded-lg border p-2.5 ${isActive ? 'border-rose-400 bg-rose-50' : isLearned ? 'border-rose-200 bg-rose-50/50' : 'border-rose-100'}`}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="text-xs font-semibold text-slate-700">
                               {t.name}
                               {t.isCoreBuff && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-600">☀ 核心（技能 +1）</span>}
+                              {isActive && <span className="ml-1 rounded bg-rose-500 px-1 text-[10px] text-white">生效中</span>}
                             </span>
                             <div className="flex gap-1.5">
-                              <button className="pp-btn !py-0.5" disabled={isLearned} onClick={() => act(learnTalent(plan, role, t.id))}>
-                                {isLearned ? '已学习 ✓' : learnedId !== undefined ? '替换为此天赋' : '学习'}
+                              <button className="pp-btn !py-0.5" disabled={isLearned}
+                                title={isLearned ? '已学习' : full ? `已学天赋已达上限 ${RULES.maxRoleTypes} 个` : ''}
+                                onClick={() => act(learnTalent(plan, role, t.id))}>
+                                {isLearned ? '已学习 ✓' : '学习'}
                               </button>
-                              {isLearned && !active && <button className="pp-btn-primary !py-0.5" onClick={() => act(activateTalent(plan, role))}>激活</button>}
+                              {isLearned && !isActive && (
+                                <button className="pp-btn-primary !py-0.5" onClick={() => act(activateTalent(plan, role, t.id))}>激活</button>
+                              )}
                             </div>
                           </div>
                           <p className="pp-note mt-1">{t.desc}</p>
@@ -407,8 +390,8 @@ export default function ClassPlannerPanel() {
                 </div>
               )
             })}
-            {selectedRoles.length === 0 && <div className="pp-card p-6 text-center text-sm text-slate-400">请先回到上一步选择定位</div>}
-            <p className="pp-note px-1">· 拥有次要定位（≥2 个已学天赋）时获得【转换战斗天赋】战技：战斗内切换激活天赋（2 决策点 + 1 战技配额）；非战斗可随时直接切换。</p>
+            {selectedRoles.length === 0 && <div className="pp-card p-6 text-center text-sm text-slate-400">请先回到上一步选择职业与流派（定位由流派自动推导）</div>}
+            <p className="pp-note px-1">· 已学天赋 ≥ 2 个（含同一定位多个）即获得【转换战斗天赋】战技：切换激活任意一个已学天赋（2 决策点 + 1 战技配额）；同定位切换时主要定位与 MOV 不变。</p>
           </div>
         )}
 
@@ -425,8 +408,18 @@ export default function ClassPlannerPanel() {
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">定位</dt>
                   <dd>{selectedRoles.length ? selectedRoles.map(roleLabel).join('、') : '—'}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">激活天赋</dt>
-                  <dd>{plan.activeTalentRole ? `${roleLabel(plan.activeTalentRole)} · ${talentById(plan.learnedTalents[plan.activeTalentRole as RoleType])?.name}` : '未激活'}</dd></div>
+                  <dd>{plan.activeTalentId !== null
+                    ? `${roleLabel(talentRoleOf(plan, plan.activeTalentId))} · ${talentById(plan.activeTalentId)?.name}`
+                    : '未激活'}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">已学天赋</dt>
+                  <dd>{allLearnedTalents(plan).length
+                    ? allLearnedTalents(plan).map(id => talentById(id)?.name).join('、')
+                    : '—'}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">职业点</dt><dd>{plan.classPoints} / {totalPoints}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">选择权</dt>
+                  <dd>主动技能 {plan.pendingActiveChoices} · 被动 {plan.pendingPassiveChoices} · 数值提升 {plan.numericBoosts}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">初始分配</dt>
+                  <dd>{plan.initialAllocationAvailable ? <span className="font-semibold text-amber-600">待领取（30 点 + 3.0 成长）</span> : '已领取'}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-slate-400">规则校验</dt>
                   <dd>{validation.ok ? <span className="font-semibold text-emerald-600">一致 ✓</span> : <span className="text-rose-500">{validation.errors.join('；')}</span>}</dd></div>
               </dl>
@@ -450,24 +443,71 @@ export default function ClassPlannerPanel() {
                     </div>
                   )
                 })}
-                {plan.learnedSkillIds.length === 0 && <p className="pp-note">· 已学技能为空。原型注：演示简化为「学习即授予」，未实现路线图选择权配额；技能等级按职业等级推演。</p>}
+                {plan.learnedSkillIds.length === 0 && <p className="pp-note">· 已学技能为空。选择制已启用：职业技能须消耗路线图发放的「选择权」逐个习得（2 / 5 / 8 / 10 级各 2 点主动技能选择权，4 / 9 级为被动或数值提升）。</p>}
               </div>
             </div>
 
             <div className="pp-card p-4">
-              <h2 className="mb-2 text-sm font-bold text-rose-500">已学技能管理</h2>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-rose-500">已学技能管理</h2>
+                <span className="pp-note">
+                  剩余选择权：主动 <b className="text-rose-600">{plan.pendingActiveChoices}</b> · 被动{' '}
+                  <b className="text-rose-600">{plan.pendingPassiveChoices}</b> · 数值提升{' '}
+                  <b className="text-amber-600">{plan.numericBoosts}</b>
+                </span>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {SKILLS.filter(s => plan.classes[s.classId] !== undefined).map(s => {
                   const isLearned = plan.learnedSkillIds.includes(s.id)
+                  const isPassive = s.skillType === 'Passive'
+                  const noQuota = isPassive ? plan.pendingPassiveChoices < 1 : plan.pendingActiveChoices < 1
                   return (
                     <button key={s.id}
+                      disabled={!isLearned && noQuota}
+                      title={!isLearned && noQuota ? `剩余${isPassive ? '被动' : '职业技能'}选择权不足` : ''}
                       onClick={() => act(isLearned ? unlearnSkill(plan, s.id) : learnSkill(plan, s.classId, s.id))}
-                      className={`rounded-full border px-2.5 py-1 text-xs ${isLearned ? 'border-rose-300 bg-rose-50 font-medium text-rose-600' : 'border-rose-100 text-slate-400 hover:border-rose-300'}`}>
+                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        isLearned
+                          ? 'border-rose-300 bg-rose-50 font-medium text-rose-600 hover:border-rose-400'
+                          : noQuota
+                            ? 'cursor-not-allowed border-rose-50 text-slate-300'
+                            : 'border-rose-100 text-slate-400 hover:border-rose-300 hover:text-rose-500'
+                      }`}>
                       {isLearned ? '✓ ' : '+'}{s.name}
+                      <span className="ml-1 opacity-60">{isPassive ? '被动' : s.skillType === 'Magic' ? '魔法' : s.skillType === 'SuperSkill' ? '爆发技' : '战技'}</span>
                     </button>
                   )
                 })}
               </div>
+            </div>
+
+            <AttributeAllocationPanel plan={plan} onAction={act} hasClasses={Object.keys(plan.classes).length > 0} />
+
+            <div className="pp-card p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-rose-500">内核内容对齐</h2>
+                <button className="pp-btn !py-1" onClick={loadServerDefs}>从 WebAPI 拉取职业定义</button>
+              </div>
+              {serverDefs ? (
+                <div className="space-y-1.5 text-xs">
+                  <p className="pp-note">规则：初始分配 {serverDefs.rules.initialBudget} · 数值提升 {serverDefs.rules.numericBoostBudget}</p>
+                  {serverDefs.classes.map(c => (
+                    <div key={c.id} className="rounded-lg border border-rose-100 px-2.5 py-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <b className="text-rose-600">{c.name}</b>
+                        <span className="pp-note">{c.id}</span>
+                        <span className="pp-note ml-auto">限值：{c.attributeLimit}</span>
+                      </div>
+                      <p className="pp-note mt-1">
+                        战技 {c.skills.length} · 被动 {c.passives.length} · 天赋 {Object.values(c.talents).reduce((n, t) => n + t.length, 0)} · 流派{' '}
+                        {c.subClasses.map(s => `${s.name}（${s.roleTypes.join('/')}）`).join('、') || '—'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="pp-note">· 尚未连接。启动 WebAPI 后可拉取内核已注册的职业 / 流派 / 技能池与真实额度规则，用于核对本原型的演示数据。</p>
+              )}
             </div>
 
             <div className="flex justify-end gap-2">

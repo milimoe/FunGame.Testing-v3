@@ -4,6 +4,7 @@ using FunGame.Core.Model.Framework;
 using FunGame.Testing.WebAPI.Services;
 using Microsoft.Extensions.FileProviders;
 using Milimoe.FunGameTesting.OshimaGameModules;
+using Milimoe.FunGameTesting.OshimaGameModules.Classes;
 using Milimoe.FunGameTesting.Tests;
 using System.Net.WebSockets;
 using System.Text;
@@ -17,6 +18,8 @@ skillModule.Load();
 ItemModule itemModule = new();
 itemModule.Load();
 FunGameService.InitFunGame();
+// 注册职业内容（职业 / 流派 / 转换战斗天赋战技），供职业规划与存档重建使用
+OshimaClasses.RegisterAll();
 
 // ============ 辅助方法（局部函数） ============
 static CharacterRefDto ToRef(Character character) =>
@@ -74,11 +77,16 @@ static void MoveSimulationZipIfNeeded(string targetZipPath)
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ArchiveStore>();
 builder.Services.AddSingleton<SoloGameRegistry>();
+builder.Services.AddSingleton<ClassPlanStore>();
+builder.Services.AddSingleton<ClassPlanSessionStore>();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 WebApplication app = builder.Build();
 app.UseCors();
 app.UseWebSockets();
+
+// ============ 职业规划端点（/api/classplan/*） ============
+app.MapClassPlanEndpoints();
 
 // ============ 游戏数据字典（AllSkills / AllItems / Characters），供前端按 id 匹配显示描述 ============
 app.MapGet("/api/gamedata", () =>
