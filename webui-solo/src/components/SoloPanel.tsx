@@ -253,15 +253,15 @@ export default function SoloPanel() {
   useEffect(() => {
     const p = state.decision?.payload
     setPickedGrids([])
-    // 「选取全体」的技能 / 普攻：默认替玩家把全部可选目标勾上（问题 3）
     if (p?.kind === 'Targets' && p.selectAll && p.targets.length > 0) {
+      // 「选取全体」的技能 / 普攻：默认替玩家把全部可选目标勾上（问题 3）
       setPickedTargets(p.targets.map((t) => t.guid))
+    } else if (p?.kind === 'Targets' && p.targets.length === 1 && p.targets[0].isSelf) {
+      // 可选目标只有自己（常见于仅自身目标的增益技能）：默认勾上自己，
+      // 但仍需玩家按地图下方的「确认目标」提交，不静默自动发送
+      setPickedTargets([p.targets[0].guid])
     } else {
       setPickedTargets([])
-    }
-    // 可选目标只有自己：自动选自己并直接提交，省一次点选（常见于仅自身目标的增益技能）
-    if (p?.kind === 'Targets' && p.targets.length === 1 && p.targets[0].isSelf) {
-      game.submit({ targetGuids: [p.targets[0].guid] })
     }
     setPreview(null)
     if (requestKey) {

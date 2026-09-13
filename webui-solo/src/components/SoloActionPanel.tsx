@@ -576,6 +576,10 @@ export default function SoloActionPanel({
     if (p?.kind === 'Targets' && p.selectAll && p.targets.length > 0) {
       return setDraft({ k: 'choice', keys: p.targets.map((t) => t.guid) })
     }
+    // 可选目标只有自己：默认勾上自己（与地图预选中一致），仍需玩家按「确认目标」提交
+    if (p?.kind === 'Targets' && p.targets.length === 1 && p.targets[0].isSelf) {
+      return setDraft({ k: 'choice', keys: [p.targets[0].guid] })
+    }
     setDraft(null)
     // 仅在请求变化时重置
     // eslint-disable-next-line react-hooks/exhaustive-deps

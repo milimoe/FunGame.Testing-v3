@@ -869,6 +869,13 @@ public sealed class SoloGameSession : IDisposable
     {
         if (!IsPlayer(ctx.Trigger)) return [];
         (List<Character> selectable, int max, bool selectAll) = ResolveSelectable(ctx);
+        if (selectable.Count == 0)
+        {
+            // 强制校验：射程内没有任何符合技能选择规则的目标时不发选目标决策，直接取消本次行动
+            //（返回空列表 → 引擎跳过该动作并重新询问行动类型，玩家回到行动菜单）
+            WriteLine($"[ {ctx.Trigger} ] 想要施放 [ {ctx.Skill?.Name ?? "技能"} ]，但射程内没有任何可选目标，行动已取消！");
+            return [];
+        }
         return RequestTargets(ctx, selectable, max, selectAll);
     }
 
@@ -876,14 +883,25 @@ public sealed class SoloGameSession : IDisposable
     {
         if (!IsPlayer(ctx.Trigger)) return [];
         (List<Character> selectable, int max, bool selectAll) = ResolveSelectable(ctx);
+        if (selectable.Count == 0)
+        {
+            // 强制校验：攻击范围内没有任何可选目标时不发选目标决策，直接取消本次行动
+            WriteLine($"[ {ctx.Trigger} ] 想要发起普通攻击，但攻击范围内没有任何可选目标，行动已取消！");
+            return [];
+        }
         return RequestTargets(ctx, selectable, max, selectAll);
     }
 
     /// <summary>
     /// 依据技能（或普攻）的选择规则计算可选目标与最大可选数量。
     /// <para>注意 <c>SelectAllEnemies</c> / <c>SelectAllTeammates</c>：这两个开关的优先级高于
-    /// <c>CanSelectTargetCount</c>，数量必须按「场上实际可选的敌/友数量」动态计算，
-    /// 且全体友方默认包含施法者自身——否则会出现「可选人数显示为 1」或「永远差一个目标」的观感问题。</para>
+    /// <c>CanSelectTargetCount</c>，数量必须按「场上实际可选的敌/友数量」动态计算。
+    /// 是否包含施法者自身一律由 <c>CanSelectSelf</c> 决定，与引擎
+    /// <see cref="NormalAttack.GetSelectableTargets"/> / <see cref="Skill.GetSelectableTargets"/> 的判定一致；
+    /// <c>SelectAllTeammates</c> 不越权补自身（引擎的队友列表本就不含自己）。</para>
+    /// <para>强制校验：可选目标只来自技能/普攻声明规则（CanSelect*）命中的角色，不做任何兜底填充——
+    /// 尤其不允许默认把施法者自己塞进列表（那会让玩家「普攻自己」）。返回空列表时调用方必须
+    /// 取消本次行动（不发选目标决策，引擎会重新询问行动类型），不得发出零选项的选目标请求。</para>
     /// </summary>
     private static (List<Character> Selectable, int Max, bool SelectAll) ResolveSelectable(SelectionContext ctx)
     {
@@ -898,11 +916,6 @@ public sealed class SoloGameSession : IDisposable
             if (skill.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
             rawMax = Math.Max(1, skill.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
             selectAll = skill.SelectAllEnemies || skill.SelectAllTeammates;
-            // 全体友方默认包含自身：技能若未声明 CanSelectSelf，这里也要把施法者补进可选列表
-            if (skill.SelectAllTeammates && ctx.Trigger is not null && !selectable.Contains(ctx.Trigger))
-            {
-                selectable.Insert(0, ctx.Trigger);
-            }
             if (skill.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
         }
         else if (ctx.NormalAttack is NormalAttack attack)
@@ -912,10 +925,6 @@ public sealed class SoloGameSession : IDisposable
             if (attack.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
             rawMax = Math.Max(1, attack.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
             selectAll = attack.SelectAllEnemies || attack.SelectAllTeammates;
-            if (attack.SelectAllTeammates && ctx.Trigger is not null && !selectable.Contains(ctx.Trigger))
-            {
-                selectable.Insert(0, ctx.Trigger);
-            }
             if (attack.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
         }
         else
@@ -931,16 +940,8 @@ public sealed class SoloGameSession : IDisposable
             if (seen.Add(c)) distinct.Add(c);
         }
 
-        // 兜底：自定义普攻 / 技能的 CanSelect* 可能没有全部开启（模组里并不强制声明），
-        // 但引擎依旧会要求选目标。若这里给出空列表，客户端会收到一个「零选项」的选目标请求，
-        // 地图上没有任何可点目标，玩家只能取消 —— 典型死局。
-        // 按 敌人 → 队友 → 自身 的顺序兜底，保证「引擎要目标，就一定给得出目标」。
-        if (distinct.Count == 0)
-        {
-            if (ctx.Enemys.Count > 0) distinct.AddRange(ctx.Enemys);
-            else if (ctx.Teammates.Count > 0) distinct.AddRange(ctx.Teammates);
-            else if (ctx.Trigger is not null) distinct.Add(ctx.Trigger);
-        }
+        // 不做兜底填充：这里若为空，调用方会直接取消本次行动（见 OnSelectSkillTargets /
+        // OnSelectNormalAttackTargets），而不是伪造目标——伪造出的「自己」曾导致玩家普攻自己。
 
         // 上限不能超过实际可选人数（否则 UI 会显示一个永远达不到的「最多 N 个」）
         int max = distinct.Count > 0 ? Math.Clamp(rawMax, 1, distinct.Count) : 1;
