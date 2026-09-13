@@ -12,6 +12,7 @@ import type {
   SoloMapDto,
   SoloQueueEntryDto,
   SoloRankingDto,
+  SoloTeamDto,
 } from './soloTypes'
 
 export interface SoloUiState {
@@ -28,7 +29,17 @@ export interface SoloUiState {
   queue: SoloQueueEntryDto[]
   playerDP: SoloDpDto | null
   playerGuid: string | null
+  /** 当前正在行动的角色（地图 / 行动顺序表用它做高亮呼吸环） */
+  currentActorGuid: string | null
   roundRewards: Record<string, string[]>
+  /** 团队模式：红蓝两队（己方固定为「蓝队」） */
+  teams: SoloTeamDto[]
+  /** 是否团队模式 */
+  teamMode: boolean
+  /** 死亡竞赛夺冠人头数（0 = 非死亡竞赛） */
+  maxScoreToWin: number
+  /** 对局是否已暂停（服务端引擎线程挂起） */
+  paused: boolean
   log: string[]
   decision: SoloDecisionRequest | null
   /** 决策截止时间戳（ms）；服务端下发决策时携带 timeoutMs，用于前端倒计时 */
@@ -52,6 +63,8 @@ export interface SoloGameController {
   start: (options: SoloStartOptions) => void
   submit: (payload: SoloDecisionReply) => void
   cancel: () => void
+  /** 暂停 / 继续对局（服务端引擎线程挂起，回合不推进、决策不计时） */
+  pause: (paused: boolean) => void
   end: () => void
 }
 
@@ -69,7 +82,12 @@ const initialState: SoloUiState = {
   queue: [],
   playerDP: null,
   playerGuid: null,
+  currentActorGuid: null,
   roundRewards: {},
+  teams: [],
+  teamMode: false,
+  maxScoreToWin: 0,
+  paused: false,
   log: [],
   decision: null,
   decisionDeadline: null,
@@ -111,7 +129,12 @@ export function useSoloGame(baseUrl: string): SoloGameController {
           queue: s.queue ?? [],
           playerDP: s.playerDP ?? null,
           playerGuid: s.playerGuid ?? prev.playerGuid,
+          currentActorGuid: s.currentActorGuid ?? null,
           roundRewards: s.roundRewards ?? {},
+          teams: s.teams ?? [],
+          teamMode: s.teamMode ?? false,
+          maxScoreToWin: s.maxScoreToWin ?? 0,
+          paused: s.paused ?? false,
           aiEscalated: s.aiEscalated ?? false,
           log,
         }
@@ -244,6 +267,14 @@ export function useSoloGame(baseUrl: string): SoloGameController {
     }
   }, [])
 
+  const pause = useCallback((paused: boolean) => {
+    const client = clientRef.current
+    if (!client) return
+    client.pause(paused)
+    // 乐观更新：服务端会在随后的 gaming.state 里带回权威值
+    setState((prev) => ({ ...prev, paused }))
+  }, [])
+
   const end = useCallback(() => {
     clientRef.current?.endGame()
     clientRef.current?.disconnect()
@@ -251,8 +282,8 @@ export function useSoloGame(baseUrl: string): SoloGameController {
   }, [])
 
   const controller = useMemo<SoloGameController>(
-    () => ({ state, connect, disconnect, start, submit, cancel, end }),
-    [state, connect, disconnect, start, submit, cancel, end],
+    () => ({ state, connect, disconnect, start, submit, cancel, pause, end }),
+    [state, connect, disconnect, start, submit, cancel, pause, end],
   )
 
   return controller

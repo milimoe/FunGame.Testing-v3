@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type RestResult } from './api'
+import { resolveDefaultBaseUrl } from './baseUrl'
 import { createWsClient, type WsClient, type WsStatus } from './ws'
 import type {
   AuthProfile,
@@ -59,7 +60,7 @@ interface ServerContextValue {
 const ServerContext = createContext<ServerContextValue | null>(null)
 
 export function ServerProvider({ children }: { children: ReactNode }) {
-  const [baseUrl, setBaseUrl] = useState('http://localhost:5000')
+  const [baseUrl, setBaseUrl] = useState(() => resolveDefaultBaseUrl('http://localhost:5000'))
   const [token, setToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
   const [user, setUser] = useState<AuthProfile | null>(null)

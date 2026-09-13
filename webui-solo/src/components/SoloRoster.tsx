@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { SoloCharacterDto, SoloItemDto, SoloSkillDto } from '../../game/soloTypes'
+import type { SoloCharacterDto, SoloItemDto, SoloSkillDto } from '../game/soloTypes'
+import { fmt } from './soloFormat'
 
 interface SoloRosterProps {
   characters: SoloCharacterDto[]
@@ -29,9 +30,9 @@ function SkillChip({ skill }: { skill: SoloSkillDto }) {
     >
       <span className="shrink-0 rounded-sm bg-ink-800/10 px-0.5 text-[9px] text-ink-500">{tag}</span>
       <span className="truncate">{skill.name}</span>
-      {skill.currentCD > 0 && <span className="shrink-0 font-mono text-[9px] text-horde-500">CD{skill.currentCD.toFixed(0)}</span>}
-      {skill.realMPCost > 0 && <span className="shrink-0 font-mono text-[9px] text-alliance-500">{skill.realMPCost}MP</span>}
-      {skill.realEPCost > 0 && <span className="shrink-0 font-mono text-[9px] text-gold-600">{skill.realEPCost}EP</span>}
+      {skill.currentCD > 0 && <span className="shrink-0 font-mono text-[9px] text-horde-500">CD{fmt(skill.currentCD, 0)}</span>}
+      {skill.realMPCost > 0 && <span className="shrink-0 font-mono text-[9px] text-alliance-500">{fmt(skill.realMPCost)}MP</span>}
+      {skill.realEPCost > 0 && <span className="shrink-0 font-mono text-[9px] text-gold-600">{fmt(skill.realEPCost)}EP</span>}
     </div>
   )
 }
@@ -55,16 +56,33 @@ export default function SoloRoster({ characters, playerGuid }: SoloRosterProps) 
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
-    // 玩家置顶，其余按存活在前排序
+    // 团队模式：己方（蓝队）在前；否则玩家置顶。同组内按存活在前。
     const list = [...characters]
+    const myTeam = characters.find((c) => c.guid === playerGuid)?.teamName ?? null
+    const rank = (c: SoloCharacterDto) => {
+      if (myTeam !== null) return c.teamName === myTeam ? 0 : 1
+      return c.guid === playerGuid ? 0 : 1
+    }
     list.sort((a, b) => {
-      const pa = a.guid === playerGuid ? -1 : 0
-      const pb = b.guid === playerGuid ? -1 : 0
-      if (pa !== pb) return pa - pb
-      return Number(b.isEliminated) - Number(a.isEliminated) || a.displayName.localeCompare(b.displayName, 'zh')
+      const ra = rank(a)
+      const rb = rank(b)
+      if (ra !== rb) return ra - rb
+      if (a.guid === playerGuid) return -1
+      if (b.guid === playerGuid) return 1
+      return Number(a.isEliminated) - Number(b.isEliminated) || a.displayName.localeCompare(b.displayName, 'zh')
     })
     return list
   }, [characters, playerGuid])
+
+  // 阵营配色：团队模式下己方蓝 / 敌方红；混战则是玩家金 / 其余红
+  const myTeam = characters.find((c) => c.guid === playerGuid)?.teamName ?? null
+  const teamMode = myTeam !== null
+  const tokenColor = (c: SoloCharacterDto, dead: boolean, isPlayer: boolean): string => {
+    if (dead) return '#6b7280'
+    if (teamMode) return c.teamName === myTeam ? '#2563eb' : '#dc2626'
+    return isPlayer ? '#d4a838' : '#dc2626'
+  }
+  const isAlly = (c: SoloCharacterDto) => (teamMode ? c.teamName === myTeam : c.guid === playerGuid)
 
   return (
     <div className="flex h-full flex-col gap-1.5 overflow-y-auto pr-0.5">
@@ -72,6 +90,7 @@ export default function SoloRoster({ characters, playerGuid }: SoloRosterProps) 
         const isPlayer = c.guid === playerGuid
         const open = expanded === c.guid
         const dead = c.isEliminated || c.hp <= 0
+        const ally = isAlly(c)
         return (
           <div
             key={c.guid}
@@ -80,15 +99,17 @@ export default function SoloRoster({ characters, playerGuid }: SoloRosterProps) 
                 ? 'border-gold-500/60 bg-gradient-to-b from-gold-300/20 to-gold-500/5'
                 : dead
                   ? 'border-ink-400/20 bg-ink-800/5'
-                  : 'border-horde-500/25 bg-parchment-200/40'
+                  : ally
+                    ? 'border-alliance-500/35 bg-alliance-500/6'
+                    : 'border-horde-500/30 bg-horde-500/6'
             } ${dead ? 'opacity-70' : ''}`}
           >
             <button className="flex w-full items-center gap-2 text-left" onClick={() => setExpanded(open ? null : c.guid)}>
               <span
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
                 style={{
-                  backgroundColor: dead ? '#6b7280' : isPlayer ? '#d4a838' : '#dc2626',
-                  color: dead || isPlayer ? '#2a1f14' : '#fff7ed',
+                  backgroundColor: tokenColor(c, dead, isPlayer),
+                  color: dead || (!teamMode && isPlayer) ? '#2a1f14' : '#fff7ed',
                 }}
               >
                 {[...(c.nickName || c.name || '?')][0]}
@@ -100,9 +121,14 @@ export default function SoloRoster({ characters, playerGuid }: SoloRosterProps) 
                 </span>
                 <span className="block text-[9.5px] text-ink-400">
                   Lv.{c.level} · {dead ? '已阵亡' : c.state === 'Actionable' ? '待行动' : c.state}
+                  {c.teamName ? ` · ${c.teamName}${isPlayer ? '（己方）' : ''}` : ''}
                 </span>
               </span>
-              {c.effects.length > 0 && <span className="shrink-0 text-[11px]" title={c.effects.join('、')}>✨</span>}
+              {c.effects.length > 0 && (
+                <span className="shrink-0 text-[11px]" title={c.effects.map((e) => e.name).join('、')}>
+                  ✨
+                </span>
+              )}
             </button>
 
             {/* 数值条 */}
@@ -152,8 +178,16 @@ export default function SoloRoster({ characters, playerGuid }: SoloRosterProps) 
                     <div className="mb-1 mt-2 text-[10px] font-medium text-ink-500">状态</div>
                     <div className="flex flex-wrap gap-1">
                       {c.effects.map((e, i) => (
-                        <span key={i} className="rounded-md bg-purple-500/10 px-1.5 py-[2px] text-[10px] text-purple-700">
-                          {e}
+                        <span
+                          key={`${e.name}-${i}`}
+                          title={e.description || e.name}
+                          className={`rounded-md px-1.5 py-[2px] text-[10px] ${
+                            e.isDebuff ? 'bg-horde-500/10 text-horde-700' : 'bg-purple-500/10 text-purple-700'
+                          }`}
+                        >
+                          {e.isDebuff ? '▼ ' : '▲ '}
+                          {e.name}
+                          {e.remainDurationTurn > 0 ? ` (${e.remainDurationTurn})` : ''}
                         </span>
                       ))}
                     </div>

@@ -29,6 +29,8 @@ public static class SoloMessageTypes
     public const string GamingResolved = "gaming.resolved";
     /// <summary>重连后显式接管仍在运行的对局（替代「新连接无条件挂载旧会话」的旧行为）</summary>
     public const string GamingResume = "gaming.resume";
+    /// <summary>暂停 / 继续（d: { paused: bool }）；暂停期间引擎线程阻塞，不推进回合也不计决策超时</summary>
+    public const string GamingPause = "gaming.pause";
 }
 
 /// <summary>错误体</summary>

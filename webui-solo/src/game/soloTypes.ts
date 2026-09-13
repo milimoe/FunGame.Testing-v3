@@ -28,6 +28,8 @@ export const SoloMsg = {
   GamingAction: 'gaming.action',
   /** 重连时显式接管仍在运行的对局（避免新连接被旧会话的状态/结算污染） */
   GamingResume: 'gaming.resume',
+  /** 暂停 / 继续（d: { paused: boolean }） */
+  GamingPause: 'gaming.pause',
   GamingEnd: 'gaming.end',
   GamingOver: 'gaming.over',
   GamingRound: 'gaming.round',
@@ -78,6 +80,10 @@ export interface SoloSkillDto {
   canSelectEnemy: boolean
   canSelectTeammate: boolean
   canSelectSelf: boolean
+  /** 施法距离（格）；castAnywhere 为真时该值代表「全图」 */
+  castRange: number
+  /** 是否全图施法 */
+  castAnywhere: boolean
   usable: boolean
   unusableReason: string
 }
@@ -92,8 +98,38 @@ export interface SoloItemDto {
   enable: boolean
   isInGameItem: boolean
   remainUseTimes: number
+  /** 主动效果的施法距离（格），无主动效果为 0 */
+  castRange: number
+  castAnywhere: boolean
   usable: boolean
   unusableReason: string
+}
+
+/** 装备栏中的一件装备 */
+export interface SoloEquipmentDto {
+  /** 槽位键：Weapon / Armor / Shoes / MagicCardPack / Accessory1 / Accessory2 */
+  slot: string
+  /** 槽位中文名 */
+  slotLabel: string
+  guid: string
+  id: number
+  name: string
+  description: string
+  itemType: string
+  weaponType: number
+  weaponTypeName: string
+}
+
+/** 状态效果（可点击查看描述） */
+export interface SoloEffectDto {
+  name: string
+  description: string
+  effectType: string
+  isDebuff: boolean
+  isDurative: boolean
+  remainDuration: number
+  remainDurationTurn: number
+  isInEffect: boolean
 }
 
 export interface SoloCharacterDto {
@@ -111,14 +147,21 @@ export interface SoloCharacterDto {
   ep: number
   maxEP: number
   mov: number
+  /** 攻击距离（格） */
+  atr: number
   state: string
   isPlayer: boolean
   isAI: boolean
   isEliminated: boolean
   gridId: number
+  /** 所属队伍名（团队模式）；混战为 null */
+  teamName: string | null
   skills: SoloSkillDto[]
   items: SoloItemDto[]
-  effects: string[]
+  effects: SoloEffectDto[]
+  /** 全部属性（属性名 → 展示值），含力量/敏捷/智力/攻防/暴击/穿透/移动距离/攻击距离等 */
+  attributes: Record<string, string>
+  equipments: SoloEquipmentDto[]
 }
 
 export interface SoloQueueEntryDto {
@@ -127,6 +170,18 @@ export interface SoloQueueEntryDto {
   hardnessTime: number
   order: number
   isPlayer: boolean
+  teamName: string | null
+}
+
+/** 单个行动类型的配额：剩余 = quota - used */
+export interface SoloActionQuotaDto {
+  actionType: string
+  label: string
+  quota: number
+  used: number
+  remaining: number
+  decisionPointCost: number
+  available: boolean
 }
 
 export interface SoloDpDto {
@@ -135,7 +190,20 @@ export interface SoloDpDto {
   cost: number
   actionsTaken: number
   recovery: number
-  actionCosts: Record<string, number>
+  /** 本回合各行动类型已用次数（旧字段名 actionCosts 语义有误，已重命名） */
+  actionUsed: Record<string, number>
+  /** 各行动类型的配额 / 剩余 */
+  quotas: SoloActionQuotaDto[]
+}
+
+/** 团队（团队模式；己方恒为「蓝队」） */
+export interface SoloTeamDto {
+  name: string
+  score: number
+  alive: number
+  size: number
+  isPlayerTeam: boolean
+  members: string[]
 }
 
 export interface SoloStateDto {
@@ -154,6 +222,13 @@ export interface SoloStateDto {
   roundRewards: Record<string, string[]>
   /** 玩家角色是否已被服务端交给 AI 托管（决策超时或断线） */
   aiEscalated?: boolean
+  /** 团队模式：红蓝两队（己方固定为「蓝队」） */
+  teams?: SoloTeamDto[] | null
+  teamMode?: boolean
+  /** 死亡竞赛夺冠人头数（0 = 非死亡竞赛） */
+  maxScoreToWin?: number
+  /** 对局是否已暂停 */
+  paused?: boolean
 }
 
 export interface SoloRankingDto {
@@ -192,11 +267,30 @@ export interface SoloTargetOptionDto {
   hp: number
   maxHp: number
   gridId: number
+  /** 是否是施法者自身 */
+  isSelf?: boolean
+  /** 是否是施法者的队友 */
+  isTeammate?: boolean
+  isEliminated?: boolean
 }
 
 export interface SoloInquiryChoiceDto {
   key: string
   text: string
+}
+
+/**
+ * 射程信息（勾选行动类型时用于地图预演）：
+ * - 黄色 = 攻击距离 / 技能选取距离
+ * - 绿色 = 移动距离
+ */
+export interface SoloRangeInfo {
+  /** 攻击距离（格）：普通攻击用 */
+  atr: number
+  /** 移动距离（格） */
+  mov: number
+  /** 施法者所在格子 */
+  actorGridId: number
 }
 
 // 决策种类对应的负载（判别联合）
@@ -205,17 +299,71 @@ export type SoloDecisionPayload =
   | {
       kind: 'ActionType'
       actorGuid: string
+      actorName?: string
+      teamName?: string | null
+      actorGridId?: number
+      /** 攻击距离（格） */
+      atr?: number
+      /** 移动距离（格） */
+      mov?: number
       dp: SoloDpDto | null
       skills: SoloSkillDto[]
       items: SoloItemDto[]
       enemys: string[]
       teammates: string[]
+      /** 场上（射程内）的敌人列表，含名称与血量 */
+      enemyOptions?: SoloTargetOptionDto[]
+      /** 场上（射程内）的队友列表，含名称与血量 */
+      teammateOptions?: SoloTargetOptionDto[]
     }
-  | { kind: 'Skill'; actorGuid: string; skills: SoloSkillDto[] }
-  | { kind: 'Item'; actorGuid: string; items: SoloItemDto[] }
-  | { kind: 'Targets'; actorGuid: string; skillName: string; maxTargets: number; targets: SoloTargetOptionDto[] }
-  | { kind: 'TargetGrid'; actorGuid: string; currentGridId: number; gridIds: number[] }
-  | { kind: 'TargetGrids'; actorGuid: string; skillName: string; gridIds: number[] }
+  | { kind: 'Skill'; actorGuid: string; actorGridId?: number; atr?: number; mov?: number; skills: SoloSkillDto[] }
+  | { kind: 'Item'; actorGuid: string; actorGridId?: number; atr?: number; mov?: number; items: SoloItemDto[] }
+  | {
+      kind: 'Targets'
+      actorGuid: string
+      skillName: string
+      maxTargets: number
+      /** 「选取全体」类技能/普攻：前端应默认替玩家勾选全部可选目标 */
+      selectAll?: boolean
+      /** 攻击 / 施法距离（格）；-1 表示全图 */
+      range?: number
+      attackRange?: number
+      moveRange?: number
+      actorGridId?: number
+      enemys?: string[]
+      teammates?: string[]
+      targets: SoloTargetOptionDto[]
+    }
+  | {
+      kind: 'TargetGrid'
+      actorGuid: string
+      currentGridId: number
+      /** 移动距离（格） */
+      moveRange?: number
+      /** 攻击距离（格） */
+      attackRange?: number
+      atr?: number
+      mov?: number
+      gridIds: number[]
+    }
+  | {
+      kind: 'TargetGrids'
+      actorGuid: string
+      skillName: string
+      /** 施法距离（格）；-1 表示全图 */
+      range?: number
+      actorGridId?: number
+      gridIds: number[]
+      /** 选取形状（SkillRangeType）：Diamond/Circle/Square/Line/LinePass/Sector。
+       *  玩家只选一个中心格，服务端按此形状权威展开受影响区域。 */
+      shapeRangeType?: string
+      /** 形状半径（CanSelectTargetRange）：0 = 仅中心格自身 */
+      shapeRadius?: number
+      /** 扇形角度（仅 Sector 有效，默认 90） */
+      sectorAngle?: number
+      /** 形状区域是否包含有角色的格子 */
+      includeCharacterGrid?: boolean
+    }
   | {
       kind: 'Inquiry'
       actorGuid: string

@@ -112,3 +112,73 @@ select:focus {
   outline: none;
 }
 
+/* ============================================================================
+   单人模式（移动端竖版）· 根容器与浮层动效
+   ============================================================================ */
+
+/* 根容器：阻断滚动链回弹，去掉移动端点击高亮 */
+.solo-root {
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 去掉 300ms 双击缩放等待，操作区点按更跟手 */
+.solo-root button,
+.solo-root input,
+.solo-root textarea,
+.solo-root select {
+  touch-action: manipulation;
+}
+
+@keyframes solo-drawer-in {
+  from {
+    transform: translateX(102%);
+    opacity: 0.35;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes solo-pop-in {
+  from {
+    transform: scale(0.94) translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes solo-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.solo-drawer {
+  animation: solo-drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.solo-pop {
+  animation: solo-pop-in 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.solo-fade {
+  animation: solo-fade-in 0.15s ease-out;
+}
+
+/* 回合内「轮到你行动」呼吸提示 */
+@keyframes solo-pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+}
+.solo-actor-ring {
+  animation: solo-pulse-ring 1.6s ease-out infinite;
+}
+

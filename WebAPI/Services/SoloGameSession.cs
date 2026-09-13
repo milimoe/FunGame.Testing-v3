@@ -35,9 +35,13 @@ public sealed class SoloGameSession : IDisposable
     /// <summary>挂起决策的元信息（重连时用于补发，避免玩家看不到待决策而永久卡住）</summary>
     private readonly ConcurrentDictionary<string, (string Kind, object Payload)> _pendingRequests = new();
 
-    private MixGamingQueue? _queue;
+    private GamingQueue? _queue;
+    /// <summary>团队模式下的团队队列（用于读取红蓝两队与比分）</summary>
+    private TeamGamingQueue? _teamQueue;
     private GameMap? _map;
     private Character? _player;
+    /// <summary>当前正在行动的角色（供 UI 高亮；含 AI 回合）</summary>
+    private volatile Character? _currentActor;
     private volatile IGameEventSink? _sink;
     private CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -46,6 +50,20 @@ public sealed class SoloGameSession : IDisposable
     private bool _disposed;
     /// <summary>玩家决策已超时升级为 AI 托管（避免反复等满超时导致回合/游戏停滞）</summary>
     private volatile bool _aiEscalated;
+
+    /// <summary>
+    /// 暂停闸门：置位（Set）= 运行，复位（Reset）= 暂停。
+    /// 游戏线程在「回合边界」与「等待玩家决策」两处阻塞于此；暂停期间不计入决策超时。
+    /// </summary>
+    private readonly ManualResetEventSlim _pauseGate = new(true);
+    /// <summary>对局是否处于暂停态（用于快照与 UI）</summary>
+    private volatile bool _paused;
+    /// <summary>团队模式</summary>
+    private volatile bool _teamMode;
+    /// <summary>死亡竞赛夺冠人头数（0 = 非死亡竞赛）</summary>
+    private volatile int _maxScoreToWin;
+    /// <summary>玩家所在队伍名（团队模式恒为「蓝队」）</summary>
+    private volatile string? _playerTeamName;
 
     // ---- 回合内决策次数护栏（外层限时强制结束回合）----
     // 引擎对「手动控制」角色的内层决策循环没有 cancelTimes 上限：一旦玩家给出的动作无法成立
@@ -111,6 +129,48 @@ public sealed class SoloGameSession : IDisposable
     public void Stop()
     {
         try { _cts.Cancel(); } catch { /* 忽略 */ }
+        // 若正处于暂停态，必须先放行游戏线程，否则它不会察觉取消而在闸门上一直等
+        try { _pauseGate.Set(); } catch { /* 已释放则忽略 */ }
+    }
+
+    /// <summary>对局是否处于暂停态</summary>
+    public bool Paused => _paused;
+
+    /// <summary>
+    /// 暂停 / 继续。暂停时游戏线程阻塞在闸门上：回合不再推进、决策也不会计时超时，
+    /// 玩家可以慢慢研究技能与装备。恢复后从原地继续，剩余决策时间会被补偿回来。
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        if (_paused == paused) return;
+        _paused = paused;
+        if (paused)
+        {
+            _pauseGate.Reset();
+            WriteLine("--- 对局已暂停，引擎线程已挂起，恢复后从原地继续 ---");
+        }
+        else
+        {
+            _pauseGate.Set();
+            WriteLine("--- 对局已继续 ---");
+        }
+        // 暂停/继续都是一次状态跃迁，立刻广播（PushState 会被节流，这里用 FlushState）
+        FlushState();
+    }
+
+    /// <summary>阻塞直到恢复运行（被取消则抛出），返回值为 true 表示已恢复</summary>
+    private bool WaitWhilePaused()
+    {
+        if (_pauseGate.IsSet) return true;
+        try
+        {
+            _pauseGate.Wait(_cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     /// <summary>客户端回传决策结果</summary>
@@ -231,6 +291,7 @@ public sealed class SoloGameSession : IDisposable
         _disposed = true;
         Stop();
         _cts.Dispose();
+        _pauseGate.Dispose();
         foreach (TaskCompletionSource<JsonElement?> tcs in _pending.Values) tcs.TrySetCanceled();
         _pending.Clear();
     }
@@ -270,9 +331,42 @@ public sealed class SoloGameSession : IDisposable
             player.Promotion = 200;
             WriteLine($"选择了 [ {player} ]！");
 
+            // ---- 团队划分（5V5：玩家所在队固定命名「蓝队」，对方为「红队」） ----
+            _teamMode = options.TeamMode;
+            _maxScoreToWin = options.TeamMode ? Math.Max(1, options.MaxScoreToWin) : 0;
+            List<Character> blue = [];
+            List<Character> red = [];
+            if (options.TeamMode)
+            {
+                (blue, red) = BuildTeams(player, candidates, options.TeamSize);
+                _playerTeamName = BlueTeamName;
+            }
+
             // ---- 构建队列与地图 ----
-            MixGamingQueue queue = new(candidates, WriteLine, seed: options.Seed) { MaxRespawnTimes = options.MaxRespawnTimes };
+            // 团队模式使用 TeamGamingQueue（红蓝分组 + 团队计分）；混战模式保持 MixGamingQueue。
+            GamingQueue queue = options.TeamMode
+                ? new TeamGamingQueue(candidates, WriteLine, seed: options.Seed)
+                {
+                    MaxRespawnTimes = options.MaxRespawnTimes,
+                    MaxScoreToWin = _maxScoreToWin
+                }
+                : new MixGamingQueue(candidates, WriteLine, seed: options.Seed)
+                {
+                    MaxRespawnTimes = options.MaxRespawnTimes
+                };
             _queue = queue;
+            _teamQueue = queue as TeamGamingQueue;
+            if (_teamQueue is not null)
+            {
+                _teamQueue.AddTeam(BlueTeamName, blue);
+                _teamQueue.AddTeam(RedTeamName, red);
+                WriteLine("");
+                WriteLine("=== 团队模式 5V5 · 死亡竞赛 ===");
+                WriteLine($"你被随机分配到 [ {BlueTeamName} ]；率先取得 {_maxScoreToWin} 个人头的队伍获胜（无限复活）。");
+                WriteLine($"[ {BlueTeamName} ]：{string.Join(" / ", blue.Select(c => c.ToString()))}");
+                WriteLine($"[ {RedTeamName} ]：{string.Join(" / ", red.Select(c => c.ToString()))}");
+                WriteLine("");
+            }
             if (options.Seed is int seed) WriteLine($"[种子] 本局使用固定随机种子 {seed}（同种子对局可复现）。");
             queue.IsDebug = true;
             queue.LoadGameMap(new SoloMap());
@@ -282,18 +376,22 @@ public sealed class SoloGameSession : IDisposable
             if (queue.Map is not null)
             {
                 GameMap map = queue.Map;
+                // 按 X 排序后对半切开：蓝队占据地图一侧、红队占据另一侧，避免开局贴脸混战
+                List<Grid> ordered = [.. map.Grids.Values.OrderBy(g => g.X).ThenBy(g => g.Y)];
+                int half = Math.Max(1, ordered.Count / 2);
+                List<Grid> lowHalf = [.. ordered.Take(half)];
+                List<Grid> highHalf = [.. ordered.Skip(half)];
+                bool teamSplit = _teamQueue is not null && blue.Count > 0 && red.Count > 0;
+
                 HashSet<Grid> allocated = [];
-                List<Grid> allGrids = [.. map.Grids.Values];
                 foreach (Character character in candidates)
                 {
                     character.NormalAttack.GamingQueue = queue;
-                    Grid grid = Grid.Empty;
-                    int guard = 0;
-                    do
-                    {
-                        grid = allGrids[Random.Shared.Next(allGrids.Count)];
-                    }
-                    while (allocated.Contains(grid) && guard++ < allGrids.Count * 2);
+                    List<Grid> pool = !teamSplit ? ordered : blue.Contains(character) ? lowHalf : highHalf;
+                    List<Grid> free = [.. pool.Where(g => !allocated.Contains(g))];
+                    if (free.Count == 0) free = [.. ordered.Where(g => !allocated.Contains(g))];
+                    if (free.Count == 0) free = ordered;
+                    Grid grid = free[Random.Shared.Next(free.Count)];
                     allocated.Add(grid);
                     map.SetCharacterCurrentGrid(character, grid);
                 }
@@ -302,8 +400,16 @@ public sealed class SoloGameSession : IDisposable
             BindEvents(queue);
 
             // ---- 空投 ----
-            WriteLine("社区送温暖了，现在随机发放空投！！");
-            FunGameSimulation.DropItems(queue, 0, 0, 0, 0, 0);
+            // 初始装备品质可由开局设置指定（0白 1绿 2蓝 3紫 4橙 5红，5 含红以上）；
+            // 后续每 DropItemsIntervalSeconds 游戏秒再空投一轮并提升品质（见主循环），与 FunGameSimulation
+            // 的 nextDropTime 计时方式一致（按游戏时间而非回合数）。
+            int dropQuality = Math.Clamp(options.InitialItemQuality, 0, 5);
+            double dropIntervalSec = Math.Clamp(options.DropItemsIntervalSeconds, 0, 7200);
+            double nextDropAt = dropIntervalSec;
+            WriteLine(dropIntervalSec > 0
+                ? $"社区送温暖了，现在随机发放空投！！（初始装备品质：{QualityName(dropQuality)}，每 {dropIntervalSec:0} 游戏秒轮换一次）"
+                : $"社区送温暖了，现在随机发放空投！！（初始装备品质：{QualityName(dropQuality)}）");
+            FunGameSimulation.DropItems(queue, dropQuality, dropQuality, dropQuality, dropQuality, dropQuality);
             WriteLine("");
 
             queue.InitActionQueue();
@@ -339,7 +445,11 @@ public sealed class SoloGameSession : IDisposable
             double totalTime = 0;
             while (i < maxRound && !_cts.IsCancellationRequested)
             {
+                // 暂停闸门：挂起时引擎线程阻塞在此，回合不再推进（被终止时返回 false）
+                if (!WaitWhilePaused()) break;
+
                 Character? actor = queue.NextCharacter();
+                _currentActor = actor;
                 PushState();
 
                 if (actor is not null)
@@ -393,6 +503,19 @@ public sealed class SoloGameSession : IDisposable
 
                 totalTime += queue.TimeLapse();
                 PushState();
+
+                // ---- 空投轮换：按游戏时间计时（对齐 FunGameSimulation 的 nextDropTime -= timeLapse），
+                //      每满间隔秒再空投一次，品质逐步提升（FunGameSimulation.DropItems，addLevel 默认 true）----
+                if (dropIntervalSec > 0 && totalTime >= nextDropAt && !queue.GameOver)
+                {
+                    if (dropQuality < 5) dropQuality++;
+                    WriteLine($"社区送温暖了，现在随机发放空投！！（品质提升至 {QualityName(dropQuality)}）");
+                    FunGameSimulation.DropItems(queue, dropQuality, dropQuality, dropQuality, dropQuality, dropQuality);
+                    WriteLine("");
+                    // 空投改变了全员的装备/物品，立即推送一次完整状态
+                    nextDropAt = totalTime + dropIntervalSec;
+                    FlushState();
+                }
 
                 if (queue.GameOver) break;
 
@@ -496,6 +619,39 @@ public sealed class SoloGameSession : IDisposable
         });
     }
 
+    /// <summary>装备品质中文名（QualityType 0-5；5=红，包含红以上），用于空投日志</summary>
+    private static string QualityName(int q) => q switch
+    {
+        0 => "白",
+        1 => "绿",
+        2 => "蓝",
+        3 => "紫",
+        4 => "橙",
+        _ => "红",
+    };
+
+    /// <summary>己方（玩家所在队）队名 —— 己方恒为蓝色</summary>
+    public const string BlueTeamName = "蓝队";
+    /// <summary>对方队名</summary>
+    public const string RedTeamName = "红队";
+
+    /// <summary>
+    /// 把候选角色随机分成两支队伍。<para/>
+    /// 玩家被随机「分配」进其中一支：除自己以外的 9 名角色随机洗牌，取 teamSize-1 人成为队友，
+    /// 其余为对手。玩家所在队恒命名为「蓝队」（己方固定为蓝色），对方为「红队」。
+    /// </summary>
+    private static (List<Character> Blue, List<Character> Red) BuildTeams(
+        Character player, List<Character> candidates, int teamSize)
+    {
+        int size = Math.Clamp(teamSize, 1, Math.Max(1, candidates.Count / 2));
+        List<Character> others = [.. candidates
+            .Where(c => !ReferenceEquals(c, player))
+            .OrderBy(_ => Random.Shared.Next())];
+        List<Character> mine = [player, .. others.Take(Math.Max(0, size - 1))];
+        List<Character> theirs = [.. others.Skip(Math.Max(0, size - 1)).Take(size)];
+        return (mine, theirs);
+    }
+
     private static void PrepareCharacters(List<Character> characters, int level, int skillLevel, int attackLevel)
     {
         foreach (Character c in characters)
@@ -587,6 +743,40 @@ public sealed class SoloGameSession : IDisposable
         });
     }
 
+    /// <summary>
+    /// 构建「可展示」的技能列表：引擎在回合开始会把 CD 中 / 资源不足 / 生效中的技能整体过滤掉
+    /// （GamingQueue.GetTurnStartNeedyList），SelectionContext / TurnContext 里只剩下可用项。
+    /// 这里把角色全部主动技能（含装备槽主动技）补回列表尾部，让客户端能勾选查看「不可用」的技能详情。
+    /// 安全性：回执解析仍只认 ctx 里的引擎列表（FirstOrDefault 找不到即 null），不可用技能不可能被真正施放。
+    /// </summary>
+    private static List<Skill> MergeSelectableSkills(IReadOnlyList<Skill> engineSkills, Character actor)
+    {
+        List<Skill> merged = [.. engineSkills];
+        List<Skill> all = [.. actor.Skills];
+        GamingQueue.AddCharacterEquipSlotSkills(actor, all);
+        foreach (Skill s in all)
+        {
+            if (s.SkillType == SkillType.Passive) continue;
+            if (!merged.Contains(s)) merged.Add(s);
+        }
+        return merged;
+    }
+
+    /// <summary>
+    /// 构建「可展示」的物品列表：同上，把引擎过滤掉但有主动效果的游戏内物品补回列表尾部
+    /// （冷却中 / 生效中 / 资源不足的消耗品等），供客户端查看详情；回执解析仍只认引擎列表。
+    /// </summary>
+    private static List<Item> MergeSelectableItems(IReadOnlyList<Item> engineItems, Character actor)
+    {
+        List<Item> merged = [.. engineItems];
+        foreach (Item i in actor.Items)
+        {
+            if (!i.IsActive || i.Skills.Active is null || !i.IsInGameItem) continue;
+            if (!merged.Contains(i)) merged.Add(i);
+        }
+        return merged;
+    }
+
     private CharacterActionType OnDecideAction(TurnContext ctx)
     {
         if (!IsPlayer(ctx.Trigger))
@@ -612,11 +802,20 @@ public sealed class SoloGameSession : IDisposable
         JsonElement? res = RequestDecision(DecisionKind.ActionType, new
         {
             actorGuid = actor.Guid.ToString(),
+            actorName = actor.ToStringWithLevel(),
+            teamName = TeamNameOf(actor),
+            // 站位与射程：勾选「移动 / 普通攻击 / 技能」时地图立即黄色（攻击/施法）与绿色（移动）高亮
+            actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            atr = actor.ATR,
+            mov = actor.MOV,
             dp = SoloGameMapper.ToDP(ctx.DP),
-            skills = ctx.Skills.Select(s => SoloGameMapper.ToSkill(s, actor)).ToList(),
-            items = ctx.Items.Select(i => SoloGameMapper.ToItem(i, actor)).ToList(),
+            // 列表带全量（可用 + 不可用）：客户端对不可用项「可勾选查看详情、不可确认」
+            skills = MergeSelectableSkills(ctx.Skills, actor).Select(s => SoloGameMapper.ToSkill(s, actor)).ToList(),
+            items = MergeSelectableItems(ctx.Items, actor).Select(i => SoloGameMapper.ToItem(i, actor)).ToList(),
             enemys = ctx.Enemys.Select(c => c.Guid.ToString()).ToList(),
-            teammates = ctx.Teammates.Select(c => c.Guid.ToString()).ToList()
+            teammates = ctx.Teammates.Select(c => c.Guid.ToString()).ToList(),
+            enemyOptions = ctx.Enemys.Select(c => ToTargetOption(c, actor)).ToList(),
+            teammateOptions = ctx.Teammates.Select(c => ToTargetOption(c, actor)).ToList()
         });
 
         if (res is not null && res.Value.TryGetProperty("actionType", out JsonElement a))
@@ -634,7 +833,12 @@ public sealed class SoloGameSession : IDisposable
         JsonElement? res = RequestDecision(DecisionKind.Skill, new
         {
             actorGuid = actor.Guid.ToString(),
-            skills = ctx.Skills.Select(s => SoloGameMapper.ToSkill(s, actor)).ToList()
+            // 站位与射程：勾选具体技能时地图立刻黄色高亮其施法范围
+            actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            atr = actor.ATR,
+            mov = actor.MOV,
+            // 带全量技能（可用 + 冷却/资源不足等不可用项），不可用项仅可查看；回执仍只认引擎可用列表
+            skills = MergeSelectableSkills(ctx.Skills, actor).Select(s => SoloGameMapper.ToSkill(s, actor)).ToList()
         });
         if (res is null) return null;
         if (!res.Value.TryGetProperty("skillGuid", out JsonElement g)) return null;
@@ -649,7 +853,11 @@ public sealed class SoloGameSession : IDisposable
         JsonElement? res = RequestDecision(DecisionKind.Item, new
         {
             actorGuid = actor.Guid.ToString(),
-            items = ctx.Items.Select(i => SoloGameMapper.ToItem(i, actor)).ToList()
+            actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            atr = actor.ATR,
+            mov = actor.MOV,
+            // 带全量物品（可用 + 冷却/生效中/资源不足等不可用项），不可用项仅可查看；回执仍只认引擎可用列表
+            items = MergeSelectableItems(ctx.Items, actor).Select(i => SoloGameMapper.ToItem(i, actor)).ToList()
         });
         if (res is null) return null;
         if (!res.Value.TryGetProperty("itemGuid", out JsonElement g)) return null;
@@ -660,36 +868,55 @@ public sealed class SoloGameSession : IDisposable
     private List<Character> OnSelectSkillTargets(SelectionContext ctx)
     {
         if (!IsPlayer(ctx.Trigger)) return [];
-        (List<Character> selectable, int max) = ResolveSelectable(ctx);
-        return RequestTargets(ctx, selectable, max);
+        (List<Character> selectable, int max, bool selectAll) = ResolveSelectable(ctx);
+        return RequestTargets(ctx, selectable, max, selectAll);
     }
 
     private List<Character> OnSelectNormalAttackTargets(SelectionContext ctx)
     {
         if (!IsPlayer(ctx.Trigger)) return [];
-        (List<Character> selectable, int max) = ResolveSelectable(ctx);
-        return RequestTargets(ctx, selectable, max);
+        (List<Character> selectable, int max, bool selectAll) = ResolveSelectable(ctx);
+        return RequestTargets(ctx, selectable, max, selectAll);
     }
 
-    /// <summary>依据技能（或普攻）的选择规则计算可选目标与最大可选数量</summary>
-    private static (List<Character> Selectable, int Max) ResolveSelectable(SelectionContext ctx)
+    /// <summary>
+    /// 依据技能（或普攻）的选择规则计算可选目标与最大可选数量。
+    /// <para>注意 <c>SelectAllEnemies</c> / <c>SelectAllTeammates</c>：这两个开关的优先级高于
+    /// <c>CanSelectTargetCount</c>，数量必须按「场上实际可选的敌/友数量」动态计算，
+    /// 且全体友方默认包含施法者自身——否则会出现「可选人数显示为 1」或「永远差一个目标」的观感问题。</para>
+    /// </summary>
+    private static (List<Character> Selectable, int Max, bool SelectAll) ResolveSelectable(SelectionContext ctx)
     {
         List<Character> selectable = [];
-        int max = 1;
+        int rawMax = 1;
+        bool selectAll = false;
 
         if (ctx.Skill is Skill skill)
         {
+            if (skill.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
             if (skill.CanSelectEnemy) selectable.AddRange(ctx.Enemys);
             if (skill.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
-            if (skill.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
-            max = Math.Max(1, skill.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
+            rawMax = Math.Max(1, skill.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
+            selectAll = skill.SelectAllEnemies || skill.SelectAllTeammates;
+            // 全体友方默认包含自身：技能若未声明 CanSelectSelf，这里也要把施法者补进可选列表
+            if (skill.SelectAllTeammates && ctx.Trigger is not null && !selectable.Contains(ctx.Trigger))
+            {
+                selectable.Insert(0, ctx.Trigger);
+            }
+            if (skill.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
         }
         else if (ctx.NormalAttack is NormalAttack attack)
         {
+            if (attack.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
             if (attack.CanSelectEnemy) selectable.AddRange(ctx.Enemys);
             if (attack.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
-            if (attack.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
-            max = Math.Max(1, attack.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
+            rawMax = Math.Max(1, attack.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
+            selectAll = attack.SelectAllEnemies || attack.SelectAllTeammates;
+            if (attack.SelectAllTeammates && ctx.Trigger is not null && !selectable.Contains(ctx.Trigger))
+            {
+                selectable.Insert(0, ctx.Trigger);
+            }
+            if (attack.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
         }
         else
         {
@@ -703,24 +930,64 @@ public sealed class SoloGameSession : IDisposable
         {
             if (seen.Add(c)) distinct.Add(c);
         }
-        return (distinct, max);
+
+        // 兜底：自定义普攻 / 技能的 CanSelect* 可能没有全部开启（模组里并不强制声明），
+        // 但引擎依旧会要求选目标。若这里给出空列表，客户端会收到一个「零选项」的选目标请求，
+        // 地图上没有任何可点目标，玩家只能取消 —— 典型死局。
+        // 按 敌人 → 队友 → 自身 的顺序兜底，保证「引擎要目标，就一定给得出目标」。
+        if (distinct.Count == 0)
+        {
+            if (ctx.Enemys.Count > 0) distinct.AddRange(ctx.Enemys);
+            else if (ctx.Teammates.Count > 0) distinct.AddRange(ctx.Teammates);
+            else if (ctx.Trigger is not null) distinct.Add(ctx.Trigger);
+        }
+
+        // 上限不能超过实际可选人数（否则 UI 会显示一个永远达不到的「最多 N 个」）
+        int max = distinct.Count > 0 ? Math.Clamp(rawMax, 1, distinct.Count) : 1;
+        return (distinct, max, selectAll);
     }
 
-    private List<Character> RequestTargets(SelectionContext ctx, List<Character> selectable, int max)
+    /// <summary>可选目标项（行动类型阶段的敌/友列表使用，供 UI 显示动态人数与名称）</summary>
+    private object ToTargetOption(Character c, Character actor) => new
+    {
+        guid = c.Guid.ToString(),
+        displayName = c.ToStringWithLevel(),
+        hp = c.HP,
+        maxHp = c.MaxHP,
+        gridId = _map?.GetCharacterCurrentGrid(c)?.Id ?? -1,
+        isSelf = ReferenceEquals(c, actor),
+        isTeammate = _queue?.IsTeammate(actor, c) ?? false,
+        isEliminated = _queue?.Eliminated.Contains(c) ?? false
+    };
+
+    private List<Character> RequestTargets(SelectionContext ctx, List<Character> selectable, int max, bool selectAll)
     {
         Character actor = ctx.Trigger!;
+        // SelectionContext.Skill 是 ISkill，CastRange / CastAnywhere 只有具体 Skill 才有
+        Skill? castSkill = ctx.Skill as Skill;
         JsonElement? res = RequestDecision(DecisionKind.Targets, new
         {
             actorGuid = actor.Guid.ToString(),
             skillName = ctx.Skill?.Name ?? ctx.NormalAttack?.Name ?? "",
             maxTargets = max,
+            // selectAll：本技能/普攻是「选取全体」类，前端应默认替玩家勾选全部可选目标
+            selectAll,
+            // 攻击/施法距离（黄）：地图据此高亮可选范围；移动距离（绿）另在 TargetGrid 阶段下发
+            range = castSkill?.CastAnywhere == true ? -1 : (castSkill?.CastRange ?? actor.ATR),
+            attackRange = actor.ATR,
+            moveRange = actor.MOV,
+            actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            enemys = ctx.Enemys.Select(c => c.Guid.ToString()).ToList(),
+            teammates = ctx.Teammates.Select(c => c.Guid.ToString()).ToList(),
             targets = selectable.Select(c => new
             {
                 guid = c.Guid.ToString(),
                 displayName = c.ToStringWithLevel(),
                 hp = c.HP,
                 maxHp = c.MaxHP,
-                gridId = _map?.GetCharacterCurrentGrid(c)?.Id ?? -1
+                gridId = _map?.GetCharacterCurrentGrid(c)?.Id ?? -1,
+                isSelf = ReferenceEquals(c, actor),
+                isTeammate = ctx.Teammates.Contains(c)
             }).ToList()
         });
 
@@ -742,26 +1009,57 @@ public sealed class SoloGameSession : IDisposable
     {
         if (!IsPlayer(ctx.Trigger) || _map is null) return [];
         Character actor = ctx.Trigger!;
+        Skill? castSkill = ctx.Skill as Skill;
 
         JsonElement? res = RequestDecision(DecisionKind.TargetGrids, new
         {
             actorGuid = actor.Guid.ToString(),
             skillName = ctx.Skill?.Name ?? "",
+            // 施法距离（黄）：CastAnywhere 时用 -1 表示「全图」
+            range = castSkill?.CastAnywhere == true ? -1 : (castSkill?.CastRange ?? 0),
+            actorGridId = _map.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            // 选取形状（客户端据此做形状预览；服务端按同一形状权威展开）
+            shapeRangeType = (castSkill?.SkillRangeType ?? SkillRangeType.Diamond).ToString(),
+            shapeRadius = castSkill?.CanSelectTargetRange ?? 0,
+            sectorAngle = castSkill?.SectorAngle ?? 90,
+            includeCharacterGrid = castSkill?.SelectIncludeCharacterGrid ?? true,
             gridIds = ctx.CastRange.Select(g => g.Id).ToList()
         });
         if (res is null) return [];
         if (!res.Value.TryGetProperty("gridIds", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array) return [];
 
-        List<Grid> picked = [];
+        // 玩家只提交一个【中心格子】；受影响区域由服务端按技能形状（SkillRangeType + CanSelectTargetRange）
+        // 权威展开（Skill.SelectNonDirectionalTargets，与 AI 选取口径完全一致），客户端不再手挑一片散格。
+        Grid? center = null;
         foreach (JsonElement item in arr.EnumerateArray())
         {
-            if (item.TryGetInt64(out long id) && _map.Grids.TryGetValue(id, out Grid? grid) && !picked.Contains(grid))
+            if (item.TryGetInt64(out long id) && _map.Grids.TryGetValue(id, out Grid? grid))
             {
-                picked.Add(grid);
+                // 中心必须在施法范围内
+                if (ctx.CastRange.Count > 0 && !ctx.CastRange.Contains(grid)) continue;
+                center = grid;
+                break;
             }
         }
-        return picked;
+        if (center is null) return [];
+
+        if (castSkill is null) return [center];
+        List<Grid> shaped = castSkill.SelectNonDirectionalTargets(actor, center, castSkill.SelectIncludeCharacterGrid);
+        WriteLine($"[ {actor} ] 以 #{center.Id} 为中心选取{ShapeName(castSkill.SkillRangeType)}区域（半径 {castSkill.CanSelectTargetRange}，覆盖 {shaped.Count} 格）。");
+        return shaped;
     }
+
+    /// <summary>技能作用范围形状中文名（日志用）</summary>
+    private static string ShapeName(SkillRangeType t) => t switch
+    {
+        SkillRangeType.Diamond => "菱形",
+        SkillRangeType.Circle => "圆形",
+        SkillRangeType.Square => "正方形",
+        SkillRangeType.Line => "线段",
+        SkillRangeType.LinePass => "贯穿直线",
+        SkillRangeType.Sector => "扇形",
+        _ => t.ToString(),
+    };
 
     private Grid OnSelectTargetGrid(SelectionContext ctx)
     {
@@ -773,6 +1071,12 @@ public sealed class SoloGameSession : IDisposable
         {
             actorGuid = actor.Guid.ToString(),
             currentGridId = _map.GetCharacterCurrentGrid(actor)?.Id ?? -1,
+            // 移动距离（绿）：moveRange 为格数，gridIds 为可达格子
+            moveRange = actor.MOV,
+            // 攻击距离（黄）：移动阶段也一并下发，方便在选格子时同时看到「移动后能打到谁」
+            attackRange = actor.ATR,
+            atr = actor.ATR,
+            mov = actor.MOV,
             gridIds = moveRange.Select(g => g.Id).ToList()
         });
         if (res is null) return Grid.Empty;
@@ -870,6 +1174,8 @@ public sealed class SoloGameSession : IDisposable
     private JsonElement? RequestDecision(string kind, object payload)
     {
         if (_cts.IsCancellationRequested) return null;
+        // 暂停中不下发新决策：等恢复后再问，避免玩家在暂停时收到倒计时压力
+        if (!WaitWhilePaused()) return null;
 
         // ---- 回合内决策护栏：手动角色的决策循环在 Core 里没有次数上限，
         //      这里识别"同一类决策被反复索要"的打转，并把玩家交 AI 托管以强制结束本回合 ----
@@ -912,8 +1218,24 @@ public sealed class SoloGameSession : IDisposable
         {
             // 托管中：IsPlayer 已为 false，理论上不会再走到这里；
             // 但仍保留一道短超时保险，避免任何边界情况下每个决策都空等一个完整超时。
-            TimeSpan timeout = _aiEscalated ? TimeSpan.FromSeconds(3) : DecisionTimeout;
-            bool completed = tcs.Task.Wait(timeout);
+            long timeoutMs = (long)(_aiEscalated ? TimeSpan.FromSeconds(3) : DecisionTimeout).TotalMilliseconds;
+            long deadline = Environment.TickCount64 + timeoutMs;
+            bool completed = false;
+            while (true)
+            {
+                if (_cts.IsCancellationRequested) break;
+                // 暂停期间不计入决策超时：阻塞在闸门上，恢复时把暂停时长补回截止时间
+                if (!_pauseGate.IsSet)
+                {
+                    long pausedAt = Environment.TickCount64;
+                    if (!WaitWhilePaused()) break;
+                    deadline += Environment.TickCount64 - pausedAt;
+                    continue;
+                }
+                if (tcs.Task.Wait(120)) { completed = true; break; }
+                if (Environment.TickCount64 >= deadline) break;
+            }
+
             if (!completed)
             {
                 WriteLine($"[{kind}] 等待玩家决策超时，自动采用默认行为。");
@@ -998,7 +1320,18 @@ public sealed class SoloGameSession : IDisposable
 
     public GameStateDto Snapshot()
     {
-        List<Character> all = _characters.Count > 0 ? _characters : (_queue?.AllCharacters ?? []);
+        List<Character> all = _characters.Count > 0 ? [.. _characters] : [];
+        // Core / 模组可能在开局后派生出额外单位（例：Oshima「雇佣兵团」召唤的雇佣兵），
+        // 它们不在 WebAPI 自己创建的角色表里。若不下发：客户端地图上该格是空的、队伍列表与
+        // 角色详情也查不到，但它们**仍是引擎承认的合法目标** —— 会变成「能选中却看不见」的幽灵目标。
+        if (_queue is not null)
+        {
+            HashSet<string> known = [.. all.Select(c => c.Guid.ToString())];
+            foreach (Character c in _queue.HardnessTime.Keys.Concat(_queue.AllCharacters))
+            {
+                if (known.Add(c.Guid.ToString())) all.Add(c);
+            }
+        }
         List<Character> eliminated = _queue?.Eliminated ?? [];
         string? playerGuid = _player?.Guid.ToString();
 
@@ -1013,7 +1346,7 @@ public sealed class SoloGameSession : IDisposable
                 _queue.HardnessTime.TryGetValue(c, out double ht);
                 queueEntries.Add(new QueueEntryDto(
                     c.Guid.ToString(), c.ToStringWithLevel(), ht, order++,
-                    c.Guid.ToString() == playerGuid));
+                    c.Guid.ToString() == playerGuid, TeamNameOf(c)));
             }
         }
 
@@ -1035,13 +1368,49 @@ public sealed class SoloGameSession : IDisposable
         return new GameStateDto(
             Id, Mode, _round, _queue?.TotalTime ?? 0, Running, Finished || (_queue?.GameOver ?? false),
             SoloGameMapper.ToMap(_map),
-            [.. all.Select(c => SoloGameMapper.ToCharacter(c, _map, playerGuid, _queue, eliminated))],
+            [.. all.Select(c => SoloGameMapper.ToCharacter(c, _map, playerGuid, _queue, eliminated, TeamNameOf(c)))],
             queueEntries,
             SoloGameMapper.ToDP(dp),
             playerGuid,
-            null,
+            _currentActor?.Guid.ToString(),
             rewards,
-            _aiEscalated);
+            _aiEscalated,
+            BuildTeamsSnapshot(),
+            _teamMode,
+            _maxScoreToWin,
+            _paused);
+    }
+
+    /// <summary>角色所属队伍名（团队模式；混战返回 null）</summary>
+    private string? TeamNameOf(Character c)
+    {
+        string? own = _teamQueue?.GetTeam(c)?.Name;
+        if (own is not null) return own;
+        // Core / 模组派生出来的单位（例：Oshima「雇佣兵团」召唤的雇佣兵）自身不在队伍名单里，
+        // 按召唤者的队伍归属，否则 UI 会把它们显示成「无阵营」。
+        Character? owner = c.Master;
+        return owner is null ? null : _teamQueue?.GetTeam(owner)?.Name;
+    }
+
+    /// <summary>团队快照：己方恒为「蓝队」，含比分与存活人数</summary>
+    private List<TeamDto>? BuildTeamsSnapshot()
+    {
+        TeamGamingQueue? tq = _teamQueue;
+        if (tq is null || tq.Teams.Count == 0) return null;
+        List<TeamDto> list = [];
+        foreach (Team team in tq.Teams.Values)
+        {
+            list.Add(new TeamDto(
+                team.Name,
+                team.Score,
+                team.GetActiveCharacters().Count,
+                team.Count,
+                team.Name == _playerTeamName,
+                [.. team.Members.Select(c => c.Guid.ToString())]));
+        }
+        // 己方（蓝队）排在最前，方便 UI 直接取用
+        list.Sort((a, b) => a.IsPlayerTeam == b.IsPlayerTeam ? string.CompareOrdinal(a.Name, b.Name) : a.IsPlayerTeam ? -1 : 1);
+        return list;
     }
 
     public List<RankingDto> BuildRanking()
@@ -1052,7 +1421,12 @@ public sealed class SoloGameSession : IDisposable
         HashSet<string> winners = [];
         foreach (RankingEntry entry in _queue.LastRound?.GameResult ?? [])
         {
-            if (entry.IsWinner && entry.Character is not null) winners.Add(entry.Character.Guid.ToString());
+            if (!entry.IsWinner) continue;
+            if (entry.Character is not null) winners.Add(entry.Character.Guid.ToString());
+            if (entry.Team is not null)
+            {
+                foreach (Character member in entry.Team.Members) winners.Add(member.Guid.ToString());
+            }
         }
 
         int rank = 1;
@@ -1067,7 +1441,8 @@ public sealed class SoloGameSession : IDisposable
                 winners.Count == 0 ? rank == 2 : winners.Contains(guid),
                 s.Rating, s.Kills, s.Deaths, s.Assists,
                 s.TotalDamage, s.TotalHeal, s.TotalShield,
-                s.LiveRound, s.ActionTurn, s.LiveTime, ""));
+                s.LiveRound, s.ActionTurn, s.LiveTime,
+                TeamNameOf(c) ?? ""));
         }
         return list;
     }
@@ -1081,11 +1456,22 @@ public sealed class SoloGameOptions
     public int SkillLevel { get; set; } = 6;
     public int NormalAttackLevel { get; set; } = 8;
     public int MaxRound { get; set; } = 999;
-    public int MaxRespawnTimes { get; set; } = 1;
+    /// <summary>最大复活次数：0 = 不复活；-1 = 无限复活（团队死亡竞赛用）</summary>
+    public int MaxRespawnTimes { get; set; } = -1;
+    /// <summary>团队模式（红蓝 5V5）。关闭则为原有混战模式</summary>
+    public bool TeamMode { get; set; } = true;
+    /// <summary>每队人数（团队模式下默认 5 ⇒ 5V5）</summary>
+    public int TeamSize { get; set; } = 5;
+    /// <summary>死亡竞赛夺冠人头数（团队比分先到者获胜；0 = 不用比分判定）</summary>
+    public int MaxScoreToWin { get; set; } = 10;
     /// <summary>单个决策的等待上限。超时即把玩家角色交 AI 托管，保证回合一定能推进（外层限时）</summary>
     public int DecisionTimeoutSeconds { get; set; } = 30;
     public bool RequireContinue { get; set; } = false;
     public int RoundDelayMs { get; set; } = 250;
+    /// <summary>初始装备品质（QualityType：0白 1绿 2蓝 3紫 4橙 5红，5=红及以上）。开局空投按此品质发放</summary>
+    public int InitialItemQuality { get; set; } = 0;
+    /// <summary>空投轮换间隔（游戏时间秒，与 FunGameSimulation 的 nextDropTime 计时一致）：每 N 秒再空投一次并把品质 +1（封顶 5）；0 = 关闭轮换空投</summary>
+    public int DropItemsIntervalSeconds { get; set; } = 40;
     /// <summary>
     /// 回合看门狗诊断开关（默认关闭）。开启后，若某个回合的 ProcessTurn 超过 15s 未返回，
     /// 每 2s 把当前角色的引擎状态追加写入 bin 目录下的 turn-diag.log，用于定位引擎内死循环。

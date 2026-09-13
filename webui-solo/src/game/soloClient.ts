@@ -16,6 +16,16 @@ export interface SoloStartOptions {
   normalAttackLevel?: number
   maxRound?: number
   maxRespawnTimes?: number
+  /** 团队模式（红蓝 5V5）；默认 true */
+  teamMode?: boolean
+  /** 每队人数（默认 5 ⇒ 5V5） */
+  teamSize?: number
+  /** 死亡竞赛夺冠人头数（默认 10） */
+  maxScoreToWin?: number
+  /** 初始装备品质：0=白 1=绿 2=蓝 3=紫 4=橙 5=红（5 含红以上）。开局空投按此品质发放 */
+  initialItemQuality?: number
+  /** 空投轮换间隔（游戏时间秒，与 FunGameSimulation 计时一致）：每 N 秒再空投一次并提升品质（封顶 5）；0 = 关闭 */
+  dropItemsIntervalSeconds?: number
   roundDelayMs?: number
   decisionTimeoutSeconds?: number
   requireContinue?: boolean
@@ -36,6 +46,8 @@ export interface SoloGameClient {
   sendDecision(requestId: string, payload: unknown): boolean
   /** 重连后显式接管仍在运行的对局（服务端据此挂接，避免残留局消息串台） */
   resume(): void
+  /** 暂停 / 继续对局（gaming.pause） */
+  pause(paused: boolean): void
   /** 主动结束对局 */
   endGame(): void
   /** 订阅服务器事件，返回取消订阅函数 */
@@ -175,6 +187,10 @@ export function createSoloGameClient(baseUrl: string): SoloGameClient {
     rawSend(SoloMsg.GamingResume, { ts: Date.now() })
   }
 
+  const pause = (paused: boolean) => {
+    rawSend(SoloMsg.GamingPause, { paused })
+  }
+
   const endGame = () => {
     rawSend(SoloMsg.GamingEnd, { ts: Date.now() })
   }
@@ -188,6 +204,7 @@ export function createSoloGameClient(baseUrl: string): SoloGameClient {
     startGame,
     sendDecision,
     resume,
+    pause,
     endGame,
     subscribe: (cb) => {
       listeners.add(cb)

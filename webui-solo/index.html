@@ -2,10 +2,15 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FunGame Server 测试客户端</title>
+    <!-- 竖版手游版式：锁定缩放，避免误触双击/双指把战场缩放掉 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#faf3e0" />
+    <title>FunGame 单人模式</title>
     <!--
-      装饰性英文字体（Cinzel / Cormorant）来自 Google Fonts。
+      装饰性英文字体（Cinzel / Cormorant）来自 Google Fonts，单人模式的标题用 font-fantasy。
       国内访问 fonts.googleapis.com 会被墙：直接 <link rel="stylesheet"> 是**渲染阻塞**资源，
       会把首屏一路卡到超时，表现就是"页面打不开"。
       所以改成非阻塞加载：先用系统衬线字体渲染，字体下到了再换；下不到也不影响任何功能。

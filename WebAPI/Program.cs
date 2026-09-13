@@ -2,6 +2,7 @@ using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Model.Framework;
 using FunGame.Testing.WebAPI.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.OshimaGameModules.Classes;
@@ -83,7 +84,18 @@ builder.Services.AddSingleton<ClassPlanStore>();
 builder.Services.AddSingleton<ClassPlanSessionStore>();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
+// ============ 反代支持：nginx 终止 TLS 后把 X-Forwarded-* 透传进来 ============
+// 只信任回环来源（nginx 与应用同机），因此不需要额外配置 KnownProxies。
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedHost
+        | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+});
+
 WebApplication app = builder.Build();
+app.UseForwardedHeaders();
 app.UseCors();
 app.UseWebSockets();
 
@@ -320,9 +332,15 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                         if (data.TryGetProperty("skillLevel", out v)) options.SkillLevel = v.GetInt32();
                         if (data.TryGetProperty("normalAttackLevel", out v)) options.NormalAttackLevel = v.GetInt32();
                         if (data.TryGetProperty("maxRound", out v)) options.MaxRound = v.GetInt32();
+                        if (data.TryGetProperty("maxRespawnTimes", out v)) options.MaxRespawnTimes = v.GetInt32();
+                        if (data.TryGetProperty("teamMode", out v)) options.TeamMode = v.GetBoolean();
+                        if (data.TryGetProperty("teamSize", out v)) options.TeamSize = v.GetInt32();
+                        if (data.TryGetProperty("maxScoreToWin", out v)) options.MaxScoreToWin = v.GetInt32();
                         if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
                         if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
                         if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
+                        if (data.TryGetProperty("initialItemQuality", out v)) options.InitialItemQuality = v.GetInt32();
+                        if (data.TryGetProperty("dropItemsIntervalSeconds", out v)) options.DropItemsIntervalSeconds = v.GetInt32();
                         if (data.TryGetProperty("enableTurnDiagnostics", out v)) options.EnableTurnDiagnostics = v.GetBoolean();
                         if (data.TryGetProperty("seed", out v) && v.ValueKind == JsonValueKind.Number) options.Seed = v.GetInt32();
                     }
@@ -361,6 +379,15 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                     session?.Stop();
                     registry.Stop();
                     break;
+
+                case SoloMessageTypes.GamingPause:
+                {
+                    // 暂停 / 继续：暂停时引擎线程阻塞，回合不推进、决策也不计时超时
+                    SoloGameSession? target = session ?? registry.Current;
+                    bool paused = !data.TryGetProperty("paused", out JsonElement pv) || pv.ValueKind != JsonValueKind.False;
+                    target?.SetPaused(paused);
+                    break;
+                }
 
                 case SoloMessageTypes.Ping:
                     await sink.SendAsync(SoloMessageTypes.Pong, new { ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, context.RequestAborted);
@@ -401,6 +428,15 @@ app.MapPost("/api/solo/stop", (SoloGameRegistry registry) =>
     return Results.Ok(new { ok = true });
 });
 
+// 暂停 / 继续（REST 备用入口；主通道是 WebSocket 的 gaming.pause）
+app.MapPost("/api/solo/pause", (SoloGameRegistry registry, bool? paused) =>
+{
+    SoloGameSession? session = registry.Current;
+    if (session is null) return Results.NotFound(new { error = "当前没有进行中的单人局" });
+    session.SetPaused(paused ?? true);
+    return Results.Ok(new { ok = true, paused = session.Paused });
+});
+
 app.MapGet("/api/solo/ranking", (SoloGameRegistry registry) =>
 {
     SoloGameSession? session = registry.Current;
@@ -409,15 +445,70 @@ app.MapGet("/api/solo/ranking", (SoloGameRegistry registry) =>
 });
 
 // ============ 可选：托管前端构建产物（npm run build 之后可单后端部署） ============
-// 开发环境：仓库内 webui/dist；发布环境：发布目录内 webui/dist（发布脚本会复制）
-string devDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "webui", "dist"));
-string pubDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "webui", "dist"));
-string? uiDist = Directory.Exists(devDist) ? devDist : Directory.Exists(pubDist) ? pubDist : null;
+// 三个独立前端项目，各挂各的子路径：
+//   webui/dist         → 挂在根路径 /        （回合回放 + 职业规划）
+//   webui-client/dist  → 挂在子路径 /client/ （Server 端点测试客户端）
+//   webui-solo/dist    → 挂在子路径 /solo/   （单人模式，竖版手游版式）
+// 开发环境取仓库内目录；发布环境取发布目录内的同名目录（发布脚本会复制）。
+string? ResolveDist(string project)
+{
+    string dev = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", project, "dist"));
+    string pub = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, project, "dist"));
+    return Directory.Exists(dev) ? dev : Directory.Exists(pub) ? pub : null;
+}
+
+string? uiDist = ResolveDist("webui");
+string? clientDist = ResolveDist("webui-client");
+string? soloDist = ResolveDist("webui-solo");
+
 if (uiDist is not null)
 {
-    PhysicalFileProvider fileProvider = new(uiDist);
-    app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
-    app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = fileProvider });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(uiDist) });
+}
+if (clientDist is not null)
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(clientDist),
+        RequestPath = "/client",
+    });
+}
+if (soloDist is not null)
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(soloDist),
+        RequestPath = "/solo",
+    });
+}
+// 只注册一个兜底路由：按 URL 前缀回各自前端的 index.html。
+// 三个前端都用 hash 路由，所以这里主要是为了让 /client/、/solo/ 这些入口可达。
+if (uiDist is not null || clientDist is not null || soloDist is not null)
+{
+    app.MapFallback(async context =>
+    {
+        static bool HasIndex(string? dist) => dist is not null && File.Exists(Path.Combine(dist, "index.html"));
+
+        string? preferred;
+        if (context.Request.Path.StartsWithSegments("/solo")) preferred = soloDist;
+        else if (context.Request.Path.StartsWithSegments("/client")) preferred = clientDist;
+        else preferred = uiDist;
+
+        // 目标前端没构建出来时，依次回落到其它已构建的入口，保证入口始终可达
+        string? target = HasIndex(preferred) ? preferred
+            : HasIndex(uiDist) ? uiDist
+            : HasIndex(clientDist) ? clientDist
+            : HasIndex(soloDist) ? soloDist
+            : null;
+
+        if (target is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(Path.Combine(target, "index.html"));
+    });
 }
 
 app.Run();
