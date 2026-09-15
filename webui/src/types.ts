@@ -275,6 +275,8 @@ export interface MetaDto {
   zipUpdated: string
   characters: CharacterRefDto[]
   teams: TeamDto[]
+  /** 本局随机种子（存档记录；旧存档为 0 表示未记录） */
+  seed: number
 }
 
 export interface RoundSummaryDto {

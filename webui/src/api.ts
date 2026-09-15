@@ -31,5 +31,19 @@ export const fetchRound = (n: number) => request<RoundRecord>(`/api/rounds/${n}`
 
 export const reload = () => request<{ ok: boolean; roundCount: number }>('/api/reload', { method: 'POST' })
 
-export const simulateTeam = () =>
-  request<{ ok: boolean; roundCount: number; elapsedSeconds: number }>('/api/simulate/team', { method: 'POST' })
+export interface SimulateResult {
+  ok: boolean
+  roundCount: number
+  elapsedSeconds: number
+  /** 本局实际使用的随机种子（未指定时由服务端随机生成） */
+  seed: number
+}
+
+/**
+ * 跑一局团队模拟。
+ * @param seed 指定随机种子则固定（同种子可复现整局）；传 undefined / null 则由服务端随机生成
+ */
+export const simulateTeam = (seed?: number | null) =>
+  request<SimulateResult>(`/api/simulate/team${seed === undefined || seed === null ? '' : `?seed=${seed}`}`, {
+    method: 'POST',
+  })

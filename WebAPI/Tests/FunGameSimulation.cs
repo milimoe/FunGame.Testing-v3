@@ -26,6 +26,24 @@ namespace Milimoe.FunGameTesting.Tests
         public static bool DeathMatchRoundDetail { get; set; } = false;
         public static string Msg { get; set; } = "";
 
+        /// <summary>
+        /// 指定本局使用的随机种子；为 null 时每局自动随机<br/>
+        /// 设值后（或读取 <see cref="Seed"/> 得到的上一局实际值）同一份输入数据下整局模拟可复现
+        /// </summary>
+        public static int? SeedOverride { get; set; } = null;
+
+        /// <summary>
+        /// 本局实际使用的随机种子（开局确定并保留，便于复现）
+        /// </summary>
+        public static int Seed { get; private set; } = 0;
+
+        /// <summary>
+        /// 模拟器自己的随机数生成器（由 <see cref="Seed"/> 决定）
+        /// <para>队列创建之前的角色抽选、技能分配、分队等走它；队列创建之后一律走 <see cref="GamingQueue.Random"/>。</para>
+        /// <para>两者同源，因此本文件内<b>禁止使用进程级的 <c>Random.Shared</c></b>，否则整局不可复现</para>
+        /// </summary>
+        public static Random Random { get; private set; } = new();
+
         public static async Task<List<string>> StartSimulationGame(bool printout, bool isWeb = false, bool isTeam = false, bool deathMatchRoundDetail = false, int maxRespawnTimesMix = 1, bool useStore = false, bool hasMap = false, bool isDebug = false)
         {
             PrintOut = printout;
@@ -40,6 +58,11 @@ namespace Milimoe.FunGameTesting.Tests
                 Msg = "";
 
                 IsRuning = true;
+
+                // 本局种子：未指定则自动随机一次并保留实际值。
+                // 局前随机（本类 Random）与局内随机（GamingQueue.Random）都由它派生，因此同种子整局可复现。
+                Seed = SeedOverride ?? System.Random.Shared.Next();
+                Random = new Random(Seed);
 
                 // M = 0, W = 7, P1 = 1, P3 = 1
                 // M = 1, W = 6, P1 = 2, P3 = 0
@@ -58,7 +81,7 @@ namespace Milimoe.FunGameTesting.Tests
                     if (PrintOut) Console.WriteLine("Start!!!");
                     if (PrintOut) Console.WriteLine();
 
-                    List<Character> characters = [.. list.OrderBy(o => Random.Shared.Next()).Take(10)];
+                    List<Character> characters = [.. list.OrderBy(o => Random.Next()).Take(10)];
 
                     int clevel = 10;
                     int slevel = 2;
@@ -71,21 +94,21 @@ namespace Milimoe.FunGameTesting.Tests
                         c.Level = clevel;
                         c.NormalAttack.Level = mlevel;
                         FunGameService.AddCharacterSkills(c, 1, slevel, slevel);
-                        foreach (Skill skillLoop in FunGameService.Skills.Where(s => s is not 疾走 && s is not 回复原状).OrderBy(o => Random.Shared.Next()).Take(3))
+                        foreach (Skill skillLoop in FunGameService.Skills.Where(s => s is not 疾走 && s is not 回复原状).OrderBy(o => Random.Next()).Take(3))
                         {
                             Skill skill = skillLoop.Copy();
                             skill.Character = c;
                             skill.Level = slevel;
                             c.Skills.Add(skill);
                         }
-                        foreach (Skill skillLoop in FunGameService.CommonPassiveSkills.OrderBy(o => Random.Shared.Next()).Take(3))
+                        foreach (Skill skillLoop in FunGameService.CommonPassiveSkills.OrderBy(o => Random.Next()).Take(3))
                         {
                             Skill passive = skillLoop.Copy();
                             passive.Character = c;
                             passive.Level = 1;
                             c.Skills.Add(passive);
                         }
-                        foreach (Skill skillLoop in FunGameService.CommonSuperSkills.OrderBy(o => Random.Shared.Next()).Take(3))
+                        foreach (Skill skillLoop in FunGameService.CommonSuperSkills.OrderBy(o => Random.Next()).Take(3))
                         {
                             Skill super = skillLoop.Copy();
                             super.Character = c;
@@ -98,13 +121,13 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                     }
 
-                    // 创建顺序表并排序
+                    // 创建顺序表并排序（把本局种子交给队列：局内伤害浮动、AI 决策随机等全部由它派生）
                     GamingQueue actionQueue;
                     MixGamingQueue? mgq = null;
                     TeamGamingQueue? tgq = null;
                     if (isTeam)
                     {
-                        tgq = new TeamGamingQueue(characters, WriteLine)
+                        tgq = new TeamGamingQueue(characters, WriteLine, seed: Seed)
                         {
                             MaxRespawnTimes = -1,
                             MaxScoreToWin = 30
@@ -113,7 +136,7 @@ namespace Milimoe.FunGameTesting.Tests
                     }
                     else
                     {
-                        mgq = new MixGamingQueue(characters, WriteLine)
+                        mgq = new MixGamingQueue(characters, WriteLine, seed: Seed)
                         {
                             MaxRespawnTimes = maxRespawnTimesMix
                         };
@@ -136,6 +159,7 @@ namespace Milimoe.FunGameTesting.Tests
 
                     // 开始空投
                     Msg = "";
+                    WriteLine($"[种子] 本局模拟使用随机种子 {Seed}（同种子可复现整局）。");
                     int mQuality = 0;
                     int wQuality = 0;
                     int aQuality = 0;
@@ -185,7 +209,7 @@ namespace Milimoe.FunGameTesting.Tests
                     {
                         Msg = "=== 团队模式随机分组 ===\r\n\r\n";
                         // 打乱角色列表
-                        List<Character> shuffledCharacters = [.. characters.OrderBy(c => Random.Shared.Next())];
+                        List<Character> shuffledCharacters = [.. characters.OrderBy(c => actionQueue.Random.Next())];
 
                         // 创建两个团队
                         List<Character> group1 = [];
@@ -197,7 +221,7 @@ namespace Milimoe.FunGameTesting.Tests
                             // 创建角色的用户，用于绑定金币
                             User user = new()
                             {
-                                Username = FunGameService.GenerateRandomChineseUserName()
+                                Username = FunGameService.GenerateRandomChineseUserName(actionQueue.Random)
                             };
                             user.Inventory.Credits = 20;
                             Character thisCharacter = shuffledCharacters[cid];
@@ -264,7 +288,7 @@ namespace Milimoe.FunGameTesting.Tests
                                 Grid grid = Grid.Empty;
                                 do
                                 {
-                                    grid = allGrids[Random.Shared.Next(allGrids.Count)];
+                                    grid = allGrids[actionQueue.Random.Next(allGrids.Count)];
                                 }
                                 while (allocated.Contains(grid));
                                 allocated.Add(grid);
@@ -277,8 +301,10 @@ namespace Milimoe.FunGameTesting.Tests
                     int maxRound = 9999;
 
                     // 随机回合奖励
+                    // 只取一次随机结果并存下来：原实现每次访问 RoundRewards 属性都会新建一份（Keys 与取值来自不同实例）
+                    Dictionary<EffectID, Dictionary<string, object>> roundRewards = FunGameService.GetRoundRewards(actionQueue.Random);
                     Dictionary<long, bool> effects = [];
-                    foreach (EffectID id in FunGameService.RoundRewards.Keys)
+                    foreach (EffectID id in roundRewards.Keys)
                     {
                         long effectID = (long)id;
                         bool isActive = false;
@@ -288,7 +314,7 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                         effects.Add(effectID, isActive);
                     }
-                    actionQueue.InitRoundRewards(maxRound, 1, effects, id => FunGameService.RoundRewards[(EffectID)id]);
+                    actionQueue.InitRoundRewards(maxRound, 1, effects, id => roundRewards[(EffectID)id]);
 
                     int i = 1;
                     while (i < maxRound)
@@ -735,7 +761,7 @@ namespace Milimoe.FunGameTesting.Tests
             {
                 Item realItem = item.Copy();
                 realItem.SetGamingQueue(queue);
-                realItem.Price = Random.Shared.Next(1, 10) * ((int)item.QualityType + 1) * 2;
+                realItem.Price = queue.Random.Next(1, 10) * ((int)item.QualityType + 1) * 2;
                 store.Add(realItem);
             }
         }
@@ -759,7 +785,7 @@ namespace Milimoe.FunGameTesting.Tests
             {
                 // 购买欲望，可以加多个判断
                 List<Func<bool>> funcs = [
-                    () => Random.Shared.NextDouble() > 0.3
+                    () => queue.Random.NextDouble() > 0.3
                 ];
 
                 if (funcs.All(f => f()))
@@ -787,7 +813,7 @@ namespace Milimoe.FunGameTesting.Tests
                     };
 
                     // 本次购买只提升？
-                    bool onlyLarger = Random.Shared.NextDouble() > 0.3;
+                    bool onlyLarger = queue.Random.NextDouble() > 0.3;
 
                     bool buy = true;
                     int failedBuyTimes = 0;
@@ -840,7 +866,7 @@ namespace Milimoe.FunGameTesting.Tests
                             pOperations["买饰品"] = 0;
                         }
 
-                        double p = Random.Shared.NextDouble();
+                        double p = queue.Random.NextDouble();
 
                         foreach (KeyValuePair<string, double> kvp in pOperations.OrderByDescending(kv => kv.Value))
                         {
@@ -892,7 +918,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     {
                                         character.User.Inventory.Credits -= mcpCost;
                                         operation["买卡包"] = true;
-                                        Item? mcp = FunGameService.GenerateCoreMagicCardPack(3, canBuyMCP);
+                                        Item? mcp = FunGameService.GenerateCoreMagicCardPack(queue.Random, 3, canBuyMCP);
                                         if (mcp != null)
                                         {
                                             foreach (Skill magic in mcp.Skills.Magics)
@@ -907,7 +933,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     else failedBuyTimes++;
                                     break;
                                 case "买武器":
-                                    Item weapon = weapons[Random.Shared.Next(weapons.Length)];
+                                    Item weapon = weapons[queue.Random.Next(weapons.Length)];
                                     double wCost = weapon.Price;
                                     if (character.User.Inventory.Credits >= wCost)
                                     {
@@ -921,7 +947,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     else failedBuyTimes++;
                                     break;
                                 case "买防具":
-                                    Item armor = armors[Random.Shared.Next(armors.Length)];
+                                    Item armor = armors[queue.Random.Next(armors.Length)];
                                     double aCost = armor.Price;
                                     if (character.User.Inventory.Credits >= aCost)
                                     {
@@ -935,7 +961,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     else failedBuyTimes++;
                                     break;
                                 case "买鞋子":
-                                    Item shoe = shoes[Random.Shared.Next(shoes.Length)];
+                                    Item shoe = shoes[queue.Random.Next(shoes.Length)];
                                     double sCost = shoe.Price;
                                     if (character.User.Inventory.Credits >= sCost)
                                     {
@@ -949,7 +975,7 @@ namespace Milimoe.FunGameTesting.Tests
                                     else failedBuyTimes++;
                                     break;
                                 case "买饰品":
-                                    Item accessory = accessories[Random.Shared.Next(accessories.Length)];
+                                    Item accessory = accessories[queue.Random.Next(accessories.Length)];
                                     double acCost = accessory.Price;
                                     if (character.User.Inventory.Credits >= acCost)
                                     {
@@ -1004,7 +1030,7 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                     }
                 }
-                Item? mcp = FunGameService.GenerateCoreMagicCardPack(3, (QualityType)mQuality);
+                Item? mcp = FunGameService.GenerateCoreMagicCardPack(queue.Random, 3, (QualityType)mQuality);
                 if (mcp != null)
                 {
                     foreach (Skill magic in mcp.Skills.Magics)
@@ -1021,23 +1047,23 @@ namespace Milimoe.FunGameTesting.Tests
                 Item? weapon = null, armor = null, shoe = null, accessory1 = null, accessory2 = null;
                 if (weapons.Length > 0)
                 {
-                    weapon = weapons[Random.Shared.Next(weapons.Length)];
+                    weapon = weapons[queue.Random.Next(weapons.Length)];
                 }
                 if (armors.Length > 0)
                 {
-                    armor = armors[Random.Shared.Next(armors.Length)];
+                    armor = armors[queue.Random.Next(armors.Length)];
                 }
                 if (shoes.Length > 0)
                 {
-                    shoe = shoes[Random.Shared.Next(shoes.Length)];
+                    shoe = shoes[queue.Random.Next(shoes.Length)];
                 }
                 if (accessories.Length > 0)
                 {
-                    accessory1 = accessories[Random.Shared.Next(accessories.Length)];
+                    accessory1 = accessories[queue.Random.Next(accessories.Length)];
                 }
                 if (accessories.Length > 0)
                 {
-                    accessory2 = accessories[Random.Shared.Next(accessories.Length)];
+                    accessory2 = accessories[queue.Random.Next(accessories.Length)];
                 }
                 List<Item> thisDrops = [];
                 if (weapon != null) thisDrops.Add(weapon);
@@ -1055,7 +1081,7 @@ namespace Milimoe.FunGameTesting.Tests
                 {
                     for (int i = 0; i < 2; i++)
                     {
-                        Item consumable = consumables[Random.Shared.Next(consumables.Length)].Copy();
+                        Item consumable = consumables[queue.Random.Next(consumables.Length)].Copy();
                         character.Items.Add(consumable);
                     }
                 }
@@ -1182,7 +1208,7 @@ namespace Milimoe.FunGameTesting.Tests
                     // 如果尝试次数过多，使用随机位置
                     if (attempts > teamMembers.Count * 2)
                     {
-                        grid = GetRandomGridInArea(map, allocated, startX, endX, startY, endY);
+                        grid = GetRandomGridInArea(queue.Random, map, allocated, startX, endX, startY, endY);
                         break;
                     }
                 }
@@ -1220,7 +1246,7 @@ namespace Milimoe.FunGameTesting.Tests
             }
         }
 
-        private static Grid? GetRandomGridInArea(GameMap map, HashSet<Grid> allocated, int startX, int endX, int startY, int endY)
+        private static Grid? GetRandomGridInArea(Random random, GameMap map, HashSet<Grid> allocated, int startX, int endX, int startY, int endY)
         {
             List<Grid> availableGrids = [];
 
@@ -1237,7 +1263,7 @@ namespace Milimoe.FunGameTesting.Tests
             }
 
             return availableGrids.Count > 0 ?
-                availableGrids[Random.Shared.Next(availableGrids.Count)] :
+                availableGrids[random.Next(availableGrids.Count)] :
                 null;
         }
 

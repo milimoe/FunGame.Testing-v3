@@ -399,7 +399,7 @@ namespace Milimoe.FunGameTesting.Tests
             }
         }
 
-        public static List<Item> GenerateMagicCards(int count, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
+        public static List<Item> GenerateMagicCards(Random random, int count, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
         {
             List<Item> items = [];
 
@@ -414,28 +414,28 @@ namespace Milimoe.FunGameTesting.Tests
                     agi = values[i].agi;
                     intelligence = values[i].intelligence;
                 }
-                items.Add(GenerateMagicCard(qualityType, magicId, str, agi, intelligence));
+                items.Add(GenerateMagicCard(random, qualityType, magicId, str, agi, intelligence));
             }
 
             return items;
         }
 
-        public static Item GenerateMagicCard(QualityType? qualityType = null, long magicId = 0, int str = 0, int agi = 0, int intelligence = 0)
+        public static Item GenerateMagicCard(Random random, QualityType? qualityType = null, long magicId = 0, int str = 0, int agi = 0, int intelligence = 0)
         {
             Item item = new()
             {
-                Id = Convert.ToInt64("16" + Verification.CreateVerifyCode(VerifyCodeType.NumberVerifyCode, 8)),
-                Name = GenerateRandomChineseName(),
+                Id = CreateItemId("16", random),
+                Name = GenerateRandomChineseName(random),
                 ItemType = ItemType.MagicCard,
                 RemainUseTimes = 1
             };
 
-            GenerateAndAddSkillToMagicCard(item, qualityType, magicId, str, agi, intelligence);
+            GenerateAndAddSkillToMagicCard(random, item, qualityType, magicId, str, agi, intelligence);
 
             return item;
         }
 
-        public static void GenerateAndAddSkillToMagicCard(Item item, QualityType? qualityType = null, long magicId = 0, int str = 0, int agi = 0, int intelligence = 0)
+        public static void GenerateAndAddSkillToMagicCard(Random random, Item item, QualityType? qualityType = null, long magicId = 0, int str = 0, int agi = 0, int intelligence = 0)
         {
             int total = str + agi + intelligence;
             if (total == 0)
@@ -446,25 +446,25 @@ namespace Milimoe.FunGameTesting.Tests
                     if (item.QualityType > QualityType.Gold) item.QualityType = QualityType.Gold;
                     total = item.QualityType switch
                     {
-                        QualityType.Green => Random.Shared.Next(7, 13),
-                        QualityType.Blue => Random.Shared.Next(13, 19),
-                        QualityType.Purple => Random.Shared.Next(19, 25),
-                        QualityType.Orange => Random.Shared.Next(25, 31),
-                        QualityType.Red => Random.Shared.Next(31, 37),
-                        QualityType.Gold => Random.Shared.Next(37, 43),
-                        _ => Random.Shared.Next(1, 7)
+                        QualityType.Green => random.Next(7, 13),
+                        QualityType.Blue => random.Next(13, 19),
+                        QualityType.Purple => random.Next(19, 25),
+                        QualityType.Orange => random.Next(25, 31),
+                        QualityType.Red => random.Next(31, 37),
+                        QualityType.Gold => random.Next(37, 43),
+                        _ => random.Next(1, 7)
                     };
                 }
-                else total = Random.Shared.Next(1, 43);
+                else total = random.Next(1, 43);
 
                 // 随机决定将多少个属性赋给其中一个属性，确保至少一个不为零
-                int nonZeroAttributes = Random.Shared.Next(1, Math.Min(4, total + 1)); // 随机决定非零属性的数量，确保在 total = 1 时最多只有1个非零属性
+                int nonZeroAttributes = random.Next(1, Math.Min(4, total + 1)); // 随机决定非零属性的数量，确保在 total = 1 时最多只有1个非零属性
 
                 // 根据非零属性数量分配属性点
                 if (nonZeroAttributes == 1)
                 {
                     // 只有一个属性不为零
-                    int attribute = Random.Shared.Next(0, 3);
+                    int attribute = random.Next(0, 3);
                     if (attribute == 0) str = total;
                     else if (attribute == 1) agi = total;
                     else intelligence = total;
@@ -472,10 +472,10 @@ namespace Milimoe.FunGameTesting.Tests
                 else if (nonZeroAttributes == 2 && total >= 2)
                 {
                     // 两个属性不为零
-                    int first = Random.Shared.Next(1, total); // 第一个属性的值
+                    int first = random.Next(1, total); // 第一个属性的值
                     int second = total - first; // 第二个属性的值
 
-                    int attribute = Random.Shared.Next(0, 3);
+                    int attribute = random.Next(0, 3);
                     if (attribute == 0)
                     {
                         str = first;
@@ -489,10 +489,10 @@ namespace Milimoe.FunGameTesting.Tests
                         intelligence = first;
                     }
 
-                    attribute = Random.Shared.Next(0, 3);
+                    attribute = random.Next(0, 3);
                     while ((attribute == 0 && str > 0) || (attribute == 1 && agi > 0) || (attribute == 2 && intelligence > 0))
                     {
-                        attribute = Random.Shared.Next(0, 3);
+                        attribute = random.Next(0, 3);
                     }
 
                     if (attribute == 0)
@@ -511,8 +511,8 @@ namespace Milimoe.FunGameTesting.Tests
                 else if (total >= 3)
                 {
                     // 三个属性都不为零
-                    str = Random.Shared.Next(1, total - 1); // 第一个属性的值
-                    agi = Random.Shared.Next(1, total - str); // 第二个属性的值
+                    str = random.Next(1, total - 1); // 第一个属性的值
+                    agi = random.Next(1, total - str); // 第二个属性的值
                     intelligence = total - str - agi; // 剩下的值给第三个属性
                 }
             }
@@ -550,7 +550,7 @@ namespace Milimoe.FunGameTesting.Tests
             {
                 magic = Magics.FirstOrDefault(m => m.Id == magicId);
             }
-            magic ??= Magics[Random.Shared.Next(Magics.Count)].Copy();
+            magic ??= Magics[random.Next(Magics.Count)].Copy();
             magic.AssociatedItemGuid = item.Guid;
             magic.Level = (int)item.QualityType switch
             {
@@ -607,7 +607,7 @@ namespace Milimoe.FunGameTesting.Tests
             }
         }
 
-        public static Item? ConflateMagicCardPack(IEnumerable<Item> magicCards)
+        public static Item? ConflateMagicCardPack(Random random, IEnumerable<Item> magicCards)
         {
             if (magicCards.Any())
             {
@@ -615,8 +615,8 @@ namespace Milimoe.FunGameTesting.Tests
                 List<Skill> passives = [.. magicCards.SelectMany(i => i.Skills.Passives)];
                 Item item = new()
                 {
-                    Id = Convert.ToInt64("10" + Verification.CreateVerifyCode(VerifyCodeType.NumberVerifyCode, 8)),
-                    Name = GenerateRandomChineseName(),
+                    Id = CreateItemId("10", random),
+                    Name = GenerateRandomChineseName(random),
                     ItemType = ItemType.MagicCardPack
                 };
                 double str = 0, agi = 0, intelligence = 0;
@@ -703,10 +703,10 @@ namespace Milimoe.FunGameTesting.Tests
             return null;
         }
 
-        public static Item? GenerateMagicCardPack(int magicCardCount, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
+        public static Item? GenerateMagicCardPack(Random random, int magicCardCount, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
         {
-            List<Item> magicCards = GenerateMagicCards(magicCardCount, qualityType, magicIds, values);
-            Item? magicCardPack = ConflateMagicCardPack(magicCards);
+            List<Item> magicCards = GenerateMagicCards(random, magicCardCount, qualityType, magicIds, values);
+            Item? magicCardPack = ConflateMagicCardPack(random, magicCards);
             return magicCardPack;
         }
 
@@ -714,10 +714,10 @@ namespace Milimoe.FunGameTesting.Tests
         /// 以核心库 MagicCardPack 为载体的卡包（新做法）：三围写入原生 AttributeBoosts（exstr/exagi/exint），
         /// 不再生成 Ex 被动特效技能。魔法合并 / 品质映射 / 描述口径与 ConflateMagicCardPack 保持一致。
         /// </summary>
-        public static Item? GenerateCoreMagicCardPack(int magicCardCount, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
+        public static Item? GenerateCoreMagicCardPack(Random random, int magicCardCount, QualityType? qualityType = null, long[]? magicIds = null, (int str, int agi, int intelligence)[]? values = null)
         {
-            List<Item> magicCards = GenerateMagicCards(magicCardCount, qualityType, magicIds, values);
-            return ConflateCoreMagicCardPack(magicCards);
+            List<Item> magicCards = GenerateMagicCards(random, magicCardCount, qualityType, magicIds, values);
+            return ConflateCoreMagicCardPack(random, magicCards);
         }
 
         /// <summary>
@@ -725,7 +725,7 @@ namespace Milimoe.FunGameTesting.Tests
         /// 说明：不修改原 ConflateMagicCardPack / 卡片生成流程；三围取自卡片被动技能的 Ex 特效（typed 优先、参数 Values 兜底）。
         /// 宿主未注册特效工厂时 OpenFactory 只会产出 Id=0 且参数丢失的泛型 Effect——新方法与旧方法在该类宿主下的取值表现一致。
         /// </summary>
-        public static Item? ConflateCoreMagicCardPack(IEnumerable<Item> magicCards)
+        public static Item? ConflateCoreMagicCardPack(Random random, IEnumerable<Item> magicCards)
         {
             if (!magicCards.Any())
             {
@@ -767,8 +767,8 @@ namespace Milimoe.FunGameTesting.Tests
                 { "exint", intelligence }
             })
             {
-                Id = Convert.ToInt64("10" + Verification.CreateVerifyCode(VerifyCodeType.NumberVerifyCode, 8)),
-                Name = GenerateRandomChineseName()
+                Id = CreateItemId("10", random),
+                Name = GenerateRandomChineseName(random)
             };
             List<string> strings = [];
             if (str > 0) strings.Add($"{str:0.##} 点力量");
@@ -1027,71 +1027,83 @@ namespace Milimoe.FunGameTesting.Tests
                 "堰揩越趁趋超揽堤提博揭喜彭揣插揪搜煮援搀裁搁搓搂搅壹握搔揉斯期欺联葫" +
                 "散惹葬募葛董葡敬葱蒋蒂落韩朝辜葵棒棱棋椰植森焚椅椒棵棍椎棉";
 
-        public static string GenerateRandomChineseName()
+        /// <summary>
+        /// 生成随机中文名。<paramref name="random"/> 必须由调用方下传（本局种子派生），
+        /// 否则使用进程级随机会让整局模拟无法复现
+        /// </summary>
+        public static string GenerateRandomChineseName(Random random)
         {
             // 随机生成名字长度，2到5个字
-            int nameLength = Random.Shared.Next(2, 6);
+            int nameLength = random.Next(2, 6);
             StringBuilder name = new();
 
             for (int i = 0; i < nameLength; i++)
             {
                 // 从常用汉字集中随机选择一个汉字
-                char chineseCharacter = CommonChineseCharacters[Random.Shared.Next(CommonChineseCharacters.Length)];
+                char chineseCharacter = CommonChineseCharacters[random.Next(CommonChineseCharacters.Length)];
                 name.Append(chineseCharacter);
             }
 
             return name.ToString();
         }
 
-        public static string GenerateRandomChineseUserName()
+        /// <summary>
+        /// 生成随机中文用户名。<paramref name="random"/> 必须由调用方下传（本局种子派生）
+        /// </summary>
+        public static string GenerateRandomChineseUserName(Random random)
         {
             StringBuilder name = new();
 
             // 随机姓
-            string lastname = CommonSurnames[Random.Shared.Next(CommonSurnames.Length)];
+            string lastname = CommonSurnames[random.Next(CommonSurnames.Length)];
             name.Append(lastname);
 
             // 随机生成名字长度，2到5个字
-            int nameLength = Random.Shared.Next(1, 2);
+            int nameLength = random.Next(1, 2);
 
             for (int i = 0; i < nameLength; i++)
             {
                 // 从常用汉字集中随机选择一个汉字
-                char chineseCharacter = CommonChineseCharacters[Random.Shared.Next(CommonChineseCharacters.Length)];
+                char chineseCharacter = CommonChineseCharacters[random.Next(CommonChineseCharacters.Length)];
                 name.Append(chineseCharacter);
             }
 
             return name.ToString();
         }
 
-        public static Dictionary<EffectID, Dictionary<string, object>> RoundRewards => new()
+        /// <summary>
+        /// 回合奖励表。<paramref name="random"/> 必须由调用方下传（本局种子派生），
+        /// 否则奖励数值每局不同，整局模拟无法复现<para/>
+        /// 注意：请只调用一次并把返回值存下来（原属性实现每次都新建字典，Keys 与取值来自不同实例，数值本就不一致）
+        /// </summary>
+        public static Dictionary<EffectID, Dictionary<string, object>> GetRoundRewards(Random random) => new()
         {
             {
                 EffectID.ExATK,
                 new()
                 {
-                    { "exatk", Random.Shared.Next(40, 80) }
+                    { "exatk", random.Next(40, 80) }
                 }
             },
             {
                 EffectID.ExCritRate,
                 new()
                 {
-                    { "excr", Math.Clamp(Random.Shared.NextDouble(), 0.25, 0.5) }
+                    { "excr", Math.Clamp(random.NextDouble(), 0.25, 0.5) }
                 }
             },
             {
                 EffectID.ExCritDMG,
                 new()
                 {
-                    { "excrd", Math.Clamp(Random.Shared.NextDouble(), 0.5, 1) }
+                    { "excrd", Math.Clamp(random.NextDouble(), 0.5, 1) }
                 }
             },
             {
                 EffectID.ExATK2,
                 new()
                 {
-                    { "exatk", Math.Clamp(Random.Shared.NextDouble(), 0.15, 0.3) }
+                    { "exatk", Math.Clamp(random.NextDouble(), 0.15, 0.3) }
                 }
             },
             {
@@ -1119,37 +1131,47 @@ namespace Milimoe.FunGameTesting.Tests
                 EffectID.RecoverHP,
                 new()
                 {
-                    { "hp", Random.Shared.Next(160, 640) }
+                    { "hp", random.Next(160, 640) }
                 }
             },
             {
                 EffectID.RecoverMP,
                 new()
                 {
-                    { "mp", Random.Shared.Next(140, 490) }
+                    { "mp", random.Next(140, 490) }
                 }
             },
             {
                 EffectID.RecoverHP2,
                 new()
                 {
-                    { "hp", Math.Clamp(Random.Shared.NextDouble(), 0.04, 0.08) }
+                    { "hp", Math.Clamp(random.NextDouble(), 0.04, 0.08) }
                 }
             },
             {
                 EffectID.RecoverMP2,
                 new()
                 {
-                    { "mp", Math.Clamp(Random.Shared.NextDouble(), 0.09, 0.18) }
+                    { "mp", Math.Clamp(random.NextDouble(), 0.09, 0.18) }
                 }
             },
             {
                 EffectID.GetEP,
                 new()
                 {
-                    { "ep", Random.Shared.Next(20, 40) }
+                    { "ep", random.Next(20, 40) }
                 }
             }
         };
+
+        /// <summary>
+        /// 用本局随机源生成物品 Id（原 <see cref="Verification.CreateVerifyCode"/> 依赖 DateTime.Now + new Random()，不可复现）
+        /// </summary>
+        /// <param name="prefix">Id 前缀（"16"=魔法卡，"10"=卡包）</param>
+        /// <param name="random">本局随机源</param>
+        public static long CreateItemId(string prefix, Random random)
+        {
+            return Convert.ToInt64(prefix + random.Next(10_000_000, 100_000_000).ToString());
+        }
     }
 }

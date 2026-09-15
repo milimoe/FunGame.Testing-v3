@@ -150,7 +150,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public int 新增雇佣兵(Character character)
         {
-            雇佣兵 gyb = new(character, RandomNames.GenerateRandomChineseName())
+            雇佣兵 gyb = new(character, RandomNames.GenerateRandomChineseName(Random))
             {
                 Level = 1,
                 InitialHP = character.MaxHP * 生命值比例,

@@ -132,7 +132,9 @@ app.MapGet("/api/meta", async (ArchiveStore store, CancellationToken ct) =>
         isTeam ? "团队" : "混战",
         store.LastWriteTime,
         CollectCharacters(rounds.Values),
-        CollectTeams(last)
+        CollectTeams(last),
+        // 本局随机种子：由队列在每回合记录中写入（旧存档为 0 表示未记录）；字典顺序无保证，取回合号最小的一条
+        rounds[rounds.Keys.Min()].Seed
     ));
 });
 
@@ -240,7 +242,7 @@ app.MapPost("/api/reload", async (ArchiveStore store, CancellationToken ct) =>
 // 直接调用 FunGameSimulation.StartSimulationGame（与 Testing-v3 同进程），
 // 模拟数据仅存在于方法作用域内，返回后由 GC 回收，不残留任何数据。
 using SemaphoreSlim simulateLock = new(1, 1);
-app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironment env, ArchiveStore store, CancellationToken ct) =>
+app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironment env, ArchiveStore store, CancellationToken ct, int? seed = null) =>
 {
     if (!await simulateLock.WaitAsync(0, ct))
     {
@@ -250,6 +252,9 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
     try
     {
         FunGameSimulation.IsDebug = true;
+        // 传入 seed 则固定本局随机种子（同种子 + 同参数可复现整局）；不传则每局自动随机。
+        // 每次显式赋值：避免上一次指定的种子被后续调用沿用
+        FunGameSimulation.SeedOverride = seed;
 
         string zipPath = store.ZipPath;
         DateTime before = File.Exists(zipPath) ? new FileInfo(zipPath).LastWriteTimeUtc : DateTime.MinValue;
@@ -270,7 +275,8 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
 
         // 存档已更新，强制重载缓存
         Dictionary<int, RoundRecord> rounds = await store.ReloadAsync(ct);
-        return Results.Ok(new { ok = true, roundCount = rounds.Count, elapsedSeconds = Math.Round(elapsed, 1) });
+        // 回传本局实际使用的种子（未指定时是自动生成的随机值），供前端回填以便复现
+        return Results.Ok(new { ok = true, roundCount = rounds.Count, elapsedSeconds = Math.Round(elapsed, 1), seed = FunGameSimulation.Seed });
     }
     finally
     {
@@ -516,7 +522,7 @@ app.Run();
 // ============ DTO（输出时自动 camelCase） ============
 record CharacterRefDto(string Guid, string Name, string FirstName, string NickName, string UserName);
 record TeamDto(string Id, string Name, double Score, bool IsWinner, List<CharacterRefDto> Members);
-record MetaDto(int RoundCount, double TotalTime, string Mode, DateTime ZipUpdated, List<CharacterRefDto> Characters, List<TeamDto> Teams);
+record MetaDto(int RoundCount, double TotalTime, string Mode, DateTime ZipUpdated, List<CharacterRefDto> Characters, List<TeamDto> Teams, int Seed);
 record RoundSummaryDto(int Round, string ActorGuid, string ActorName, bool HasKill, double DamageTotal, double HealTotal, int ActionCount, int EffectCount, bool HasCheckpoint, double TotalTime);
 record StatRowDto(string Guid, string Name, string NickName, string TeamName, double Rating, int Kills, int Deaths, int Assists, double TotalDamage, double TotalHeal, double TotalShield, double Winrate, int MVPs, int LastRank, double AvgRank, int LiveRound, int TotalEarnedMoney, double DamagePerRound, double DamagePerSecond, double ControlTime);
 record StatsDto(int RoundCount, double TotalTime, string Mode, string MvpName, double MvpRating, List<StatRowDto> Rows, List<TeamDto> Teams);

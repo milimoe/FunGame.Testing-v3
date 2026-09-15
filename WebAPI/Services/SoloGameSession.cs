@@ -423,14 +423,16 @@ public sealed class SoloGameSession : IDisposable
             queue.DisplayQueue();
 
             // ---- 回合奖励 ----
+            // 只取一次随机结果并存下来：随机源跟随本局队列种子（同种子可复现）
+            Dictionary<EffectID, Dictionary<string, object>> roundRewards = FunGameService.GetRoundRewards(queue.Random);
             Dictionary<long, bool> effects = [];
-            foreach (EffectID id in FunGameService.RoundRewards.Keys)
+            foreach (EffectID id in roundRewards.Keys)
             {
                 long effectID = (long)id;
                 effects.Add(effectID, effectID > (long)EffectID.Active_Start);
             }
             int maxRound = options.MaxRound;
-            queue.InitRoundRewards(maxRound, 1, effects, id => FunGameService.RoundRewards[(EffectID)id]);
+            queue.InitRoundRewards(maxRound, 1, effects, id => roundRewards[(EffectID)id]);
 
             Send(SoloMessageTypes.GamingStart, new
             {

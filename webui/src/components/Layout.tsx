@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { PanelKey } from '../App'
-import { reload, simulateTeam } from '../api'
+import { fetchMeta, reload, simulateTeam } from '../api'
 
 const NAV: { key: PanelKey; label: string; icon: string; desc: string }[] = [
   { key: 'home', label: '门户', icon: '🏠', desc: '模拟器整合入口' },
@@ -22,8 +22,25 @@ export default function Layout({
   const [reloading, setReloading] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [seedInput, setSeedInput] = useState('')
+  const [useFixedSeed, setUseFixedSeed] = useState(false)
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const [toastTimer, setToastTimer] = useState<number | null>(null)
+
+  // 存档里记录了上一局的种子，进入页面时回填到文本框（旧存档 seed=0 表示未记录，保持空）
+  useEffect(() => {
+    let cancelled = false
+    fetchMeta()
+      .then(meta => {
+        if (!cancelled && meta.seed) setSeedInput(String(meta.seed))
+      })
+      .catch(() => {
+        /* 存档缺失等情况忽略，保持空输入 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToast({ message, tone })
@@ -46,8 +63,13 @@ export default function Layout({
     setConfirming(false)
     setSimulating(true)
     try {
-      const result = await simulateTeam()
-      showToast(`✅ 模拟完成：${result.roundCount} 回合，耗时 ${result.elapsedSeconds} 秒，正在刷新…`)
+      // 勾选「指定种子」且填了合法整数才固定种子，否则交给服务端随机生成
+      const parsed = Number.parseInt(seedInput.trim(), 10)
+      const seed = useFixedSeed && Number.isFinite(parsed) ? parsed : null
+      const result = await simulateTeam(seed)
+      // 回填本局实际使用的种子（未指定时即服务端随机生成的值），便于再次复现
+      setSeedInput(String(result.seed))
+      showToast(`✅ 模拟完成：${result.roundCount} 回合，耗时 ${result.elapsedSeconds} 秒，本局种子 ${result.seed}，正在刷新…`)
       setTimeout(() => window.location.reload(), 1200)
     } catch (e) {
       showToast(e instanceof Error ? e.message : '模拟失败', 'error')
@@ -65,7 +87,7 @@ export default function Layout({
         </div>
 
         {/* 全局操作 */}
-        <div className="flex gap-2 border-b border-rose-100 p-3 lg:block lg:space-y-2 lg:border-b-0 lg:pb-1">
+        <div className="flex flex-wrap gap-2 border-b border-rose-100 p-3 lg:block lg:space-y-2 lg:border-b-0 lg:pb-1">
           {confirming ? (
             <>
               <button
@@ -101,6 +123,32 @@ export default function Layout({
           >
             {reloading ? '重载中…' : '🔄 重新加载存档'}
           </button>
+
+          {/* 种子输入：勾选后按文本框里的种子跑（同种子可复现），不勾选或留空则服务端随机生成 */}
+          <div className="flex w-full shrink-0 items-center gap-2 lg:mt-1.5">
+            <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-500">
+              <input
+                type="checkbox"
+                checked={useFixedSeed}
+                onChange={e => setUseFixedSeed(e.target.checked)}
+                disabled={simulating}
+                className="h-3.5 w-3.5 cursor-pointer accent-rose-500"
+              />
+              指定种子
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={seedInput}
+              onChange={e => setSeedInput(e.target.value)}
+              placeholder="留空 = 随机"
+              title="勾选「指定种子」后按此种子跑一局（同种子可复现）；不勾选或留空则服务端随机生成，跑完会把实际种子填回这里"
+              disabled={simulating}
+              className={`min-w-0 flex-1 rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none transition-colors placeholder:text-slate-300 focus:border-rose-400 disabled:opacity-50 lg:w-full ${
+                useFixedSeed ? '' : 'opacity-70'
+              }`}
+            />
+          </div>
         </div>
 
         {/* 导航 */}
