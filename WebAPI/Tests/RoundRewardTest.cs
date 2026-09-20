@@ -197,6 +197,25 @@ namespace Milimoe.FunGameTesting.Tests
             Check(stolenItems.All(s => ReferenceEquals(s.Character, a)), "夺取后改写 Skill.Character 为夺取者");
             Check(!queue.StealRoundReward(b, offset, a, 1, out _), "源键位已空，重复夺取返回 false");
 
+            // 一次性移除该键位的全部奖励（与「按技能移除一条」相对）
+            Skill all1 = queue.RoundRewards.Values.SelectMany(v => v).First();
+            Skill all2 = queue.RoundRewards.Values.SelectMany(v => v).Skip(1).First();
+            queue.AddRoundReward(a, 2, all1);
+            queue.AddRoundReward(a, 2, all2);
+            int beforeRemoveAll = queue.QueryRoundRewards(a, 2).Count;
+            bool removeAll = queue.RemoveRoundRewards(a, 2, out List<Skill> removedAll);
+            Check(removeAll && beforeRemoveAll >= 2 && removedAll.Count == beforeRemoveAll
+                && queue.QueryRoundRewards(a, 2).Count == 0,
+                "一次性移除该键位的全部奖励（键位多条一并清除）",
+                $"移除前={beforeRemoveAll} 移除={removedAll.Count}");
+            Check(!queue.RemoveRoundRewards(a, 2, out _), "键位已空时一次性移除返回 false");
+
+            // offset 夹取：0 / 负数按最小偏移 1 处理
+            queue.AddRoundReward(a, 1, all1);
+            bool clampedRemove = queue.RemoveRoundRewards(a, 0, out List<Skill> clampedRemoved);
+            Check(clampedRemove && clampedRemoved.Any(s => ReferenceEquals(s, all1)),
+                "一次性移除的 offset 夹取为 >= 1");
+
             // 窗口滚动：查询跨过 1000 窗口末尾应惰性物化下一窗口（键继续按稀疏步进生成）
             int maxKeyBefore = queue.CharacterRoundRewards[a].Keys.Max();
             queue.QueryRoundRewards(a, MixGamingQueue.RoundRewardWindowSize + 5);
@@ -227,6 +246,21 @@ namespace Milimoe.FunGameTesting.Tests
             bool stolen = queue.StealRoundReward(summon, 3, master, 5, out List<Skill> fromSummon);
             Check(stolen && fromSummon.Any(s => ReferenceEquals(s, sample)) && queue.QueryRoundRewards(summon, 3).Count == 0,
                 "召唤物侧的夺取折算到 Master");
+
+            // 移除不折算 Master：对召唤物的移除只作用于召唤物自身的键位，不会误删 Master 的奖励
+            Skill another = queue.RoundRewards.Values.SelectMany(v => v).Skip(1).First();
+            queue.AddRoundReward(summon, 4, another);
+            bool removeOneOnSummon = queue.RemoveRoundReward(summon, 4, another, out _);
+            bool removeAllOnSummon = queue.RemoveRoundRewards(summon, 4, out _);
+            bool masterKept = queue.QueryRoundRewards(master, 4).Any(s => ReferenceEquals(s, another));
+            Check(!removeOneOnSummon && !removeAllOnSummon && masterKept,
+                "移除不折算 Master：对召唤物的移除返回 false 且不误删 Master 的奖励",
+                $"removeOne={removeOneOnSummon} removeAll={removeAllOnSummon} masterKept={masterKept}");
+
+            bool removeOneOnMaster = queue.RemoveRoundReward(master, 4, another, out Skill? removedOnMaster);
+            Check(removeOneOnMaster && ReferenceEquals(removedOnMaster, another)
+                && !queue.QueryRoundRewards(master, 4).Any(s => ReferenceEquals(s, another)),
+                "对 Master 自身调用移除正常生效");
         }
 
         /// <summary>
