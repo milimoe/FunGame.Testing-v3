@@ -210,6 +210,7 @@ export default function ReplayPanel({ requestedRound, onRoundChange }: { request
           <RoundHeader record={record} summary={summary} />
           <div className="grid gap-5 lg:grid-cols-3">
             <div className="space-y-5 lg:col-span-2">
+              <RewardSection record={record} skillDesc={skillDesc} />
               <Section title="行动记录" subtitle={`本回合 ${record.Actions?.length ?? 0} 次操作`}>
                 {(record.Actions ?? []).length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-500">本回合没有行动记录</p>
@@ -228,7 +229,7 @@ export default function ReplayPanel({ requestedRound, onRoundChange }: { request
                 )}
               </Section>
               <RoundInquirySection record={record} />
-              <KillSection record={record} skillDesc={skillDesc} />
+              <KillSection record={record} />
               <InfoSection record={record} />
               <RoundDamageSection record={record} />
             </div>
@@ -561,8 +562,32 @@ function CostLine({ action }: { action: ActionRecord }) {
   )
 }
 
+// ===== 回合奖励（独立成区：奖励与击杀无关，不能挂在 KillSection 的显示条件下）=====
+function RewardSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Map<number, string> }) {
+  const rewards = record.RoundRewards ?? []
+  if (rewards.length === 0) return null
+  return (
+    <Section title="回合奖励">
+      <div className="space-y-2">
+        {rewards.map((s, i) => {
+          // 优先用数据自带的描述（奖励技能只在本回合存在，检查点描述索引里通常没有它），退化到检查点索引
+          const desc = s.Description || skillDesc.get(s.Id)
+          return (
+            <div key={`rw${i}`} className="rounded-lg bg-emerald-50/80 p-2.5">
+              <p className="text-sm text-emerald-700">
+                {s.Name} <span className="text-xs text-emerald-500">(#{s.Id})</span>
+              </p>
+              {desc ? <DescText text={desc} /> : null}
+            </div>
+          )
+        })}
+      </div>
+    </Section>
+  )
+}
+
 // ===== 击杀与消息 =====
-function KillSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Map<number, string> }) {
+function KillSection({ record }: { record: RoundRecord }) {
   const kills = record.ActorContinuousKilling ?? []
   const deaths = record.DeathContinuousKilling ?? []
   const others = record.OtherMessages ?? []
@@ -590,19 +615,6 @@ function KillSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Ma
             {o}
           </p>
         ))}
-        {record.RoundRewards && record.RoundRewards.length > 0 && (
-          <div className="rounded-lg bg-emerald-50/80 p-2.5">
-            <p className="text-sm font-semibold text-emerald-600">🎁 回合奖励</p>
-            {record.RoundRewards.map((s, i) => (
-              <div key={`rw${i}`} className="mt-1">
-                <p className="text-sm text-emerald-700">
-                  {s.Name} <span className="text-xs text-emerald-500">(#{s.Id})</span>
-                </p>
-                {skillDesc.get(s.Id) ? <DescText text={skillDesc.get(s.Id)!} /> : null}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </Section>
   )
@@ -645,6 +657,8 @@ function EffectsSection({ record, skillDesc }: { record: RoundRecord; skillDesc:
   const chars = charIndex(record.AllCharacters)
   const effects = keyedToEntries(record.Effects)
   const applyEffects = keyedToEntries(record.ApplyEffects)
+  // Effects 是「角色 -> 本回合触发过特效的技能列表」，统计时要展开到技能条目
+  const effectCount = effects.reduce((n, [, skills]) => n + (skills?.length ?? 0), 0)
   if (effects.length === 0 && applyEffects.length === 0) {
     return (
       <Section title="特效记录">
@@ -653,18 +667,24 @@ function EffectsSection({ record, skillDesc }: { record: RoundRecord; skillDesc:
     )
   }
   return (
-    <Section title="特效记录" subtitle={`${effects.length + applyEffects.length} 条记录`}>
+    <Section title="特效记录" subtitle={`${effectCount + applyEffects.length} 条记录`}>
       <div className="space-y-3">
-        {effects.map(([guid, skill]) => (
-          <div key={`e${guid}-${skill.Guid}`} className="rounded-lg bg-rose-50/80 p-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">{charName(chars.get(guid))}</span>
-              <Badge tone="indigo">{skillTypeName(skill.SkillType)}</Badge>
+        {effects.map(([guid, skills]) => (
+          <div key={`e${guid}`} className="rounded-lg bg-rose-50/80 p-2.5">
+            <p className="text-xs text-slate-500">{charName(chars.get(guid))} 触发：</p>
+            <div className="mt-1 space-y-2">
+              {(skills ?? []).map(skill => (
+                <div key={`${guid}-${skill.Guid}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {skill.Name} <span className="text-xs font-normal text-slate-400">(#{skill.Id})</span>
+                    </p>
+                    <Badge tone="indigo">{skillTypeName(skill.SkillType)}</Badge>
+                  </div>
+                  {skillDesc.get(skill.Id) ? <DescText text={skillDesc.get(skill.Id)!} /> : null}
+                </div>
+              ))}
             </div>
-            <p className="mt-1 text-sm font-semibold text-slate-700">
-              {skill.Name} <span className="text-xs font-normal text-slate-400">(#{skill.Id})</span>
-            </p>
-            {skillDesc.get(skill.Id) ? <DescText text={skillDesc.get(skill.Id)!} /> : null}
           </div>
         ))}
         {applyEffects.map(([guid, types]) => (

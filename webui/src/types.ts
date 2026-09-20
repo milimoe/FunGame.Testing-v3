@@ -12,6 +12,8 @@ export interface SkillRef {
   Id: number
   Name: string
   SkillType: number
+  // 仅部分场景写入（如回合奖励：该技能只在本回合存在，前端拿不到检查点描述索引）；旧档无此字段
+  Description?: string
 }
 
 export interface ItemRef {
@@ -104,7 +106,8 @@ export interface RoundRecord {
   ItemsCost: Record<string, string>
   HasKill: boolean
   Assists: CharacterRef[]
-  Effects: Record<string, SkillRef>
+  // 角色 Guid -> 该角色本回合触发过特效的技能列表（按首次触发顺序去重；旧档为单个技能对象）
+  Effects: Record<string, SkillRef[]>
   ApplyEffects: Record<string, number[]>
   ActorContinuousKilling: string[]
   DeathContinuousKilling: string[]

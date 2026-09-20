@@ -161,7 +161,7 @@ app.MapGet("/api/rounds/summary", async (int? from, int? to, ArchiveStore store,
             Math.Round(record.Damages.Values.Sum(), 2),
             Math.Round(record.Heals.Values.Sum(), 2),
             record.Actions?.Count ?? 0,
-            record.Effects.Count + record.ApplyEffects.Count,
+            record.Effects.Sum(kv => kv.Value.Count) + record.ApplyEffects.Sum(kv => kv.Value.Count),
             record.Checkpoint is { Count: > 0 },
             record.TotalTime
         ));

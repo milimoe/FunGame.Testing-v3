@@ -69,8 +69,8 @@ namespace Milimoe.FunGameTesting.Tests
             冰霜攻击 skill = new();
             skill.Level = 1;
             skill.OnSkillCasted(queue, caster, [target], []);
-            Check(queue.LastRound.Effects.TryGetValue(caster, out Skill? recorded) && ReferenceEquals(recorded, skill),
-                "技能自带特效触发时自动记录", $"Effects[{caster}] = {recorded?.Name}");
+            Check(queue.LastRound.Effects.TryGetValue(caster, out List<Skill>? recorded) && recorded.Any(s => ReferenceEquals(s, skill)),
+                "技能自带特效触发时自动记录", $"Effects[{caster}] = {string.Join("/", (recorded ?? []).Select(s => s.Name))}");
         }
 
         /// <summary>
@@ -86,8 +86,8 @@ namespace Milimoe.FunGameTesting.Tests
             qiangGong.Level = 1;
             qiangGong.AddSkillToCharacter(actor);
             queue.DamageToEnemy(actor, enemy, 100, true);
-            Check(queue.LastRound.Effects.TryGetValue(actor, out Skill? recorded) && ReferenceEquals(recorded, qiangGong),
-                "角色状态栏特效（强攻）触发时自动记录", $"Effects[{actor}] = {recorded?.Name}");
+            Check(queue.LastRound.Effects.TryGetValue(actor, out List<Skill>? recorded) && recorded.Any(s => ReferenceEquals(s, qiangGong)),
+                "角色状态栏特效（强攻）触发时自动记录", $"Effects[{actor}] = {string.Join("/", (recorded ?? []).Select(s => s.Name))}");
         }
 
         /// <summary>
@@ -105,8 +105,8 @@ namespace Milimoe.FunGameTesting.Tests
             持续伤害 dot = new(skill, target, caster, durative: true, duration: 100, durationTurn: 0, isPercentage: false, durationDamage: 10);
             target.Effects.Add(dot);
             queue.TimeLapse();
-            Check(queue.LastRound.Effects.TryGetValue(target, out Skill? recorded) && ReferenceEquals(recorded, skill),
-                "持续伤害 OnTimeElapsed 触发时自动记录", $"Effects[{target}] = {recorded?.Name}");
+            Check(queue.LastRound.Effects.TryGetValue(target, out List<Skill>? recorded) && recorded.Any(s => ReferenceEquals(s, skill)),
+                "持续伤害 OnTimeElapsed 触发时自动记录", $"Effects[{target}] = {string.Join("/", (recorded ?? []).Select(s => s.Name))}");
         }
 
         /// <summary>
@@ -125,9 +125,9 @@ namespace Milimoe.FunGameTesting.Tests
             actor.Effects.Add(plain);
             actor.Effects.Add(onlyTurnStart);
             queue.TimeLapse();
-            Check(!queue.LastRound.Effects.Values.Any(s => ReferenceEquals(s, plain.Skill)),
+            Check(!queue.LastRound.Effects.Values.SelectMany(list => list).Any(s => ReferenceEquals(s, plain.Skill)),
                 "未重写任何钩子的特效不记录");
-            Check(!queue.LastRound.Effects.Values.Any(s => ReferenceEquals(s, onlyTurnStart.Skill)),
+            Check(!queue.LastRound.Effects.Values.SelectMany(list => list).Any(s => ReferenceEquals(s, onlyTurnStart.Skill)),
                 "未重写该钩子（OnTimeElapsed）的特效不记录");
         }
 
@@ -151,7 +151,7 @@ namespace Milimoe.FunGameTesting.Tests
                     break;
                 }
                 queue.ProcessTurn(character);
-                if (queue.LastRound.Effects.TryGetValue(actor, out Skill? recorded) && ReferenceEquals(recorded, onlyTurnStart.Skill))
+                if (queue.LastRound.Effects.TryGetValue(actor, out List<Skill>? recorded) && recorded.Any(s => ReferenceEquals(s, onlyTurnStart.Skill)))
                 {
                     found = true;
                 }

@@ -23,7 +23,51 @@ namespace Milimoe.FunGameTesting.Tests
             TestCastingRoundCarryOver();
             TestCharacterBoundTableApi();
             TestSummonRewardRedirectToMaster();
+            TestSummonDoesNotConsumeCharacterReward();
             Console.WriteLine($"回合奖励回归测试完成：{(_failures == 0 ? "全部通过" : $"{_failures} 个断言失败")}");
+        }
+
+        /// <summary>
+        /// 场景5：召唤物入队行动时，不得重复领取 Master 的角色绑定奖励<para/>
+        /// 召唤物的行动回合序号不独立计数，若在其回合查询角色绑定表，会读到 Master 尚未推进的同一序号，
+        /// 把 Master 已领取的那条奖励重复发放给召唤物
+        /// </summary>
+        private static void TestSummonDoesNotConsumeCharacterReward()
+        {
+            OshimaShiya master = new();
+            XinYin enemy = new();
+            雇佣兵 summon = new(master, "S1");
+            MixGamingQueue queue = CreateQueue([master, enemy, summon]);
+            // 把召唤物显式放进行动队列（模拟实战中派生单位入队）
+            queue.AddCharacter(summon, 1, false);
+            // 全员结束回合：保证没人死亡、回合持续推进，使召唤物有充分机会行动
+            queue.DecideActionEvent += _ => CharacterActionType.EndTurn;
+
+            HashSet<Skill> grantedOnce = [];
+            int duplicated = 0;
+            int grantedToSummon = 0;
+            queue.RoundRewardGainedAfterEvent += (RoundRewardContext ctx) =>
+            {
+                Character owner = ctx.Trigger!;
+                foreach (Skill s in ctx.Skills)
+                {
+                    if (!grantedOnce.Add(s))
+                    {
+                        duplicated++;
+                    }
+                    if (ctx.Binding == RoundRewardBinding.Character && owner.Master is not null)
+                    {
+                        grantedToSummon++;
+                    }
+                }
+            };
+
+            queue.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, true, id => new() { { "exatk", 60d } });
+            RunTurns(queue, 400);
+
+            Check(summon.IsUnit && grantedOnce.Count > 0, "召唤物已入队行动并产生了奖励发放", $"发放实例={grantedOnce.Count}");
+            Check(duplicated == 0, "同一奖励实例不会被重复发放（召唤物不重复领取 Master 的奖励）", $"重复={duplicated}");
+            Check(grantedToSummon == 0, "角色绑定奖励不会发放给召唤物", $"发给召唤物={grantedToSummon}");
         }
 
         /// <summary>
