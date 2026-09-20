@@ -184,6 +184,39 @@ public sealed class SoloGameSession : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// 把「服务器单方面放弃的挂起决策」显式通知客户端，并清掉本地记录。
+    /// <para>不这么做的话，客户端只会发现「决策请求再也不来了」，只能靠超时判断 ——
+    /// 对局结束、玩家被托管、断线这三种情况都会这样，界面上表现为「明明轮到我却什么都没发生」。</para>
+    /// <para>顺带解决另一件事：这些已作废的 requestId 以前会一直留在 <c>_pendingRequests</c> 里，
+    /// 重连时 <see cref="AttachSink"/> 会把它们当作「仍在等待的决策」重新补发，
+    /// 让玩家看到一条回执早已无效的死决策。</para>
+    /// </summary>
+    private void DropPendingDecisions(string reason)
+    {
+        if (_pendingRequests.IsEmpty)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<string, (string Kind, object Payload)> kv in _pendingRequests)
+        {
+            try
+            {
+                _sink?.SendAsync(
+                    SoloMessageTypes.GamingResolved,
+                    new { requestId = kv.Key, kind = kv.Value.Kind, reason },
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch
+            {
+                /* 连接可能已断：通知尽力而为，本地记录照样要清 */
+            }
+        }
+
+        _pendingRequests.Clear();
+    }
+
     public void AttachSink(IGameEventSink sink)
     {
         PlayerConnected = true;
@@ -217,6 +250,7 @@ public sealed class SoloGameSession : IDisposable
         {
             tcs.TrySetResult(null);
         }
+        DropPendingDecisions("玩家断线，挂起决策作废");
         if (_player is not null && _queue is not null)
         {
             try
@@ -262,6 +296,7 @@ public sealed class SoloGameSession : IDisposable
         {
             tcs.TrySetResult(null);
         }
+        DropPendingDecisions($"服务器接管（{reason}）");
     }
 
     /// <summary>解除 AI 托管，把玩家角色交还给手动控制</summary>
@@ -308,11 +343,18 @@ public sealed class SoloGameSession : IDisposable
         }
         try
         {
+            // ---- 本局唯一的装配随机源 ----
+            // GamingQueue 内部那份 Random 只覆盖「队列开始之后」的部分，而抽人 / 抽技能 / 出生格
+            // 全都发生在队列构造之前（此时 Character.GamingQueue 还是 null，实体自身的
+            // Character.Random 会退化成 Random.Shared），所以这里必须自己持有一个有籽的 Random。
+            // 否则同一 Seed 每局抽到的角色、技能与站位都不一样，回归结果无法归因。
+            Random rng = new(options.Seed ?? Random.Shared.Next());
+
             List<Character> candidates = [.. FunGameService.Characters
                 .Select(c => c.Copy())
-                .OrderBy(_ => Random.Shared.Next())
+                .OrderBy(_ => rng.Next())
                 .Take(Math.Clamp(options.CharacterCount, 2, Math.Min(10, FunGameService.Characters.Count)))];
-            PrepareCharacters(candidates, options.Level, options.SkillLevel, options.NormalAttackLevel);
+            PrepareCharacters(candidates, options.Level, options.SkillLevel, options.NormalAttackLevel, rng);
             _characters.AddRange(candidates);
 
             WriteLine("--- 游戏开始 ---");
@@ -338,7 +380,7 @@ public sealed class SoloGameSession : IDisposable
             List<Character> red = [];
             if (options.TeamMode)
             {
-                (blue, red) = BuildTeams(player, candidates, options.TeamSize);
+                (blue, red) = BuildTeams(player, candidates, options.TeamSize, rng);
                 _playerTeamName = BlueTeamName;
             }
 
@@ -367,7 +409,7 @@ public sealed class SoloGameSession : IDisposable
                 WriteLine($"[ {RedTeamName} ]：{string.Join(" / ", red.Select(c => c.ToString()))}");
                 WriteLine("");
             }
-            if (options.Seed is int seed) WriteLine($"[种子] 本局使用固定随机种子 {seed}（同种子对局可复现）。");
+            if (options.Seed is int seed) WriteLine($"[种子] 本局使用固定随机种子 {seed}（抽人 / 技能 / 出生格 / 分队与整局结算全程可复现）。");
             queue.IsDebug = true;
             queue.LoadGameMap(new SoloMap());
             queue.UseQueueProtected = false;
@@ -391,7 +433,7 @@ public sealed class SoloGameSession : IDisposable
                     List<Grid> free = [.. pool.Where(g => !allocated.Contains(g))];
                     if (free.Count == 0) free = [.. ordered.Where(g => !allocated.Contains(g))];
                     if (free.Count == 0) free = ordered;
-                    Grid grid = free[Random.Shared.Next(free.Count)];
+                    Grid grid = free[rng.Next(free.Count)];
                     allocated.Add(grid);
                     map.SetCharacterCurrentGrid(character, grid);
                 }
@@ -432,7 +474,7 @@ public sealed class SoloGameSession : IDisposable
                 effects.Add(effectID, effectID > (long)EffectID.Active_Start);
             }
             int maxRound = options.MaxRound;
-            queue.InitRoundRewards(maxRound, 1, effects, id => roundRewards[(EffectID)id]);
+            queue.InitRoundRewards(effects, false, id => roundRewards[(EffectID)id]);
 
             Send(SoloMessageTypes.GamingStart, new
             {
@@ -609,6 +651,8 @@ public sealed class SoloGameSession : IDisposable
         Running = false;
         Finished = true;
         FlushState();
+        // 收尾时把还没答的决策一并作废，否则客户端会一直等一条永远不会来的请求
+        DropPendingDecisions("对局结束");
         Send(SoloMessageTypes.GamingOver, new
         {
             gameId = Id,
@@ -643,18 +687,19 @@ public sealed class SoloGameSession : IDisposable
     /// 其余为对手。玩家所在队恒命名为「蓝队」（己方固定为蓝色），对方为「红队」。
     /// </summary>
     private static (List<Character> Blue, List<Character> Red) BuildTeams(
-        Character player, List<Character> candidates, int teamSize)
+        Character player, List<Character> candidates, int teamSize, Random random)
     {
         int size = Math.Clamp(teamSize, 1, Math.Max(1, candidates.Count / 2));
         List<Character> others = [.. candidates
             .Where(c => !ReferenceEquals(c, player))
-            .OrderBy(_ => Random.Shared.Next())];
+            .OrderBy(_ => random.Next())];
         List<Character> mine = [player, .. others.Take(Math.Max(0, size - 1))];
         List<Character> theirs = [.. others.Skip(Math.Max(0, size - 1)).Take(size)];
         return (mine, theirs);
     }
 
-    private static void PrepareCharacters(List<Character> characters, int level, int skillLevel, int attackLevel)
+    private static void PrepareCharacters(
+        List<Character> characters, int level, int skillLevel, int attackLevel, Random random)
     {
         foreach (Character c in characters)
         {
@@ -662,21 +707,21 @@ public sealed class SoloGameSession : IDisposable
             c.NormalAttack.Level = attackLevel;
             FunGameService.AddCharacterSkills(c, 1, skillLevel, skillLevel);
 
-            foreach (Skill s in FunGameService.Skills.OrderBy(_ => Random.Shared.Next()).Take(3))
+            foreach (Skill s in FunGameService.Skills.OrderBy(_ => random.Next()).Take(3))
             {
                 Skill copy = s.Copy();
                 copy.Character = c;
                 copy.Level = skillLevel;
                 c.Skills.Add(copy);
             }
-            foreach (Skill p in FunGameService.CommonPassiveSkills.OrderBy(_ => Random.Shared.Next()).Take(3))
+            foreach (Skill p in FunGameService.CommonPassiveSkills.OrderBy(_ => random.Next()).Take(3))
             {
                 Skill copy = p.Copy();
                 copy.Character = c;
                 copy.Level = 1;
                 c.Skills.Add(copy);
             }
-            foreach (Skill s in FunGameService.CommonSuperSkills.OrderBy(_ => Random.Shared.Next()).Take(3))
+            foreach (Skill s in FunGameService.CommonSuperSkills.OrderBy(_ => random.Next()).Take(3))
             {
                 Skill copy = s.Copy();
                 copy.Character = c;
@@ -801,6 +846,18 @@ public sealed class SoloGameSession : IDisposable
             return CharacterActionType.None; // 交给 AI
         }
         Character actor = ctx.Trigger!;
+        // ---- 普通攻击「现在到底打不打得到」的权威口径 ----
+        // ctx.Enemys 是「攻击可达 ∪ 施法可达」的并集：敌人只在施法射程内时它也在列表里，
+        // 但此时提交普通攻击必然被引擎作废（OnSelectNormalAttackTargets 返回空 → 本次行动作废），
+        // 客户端只能白提交一轮。这里用引擎在选普攻目标前自己用的那一步收窄一次
+        // （见 GamingQueue.cs 的 NormalAttack 分支：GetGridsByRange(realGrid, character.ATR, true)），
+        // 得出的集合与引擎随后计算的 enemys 完全一致，客户端据此就能精确判断。
+        Grid? actorGrid = _map?.GetCharacterCurrentGrid(actor);
+        HashSet<Character> inAttackRange = actorGrid is null || _map is null
+            ? []
+            : [.. _map.GetGridsByRange(actorGrid, actor.ATR, true).SelectMany(g => g.Characters)];
+        List<Character> attackTargets = [.. ctx.Enemys.Where(inAttackRange.Contains)];
+
         JsonElement? res = RequestDecision(DecisionKind.ActionType, new
         {
             actorGuid = actor.Guid.ToString(),
@@ -817,7 +874,10 @@ public sealed class SoloGameSession : IDisposable
             enemys = ctx.Enemys.Select(c => c.Guid.ToString()).ToList(),
             teammates = ctx.Teammates.Select(c => c.Guid.ToString()).ToList(),
             enemyOptions = ctx.Enemys.Select(c => ToTargetOption(c, actor)).ToList(),
-            teammateOptions = ctx.Teammates.Select(c => ToTargetOption(c, actor)).ToList()
+            teammateOptions = ctx.Teammates.Select(c => ToTargetOption(c, actor)).ToList(),
+            // 普攻可达目标（严格 ATR 口径）：为空即普通攻击必然作废，客户端应直接禁用按钮
+            attackTargets = attackTargets.Select(c => ToTargetOption(c, actor)).ToList(),
+            canNormalAttack = attackTargets.Count > 0
         });
 
         if (res is not null && res.Value.TryGetProperty("actionType", out JsonElement a))
@@ -1362,7 +1422,7 @@ public sealed class SoloGameSession : IDisposable
         Dictionary<string, List<string>> rewards = [];
         if (_queue is not null)
         {
-            foreach (KeyValuePair<int, List<Skill>> kv in _queue.RoundRewards)
+            foreach (KeyValuePair<int, IReadOnlyList<Skill>> kv in _queue.RoundRewards)
             {
                 rewards[kv.Key.ToString()] = [.. kv.Value.Select(s => s.Name.Replace("[R]", "").Trim())];
             }

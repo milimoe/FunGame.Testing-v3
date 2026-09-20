@@ -314,7 +314,7 @@ namespace Milimoe.FunGameTesting.Tests
                         }
                         effects.Add(effectID, isActive);
                     }
-                    actionQueue.InitRoundRewards(maxRound, 1, effects, id => roundRewards[(EffectID)id]);
+                    actionQueue.InitRoundRewards(effects, false, id => roundRewards[(EffectID)id]);
 
                     int i = 1;
                     while (i < maxRound)
