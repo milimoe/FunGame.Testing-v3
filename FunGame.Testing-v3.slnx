@@ -6,4 +6,5 @@
     <Project Path="OshimaGameModules/OshimaGameModules.csproj" />
   </Folder>
   <Project Path="../FunGame.Core/FunGame.Core.csproj" />
+  <Project Path="MinGameTestConsole/MinGameTestConsole.csproj" Id="d990af97-5d27-42be-9752-547d533b136f" />
 </Solution>
