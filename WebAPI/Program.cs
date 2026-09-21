@@ -163,7 +163,8 @@ app.MapGet("/api/rounds/summary", async (int? from, int? to, ArchiveStore store,
             record.Actions?.Count ?? 0,
             record.Effects.Sum(kv => kv.Value.Count) + record.ApplyEffects.Sum(kv => kv.Value.Count),
             record.Checkpoint is { Count: > 0 },
-            record.TotalTime
+            record.TotalTime,
+            record.RoundRewardEvents.Count
         ));
     }
     return Results.Ok(list);
@@ -261,7 +262,8 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
         DateTime start = DateTime.Now;
 
         // 模拟方法内部无真实 await（同步 CPU 密集），用 Task.Run 释放请求线程
-        List<string> messages = await Task.Run(async () => await FunGameSimulation.StartSimulationGame(new SimulationOptions { IsTeam = true }), ct);
+        // BindToCharacter：启用「角色绑定的回合奖励」，否则【命运XX】系技能（抢夺/剥夺/馈赠）与【强运】全部静默失效
+        List<string> messages = await Task.Run(async () => await FunGameSimulation.StartSimulationGame(new SimulationOptions { IsTeam = true, BindToCharacter = true }), ct);
         double elapsed = (DateTime.Now - start).TotalSeconds;
 
         // 模拟把 rounds_archive.zip 写到了进程工作目录，归位到存档路径
@@ -523,7 +525,7 @@ app.Run();
 record CharacterRefDto(string Guid, string Name, string FirstName, string NickName, string UserName);
 record TeamDto(string Id, string Name, double Score, bool IsWinner, List<CharacterRefDto> Members);
 record MetaDto(int RoundCount, double TotalTime, string Mode, DateTime ZipUpdated, List<CharacterRefDto> Characters, List<TeamDto> Teams, int Seed);
-record RoundSummaryDto(int Round, string ActorGuid, string ActorName, bool HasKill, double DamageTotal, double HealTotal, int ActionCount, int EffectCount, bool HasCheckpoint, double TotalTime);
+record RoundSummaryDto(int Round, string ActorGuid, string ActorName, bool HasKill, double DamageTotal, double HealTotal, int ActionCount, int EffectCount, bool HasCheckpoint, double TotalTime, int RewardCount);
 record StatRowDto(string Guid, string Name, string NickName, string TeamName, double Rating, int Kills, int Deaths, int Assists, double TotalDamage, double TotalHeal, double TotalShield, double Winrate, int MVPs, int LastRank, double AvgRank, int LiveRound, int TotalEarnedMoney, double DamagePerRound, double DamagePerSecond, double ControlTime);
 record StatsDto(int RoundCount, double TotalTime, string Mode, string MvpName, double MvpRating, List<StatRowDto> Rows, List<TeamDto> Teams);
 

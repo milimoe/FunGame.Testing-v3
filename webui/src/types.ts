@@ -116,6 +116,8 @@ export interface RoundRecord {
   RespawnCountdowns: Record<string, number>
   Respawns: CharacterRef[]
   RoundRewards: SkillRef[]
+  // 本回合的回合奖励事件流（发放 / 移除 / 夺取；旧档无此字段）
+  RoundRewardEvents?: RoundRewardEvent[]
   OtherMessages: string[]
   Actions: ActionRecord[]
   // 本回合全部询问（含各行动内的询问；旧档无此字段）
@@ -125,6 +127,25 @@ export interface RoundRecord {
   GameResult: RankingEntry[]
   TeamMap: Record<string, string>
   CharacterStatistics: Record<string, CharacterStatistics> | null
+}
+
+// ===== 回合奖励事件（RoundRewardRecord，RoundRewardRecordHelper 输出格式）=====
+// Kind: 0=发放 1=移除 2=夺取；Binding: 0=全局回合 1=角色行动回合
+export const ROUND_REWARD_KIND = { GAINED: 0, LOST: 1, STOLEN: 2 } as const
+export const ROUND_REWARD_BINDING = { ROUND: 0, CHARACTER: 1 } as const
+
+export interface RoundRewardEvent {
+  Kind: number
+  Binding: number
+  // 奖励键：Binding=0 时为全局回合；Binding=1 时为该角色的行动回合序号
+  TurnKey: number
+  // 归属角色：Kind=0/1 为奖励归属方；Kind=2 为原持有者
+  Character: CharacterRef
+  // 对方角色：仅 Kind=2 有值（夺取者）
+  Counterpart: CharacterRef | null
+  Skills: SkillRef[]
+  // 是否为「吟唱回合顺延到结算回合」的被动奖励
+  IsCarryOver: boolean
 }
 
 // ===== 状态快照（CharacterStateSnapshot）=====
@@ -293,6 +314,8 @@ export interface RoundSummaryDto {
   effectCount: number
   hasCheckpoint: boolean
   totalTime: number
+  // 本回合的回合奖励事件条数（旧档为 0）
+  rewardCount: number
 }
 
 // 注意：后端 camelCase 策略把 C# 的 MVPs 转成了 mvPs

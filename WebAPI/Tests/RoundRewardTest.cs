@@ -1,10 +1,13 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.Queue;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.OshimaGameModules.Characters;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
+using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
+using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
 namespace Milimoe.FunGameTesting.Tests
 {
@@ -24,7 +27,75 @@ namespace Milimoe.FunGameTesting.Tests
             TestCharacterBoundTableApi();
             TestSummonRewardRedirectToMaster();
             TestSummonDoesNotConsumeCharacterReward();
+            TestFateSkillsAndEventStream();
             Console.WriteLine($"回合奖励回归测试完成：{(_failures == 0 ? "全部通过" : $"{_failures} 个断言失败")}");
+        }
+
+        /// <summary>
+        /// 场景6：【命运XX】+【强运】—— 模组侧对回合奖励 API 的实际用法，以及事件流是否把每一步都记全
+        /// <para/>覆盖：命运馈赠（绑定角色奖励）→ 抢夺命运（夺取）→ 命运剥夺（整键位摧毁）→ 十二宫星环【强运】（回合结束生成）
+        /// → 调度到实际发放（抢来的奖励在夺取者行动时到手）</para>
+        /// <para/>这些技能在大池子里随机分配、CD 又长，随机模拟里基本撞不上，必须在此确定性覆盖</para>
+        /// </summary>
+        private static void TestFateSkillsAndEventStream()
+        {
+            OshimaShiya caster = new();
+            XinYin target = new();
+            List<string> log = [];
+            MixGamingQueue queue = CreateQueue([caster, target], log);
+            queue.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, true, id => new() { { "exatk", 60d } });
+
+            // ---- 1) 命运馈赠：为目标绑定一份「命运之赐」到其未来第 1 个行动回合 ----
+            命运馈赠 gift = new();
+            gift.OnSkillCasted(queue, caster, [target], []);
+            Check(queue.QueryRoundRewards(target, 1).Any(s => s is 命运之赐), "命运馈赠：目标下一行动回合已绑定奖励");
+            Check(!queue.LastRound.RoundRewardEvents.Any(e => e.Kind == RoundRewardEventKind.Gained),
+                "调度（AddRoundReward）不产生「获得」事件，避免同一条奖励被记两次");
+
+            // ---- 2) 抢夺命运：把目标那份奖励夺过来 ----
+            抢夺命运 steal = new();
+            steal.OnSkillCasted(queue, caster, [target], []);
+            bool targetLost = !queue.QueryRoundRewards(target, 1).Any(s => s is 命运之赐);
+            bool thiefGot = queue.QueryRoundRewards(caster, 1).Any(s => s is 命运之赐);
+            RoundRewardRecord? stolenEvent = queue.LastRound.RoundRewardEvents.LastOrDefault(e => e.Kind == RoundRewardEventKind.Stolen);
+            Check(targetLost && thiefGot, "抢夺命运：奖励已从目标转移到夺取者下个行动回合");
+            Check(stolenEvent is not null
+                && ReferenceEquals(stolenEvent.Character, target)
+                && ReferenceEquals(stolenEvent.Counterpart, caster)
+                && stolenEvent.Skills.Any(s => s is 命运之赐),
+                "事件流：夺取事件记录了原持有者、夺取者与被夺奖励");
+
+            // ---- 3) 调度 → 实际发放：夺取者行动时，抢来的奖励真正到手（主动奖励被立即释放） ----
+            queue.LastRound.RoundRewardEvents.Clear();
+            queue.ProcessTurn(caster);
+            Check(queue.LastRound.RoundRewardEvents.Any(e => e.Kind == RoundRewardEventKind.Gained && e.Skills.Any(s => s is 命运之赐)),
+                "调度到发放：夺取者行动时抢来的奖励被发放（产生获得事件）");
+
+            // ---- 4) 命运剥夺：一次性清空目标该键位的全部奖励 ----
+            命运馈赠 gift2 = new();
+            gift2.OnSkillCasted(queue, caster, [target], []);
+            int beforeDeprive = queue.QueryRoundRewards(target, 1).Count;
+            queue.LastRound.RoundRewardEvents.Clear();
+            命运剥夺 deprive = new();
+            deprive.OnSkillCasted(queue, caster, [target], []);
+            Check(beforeDeprive > 0 && queue.QueryRoundRewards(target, 1).Count == 0,
+                "命运剥夺：目标该键位的奖励被整键位清除", $"剥夺前 {beforeDeprive} 条");
+            Check(queue.LastRound.RoundRewardEvents.Any(e => e.Kind == RoundRewardEventKind.Lost),
+                "事件流：剥夺产生了移除事件");
+
+            // ---- 5) 十二宫星环【强运】：目标回合结束时随机生成 2~3 份绑定自身的奖励 ----
+            // 注意必须给技能设等级：Effect.IsInEffect => Level > 0，等级为 0 时【强运】会被回合结束钩子跳过
+            十二宫星环 zodiac = new() { Level = 1 };
+            zodiac.OnSkillCasted(queue, caster, [target], []);
+            Check(target.Effects.Any(e => e is 强运), "十二宫星环：已为目标附加【强运】");
+            HashSet<Skill> beforeLuck = [.. queue.QueryRoundRewards(target, 1)];
+            log.Clear();
+            queue.ProcessTurn(target);
+            List<Skill> luckAdded = [.. queue.QueryRoundRewards(target, 1).Where(s => !beforeLuck.Contains(s))];
+            bool luckLogged = log.Any(l => l.Contains("受到强运眷顾"));
+            Check(luckLogged, "强运：目标回合结束时确实触发了奖励生成");
+            Check(luckAdded.Count >= 强运.最小生成数量 && luckAdded.Count <= 强运.最大生成数量 + 1,
+                "强运：生成了 2~3 份绑定目标自身的奖励（+1 容差为队列自身的稀疏生成）", $"新增 {luckAdded.Count} 份");
         }
 
         /// <summary>
@@ -325,7 +396,9 @@ namespace Milimoe.FunGameTesting.Tests
         /// <summary>
         /// 创建混战模式队列（全角色 AI 托管）
         /// </summary>
-        private static MixGamingQueue CreateQueue(List<Character> characters)
+        /// <param name="characters">参战角色</param>
+        /// <param name="log">可选：收集队列日志（用于断言技能侧的提示文案）</param>
+        private static MixGamingQueue CreateQueue(List<Character> characters, List<string>? log = null)
         {
             foreach (Character c in characters)
             {
@@ -334,7 +407,7 @@ namespace Milimoe.FunGameTesting.Tests
                 c.HP = c.MaxHP;
                 c.MP = c.MaxMP;
             }
-            MixGamingQueue queue = new(characters, _ => { })
+            MixGamingQueue queue = new(characters, log is null ? _ => { } : log.Add)
             {
                 MaxRespawnTimes = 1,
                 UseQueueProtected = false

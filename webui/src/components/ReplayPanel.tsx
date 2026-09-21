@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchRound, fetchSummary } from '../api'
-import type { ActionRecord, CharacterRef, InquiryRecord, RoundRecord, RoundSummaryDto } from '../types'
+import type { ActionRecord, CharacterRef, InquiryRecord, RoundRecord, RoundSummaryDto, SkillRef } from '../types'
+import { ROUND_REWARD_BINDING, ROUND_REWARD_KIND } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, HBar, Section, Spinner } from './ui'
 import {
   ACTION_TYPE_ICONS,
@@ -261,6 +262,7 @@ function RoundHeader({ record, summary }: { record: RoundRecord; summary?: Round
           {record.Checkpoint && record.Checkpoint.length > 0 && <Badge tone="cyan">📋 状态快照</Badge>}
           {summary && summary.actionCount > 0 && <Badge tone="indigo">{summary.actionCount} 次行动</Badge>}
           {summary && summary.effectCount > 0 && <Badge tone="green">{summary.effectCount} 条特效记录</Badge>}
+          {summary && summary.rewardCount > 0 && <Badge tone="amber">🎁 {summary.rewardCount} 条奖励事件</Badge>}
         </div>
       </div>
     </div>
@@ -564,25 +566,84 @@ function CostLine({ action }: { action: ActionRecord }) {
 
 // ===== 回合奖励（独立成区：奖励与击杀无关，不能挂在 KillSection 的显示条件下）=====
 function RewardSection({ record, skillDesc }: { record: RoundRecord; skillDesc: Map<number, string> }) {
+  const events = record.RoundRewardEvents ?? []
   const rewards = record.RoundRewards ?? []
-  if (rewards.length === 0) return null
+
+  // 无事件流（旧存档 / 未记录）时退化为旧版展示：只列本回合发放的奖励
+  if (events.length === 0) {
+    if (rewards.length === 0) return null
+    return (
+      <Section title="回合奖励" subtitle="旧存档：仅记录本回合发放的奖励">
+        <div className="space-y-2">
+          {rewards.map((s, i) => (
+            <RewardSkillCard key={`rw${i}`} skill={s} desc={s.Description || skillDesc.get(s.Id)} />
+          ))}
+        </div>
+      </Section>
+    )
+  }
+
+  const gained = events.filter(e => e.Kind === ROUND_REWARD_KIND.GAINED).length
+  const lost = events.filter(e => e.Kind === ROUND_REWARD_KIND.LOST).length
+  const stolen = events.filter(e => e.Kind === ROUND_REWARD_KIND.STOLEN).length
+  const parts = [
+    gained > 0 ? `获得 ${gained}` : '',
+    stolen > 0 ? `夺取 ${stolen}` : '',
+    lost > 0 ? `移除 ${lost}` : '',
+  ].filter(Boolean)
+
   return (
-    <Section title="回合奖励">
+    <Section title="回合奖励" subtitle={parts.join(' · ')}>
       <div className="space-y-2">
-        {rewards.map((s, i) => {
-          // 优先用数据自带的描述（奖励技能只在本回合存在，检查点描述索引里通常没有它），退化到检查点索引
-          const desc = s.Description || skillDesc.get(s.Id)
-          return (
-            <div key={`rw${i}`} className="rounded-lg bg-emerald-50/80 p-2.5">
-              <p className="text-sm text-emerald-700">
-                {s.Name} <span className="text-xs text-emerald-500">(#{s.Id})</span>
-              </p>
-              {desc ? <DescText text={desc} /> : null}
+        {events.map((event, i) => (
+          <div key={`re${i}`} className={`rounded-lg p-2.5 ${rewardTone(event.Kind).box}`}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge tone={rewardTone(event.Kind).badge}>{rewardKindName(event.Kind)}</Badge>
+              <span className={`text-xs ${rewardTone(event.Kind).meta}`}>
+                {event.Character?.NickName || event.Character?.Name}
+                {event.Kind === ROUND_REWARD_KIND.STOLEN
+                  ? <> 的回合奖励被 <b>{event.Counterpart?.NickName || event.Counterpart?.Name}</b> 夺取</>
+                  : ''}
+              </span>
+              <Badge tone={event.Binding === ROUND_REWARD_BINDING.CHARACTER ? 'cyan' : 'slate'}>
+                {event.Binding === ROUND_REWARD_BINDING.CHARACTER ? `行动回合 ${event.TurnKey}` : `全局回合 ${event.TurnKey}`}
+              </Badge>
+              {event.IsCarryOver && <Badge tone="indigo">顺延结算</Badge>}
             </div>
-          )
-        })}
+            <div className="mt-1.5 space-y-1.5">
+              {(event.Skills ?? []).map((s, j) => (
+                <RewardSkillCard key={`res${i}-${j}`} skill={s} desc={s.Description || skillDesc.get(s.Id)} muted={event.Kind === ROUND_REWARD_KIND.LOST} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </Section>
+  )
+}
+
+// ===== 奖励事件类型 -> 展示名与配色 =====
+function rewardKindName(kind: number): string {
+  if (kind === ROUND_REWARD_KIND.GAINED) return '获得'
+  if (kind === ROUND_REWARD_KIND.STOLEN) return '夺取'
+  return '移除'
+}
+
+function rewardTone(kind: number): { box: string; badge: 'green' | 'amber' | 'slate'; meta: string } {
+  if (kind === ROUND_REWARD_KIND.GAINED) return { box: 'bg-emerald-50/80', badge: 'green', meta: 'text-emerald-700' }
+  if (kind === ROUND_REWARD_KIND.STOLEN) return { box: 'bg-amber-50/80', badge: 'amber', meta: 'text-amber-700' }
+  return { box: 'bg-slate-50', badge: 'slate', meta: 'text-slate-500' }
+}
+
+// ===== 单条奖励技能（名称 + 描述）=====
+function RewardSkillCard({ skill, desc, muted = false }: { skill: SkillRef; desc?: string; muted?: boolean }) {
+  return (
+    <div>
+      <p className={`text-sm ${muted ? 'text-slate-500' : 'text-slate-700'}`}>
+        {skill.Name} <span className="text-xs text-slate-400">(#{skill.Id})</span>
+      </p>
+      {desc ? <DescText text={desc} /> : null}
+    </div>
   )
 }
 

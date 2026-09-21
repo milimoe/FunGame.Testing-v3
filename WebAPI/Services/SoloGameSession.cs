@@ -470,7 +470,8 @@ public sealed class SoloGameSession : IDisposable
             Dictionary<EffectID, Dictionary<string, object>> roundRewards = RoundRewardPool.Create(queue.Random);
             Dictionary<long, bool> effects = RoundRewardPool.BuildEffectMap(roundRewards.Keys);
             int maxRound = options.MaxRound;
-            queue.InitRoundRewards(effects, false, id => roundRewards[(EffectID)id]);
+            // 启用「角色绑定的回合奖励」：单人模式同样需要它，否则【命运XX】系技能与【强运】全部静默失效
+            queue.InitRoundRewards(effects, true, id => roundRewards[(EffectID)id]);
 
             Send(SoloMessageTypes.GamingStart, new
             {
