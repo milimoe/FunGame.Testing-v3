@@ -46,10 +46,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double ATKCoefficient => 0.45 + 0.12 * (Skill.Level - 1);
         public double Damage => (Skill.Character?.ATK ?? 0) * ATKCoefficient;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
-        public double 持续时间 => 5 + 2 * (Skill.Level - 1);
+        // 重标：气绝持续 15 → 10 秒（L6）
+        public double 持续时间 => 5 + 1 * (Skill.Level - 1);
         public double 概率 => 0.2 + 0.05 * (Skill.Level - 1);
-        public double ActualProbability => Math.Min(0.5, 概率);
-        public double 气绝流失 => 0.02 + 0.005 * (Skill.Level - 1);
+        // 重标：强控概率上限 50% → 40%
+        public double ActualProbability => Math.Min(0.4, 概率);
+        // 重标：当前生命流失 4.5% → 3%（L6）
+        public double 气绝流失 => 0.015 + 0.003 * (Skill.Level - 1);
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {

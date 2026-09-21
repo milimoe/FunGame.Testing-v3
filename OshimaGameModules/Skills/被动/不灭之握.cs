@@ -40,7 +40,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
     {
         public override long Id => Skill.Id;
         public override string Name => Skill.Name;
-        public override string Description => $"每 {冷却时间:0.##} {GameplayEquilibriumConstant.InGameTime}，下一次普通攻击将额外造成自身最大生命值 {伤害系数 * 100:0.##}% [ {Skill.Character?.MaxHP * 伤害系数:0.##} ] 的伤害，并回复自身 {回复系数 * 100:0.##}% [ {Skill.Character?.MaxHP * 回复系数:0.##} ] 最大生命值，同时永久提升 {永久生命提升:0.##} 点最大生命值。" +
+        public override string Description => $"每 {冷却时间:0.##} {GameplayEquilibriumConstant.InGameTime}，下一次普通攻击将额外造成自身最大生命值 {伤害系数 * 100:0.##}% [ {Skill.Character?.MaxHP * 伤害系数:0.##} ] 的伤害，并回复自身 {回复系数 * 100:0.##}% [ {Skill.Character?.MaxHP * 回复系数:0.##} ] 最大生命值，同时永久提升 {永久生命提升:0.##} 点最大生命值（累计上限 {永久提升上限:0.##} 点，为基础生命值的 10%）。" +
             (CSkill?.永久提升累计 > 0 ? $"（当前已累计提升 {CSkill.永久提升累计:0.##} 点最大生命值）" : "");
 
         public 不灭之握? CSkill => Skill as 不灭之握;
@@ -52,6 +52,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 伤害系数 => Skill.Character != null ? 0.04 + Skill.Character.Level * 0.0006 : 0.04;
         private double 回复系数 => Skill.Character != null ? 0.02 + Skill.Character.Level * 0.0003 : 0.02;
         private double 永久生命提升 => Skill.Character != null ? 8 + Skill.Character.Level * 0.3 : 8;
+
+        /// <summary>
+        /// 重标：永久提升的硬上限 = 基础生命值(BaseHP) 的 10%（原为无上限永久成长）
+        /// </summary>
+        private double 永久提升上限 => Skill.Character != null ? Skill.Character.BaseHP * 0.1 : 0;
 
         public override void OnEffectGained(HookContext ctx)
         {
@@ -72,7 +77,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             double 额外伤害 = character.MaxHP * 伤害系数;
             double 回复量 = character.MaxHP * 回复系数;
             double 永久提升 = 永久生命提升;
-            if (CSkill != null) CSkill.永久提升累计 += 永久提升;
+            if (CSkill != null)
+            {
+                // 重标：受「基础生命值 10%」硬上限约束，超出后不再累积
+                double 剩余额度 = Math.Max(0, 永久提升上限 - CSkill.永久提升累计);
+                永久提升 = Math.Min(永久提升, 剩余额度);
+                CSkill.永久提升累计 += 永久提升;
+            }
             刷新(character);
             WriteLine($"[ {character} ] 发动了不灭之握！额外造成 {额外伤害:0.##} 点伤害，回复 {回复量:0.##} 点生命值，并永久提升了 {永久提升:0.##} 点最大生命值（累计 {CSkill?.永久提升累计:0.##} 点）！");
             HealToTarget(character, character, 回复量);

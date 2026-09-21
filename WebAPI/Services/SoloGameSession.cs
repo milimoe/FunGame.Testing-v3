@@ -7,6 +7,7 @@ using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
 using FunGame.Core.Model.Queue;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
+using Milimoe.FunGameTesting.Others;
 using Milimoe.FunGameTesting.Tests;
 
 namespace FunGame.Testing.WebAPI.Services;
@@ -466,13 +467,8 @@ public sealed class SoloGameSession : IDisposable
 
             // ---- 回合奖励 ----
             // 只取一次随机结果并存下来：随机源跟随本局队列种子（同种子可复现）
-            Dictionary<EffectID, Dictionary<string, object>> roundRewards = FunGameService.GetRoundRewards(queue.Random);
-            Dictionary<long, bool> effects = [];
-            foreach (EffectID id in roundRewards.Keys)
-            {
-                long effectID = (long)id;
-                effects.Add(effectID, effectID > (long)EffectID.Active_Start);
-            }
+            Dictionary<EffectID, Dictionary<string, object>> roundRewards = RoundRewardPool.Create(queue.Random);
+            Dictionary<long, bool> effects = RoundRewardPool.BuildEffectMap(roundRewards.Keys);
             int maxRound = options.MaxRound;
             queue.InitRoundRewards(effects, false, id => roundRewards[(EffectID)id]);
 

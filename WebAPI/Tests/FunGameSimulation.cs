@@ -44,11 +44,21 @@ namespace Milimoe.FunGameTesting.Tests
         /// </summary>
         public static Random Random { get; private set; } = new();
 
-        public static async Task<List<string>> StartSimulationGame(bool printout, bool isWeb = false, bool isTeam = false, bool deathMatchRoundDetail = false, int maxRespawnTimesMix = 1, bool useStore = false, bool hasMap = false, bool isDebug = false)
+        public static async Task<List<string>> StartSimulationGame(SimulationOptions options)
         {
-            PrintOut = printout;
-            IsWeb = isWeb;
-            DeathMatchRoundDetail = deathMatchRoundDetail;
+            PrintOut = options.PrintOut;
+            IsWeb = options.IsWeb;
+            DeathMatchRoundDetail = options.DeathMatchRoundDetail;
+
+            // 展开为局部变量：方法体其余部分沿用旧参数名，保持最小改动
+            bool isWeb = options.IsWeb;
+            bool isTeam = options.IsTeam;
+            bool deathMatchRoundDetail = options.DeathMatchRoundDetail;
+            int maxRespawnTimesMix = options.MaxRespawnTimesMix;
+            bool useStore = options.UseStore;
+            bool hasMap = options.HasMap;
+            bool isDebug = options.IsDebug;
+
             try
             {
                 if (IsRuning) return ["游戏正在模拟中，请勿重复请求！"];
@@ -221,7 +231,7 @@ namespace Milimoe.FunGameTesting.Tests
                             // 创建角色的用户，用于绑定金币
                             User user = new()
                             {
-                                Username = FunGameService.GenerateRandomChineseUserName(actionQueue.Random)
+                                Username = RandomNames.GenerateRandomChineseUserName(actionQueue.Random)
                             };
                             user.Inventory.Credits = 20;
                             Character thisCharacter = shuffledCharacters[cid];
@@ -300,21 +310,11 @@ namespace Milimoe.FunGameTesting.Tests
                     // 总回合数
                     int maxRound = 9999;
 
-                    // 随机回合奖励
-                    // 只取一次随机结果并存下来：原实现每次访问 RoundRewards 属性都会新建一份（Keys 与取值来自不同实例）
-                    Dictionary<EffectID, Dictionary<string, object>> roundRewards = FunGameService.GetRoundRewards(actionQueue.Random);
-                    Dictionary<long, bool> effects = [];
-                    foreach (EffectID id in roundRewards.Keys)
-                    {
-                        long effectID = (long)id;
-                        bool isActive = false;
-                        if (effectID > (long)EffectID.Active_Start)
-                        {
-                            isActive = true;
-                        }
-                        effects.Add(effectID, isActive);
-                    }
-                    actionQueue.InitRoundRewards(effects, false, id => roundRewards[(EffectID)id]);
+                    // 随机回合奖励（特效池已迁入模组公共区域 RoundRewardPool）
+                    // 只取一次随机结果并存下来：Keys 与取值必须来自同一份实例
+                    Dictionary<EffectID, Dictionary<string, object>> roundRewards = RoundRewardPool.Create(actionQueue.Random);
+                    Dictionary<long, bool> effects = RoundRewardPool.BuildEffectMap(roundRewards.Keys);
+                    actionQueue.InitRoundRewards(effects, options.BindToCharacter, id => roundRewards[(EffectID)id]);
 
                     int i = 1;
                     while (i < maxRound)

@@ -43,7 +43,7 @@ FunGameSimulation.PrintOut = false;
 
 Console.WriteLine($"[{label0}] starting {(isTeam ? "team" : "mix")} simulation...");
 DateTime sw = DateTime.Now;
-List<string> messages = await FunGameSimulation.StartSimulationGame(false, false, isTeam, false, hasMap: false);
+List<string> messages = await FunGameSimulation.StartSimulationGame(new SimulationOptions { IsTeam = isTeam });
 Console.WriteLine($"[{label0}] simulation done in {(DateTime.Now - sw).TotalSeconds:F1}s, messages={messages.Count}");
 
 string zipPath = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "rounds_archive.zip"));

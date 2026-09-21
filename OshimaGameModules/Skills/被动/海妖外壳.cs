@@ -27,13 +27,28 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
     {
         public override long Id => Skill.Id;
         public override string Name => Skill.Name;
-        public override string Description => $"每 {再生间隔:0.##} {GameplayEquilibriumConstant.InGameTime}生成一次 {护盾值:0.##} 点混合护盾（自身护盾破碎后才再生）；护盾破碎时，立即强驱散自身身上的减益效果。";
+        /// <summary>
+        /// 强驱散：护盾破碎时对自身执行强驱散（参照 <see cref="Effects.SkillEffects.强驱散特效"/> 的规范写法，
+        /// 由框架按 <see cref="DispelledType"/> 与 BlockDispel 钩子处理，不手动移除特效）
+        /// </summary>
+        public override DispelType DispelType => DispelType.Strong;
+        public override string Description => $"每 {再生间隔:0.##}{GameplayEquilibriumConstant.InGameTime}生成一次 {护盾值:0.##} 点混合护盾（自身护盾破碎后才再生）；" +
+            $"护盾破碎时，立即强驱散自身身上的减益效果（净化冷却 {净化冷却:0.##} {GameplayEquilibriumConstant.InGameTime}）。";
 
         private double 剩余再生 = 0;
         private bool 有壳 = false;
+        private double 剩余净化冷却 = 0;
 
-        private double 再生间隔 => Skill.Character != null ? 12 - Skill.Character.Level * 0.1 : 12;
-        private double 护盾值 => Skill.Character != null ? 120 + Skill.Character.Level * 12 : 120;
+        /// <summary>
+        /// 重标：破碎净化的内部冷却（20–30 秒区间，取 25）
+        /// </summary>
+        private const double 净化冷却 = 25;
+
+        // 重标：再生间隔固定 35 秒（原 12-0.1×Level，L58 = 6.2 秒，不足一个行动回合；参考饼干配送 38 秒）
+        private double 再生间隔 => 35;
+        // 重标：护盾量 = 15% 最大生命值（原固定数值 120+12×Level，跨等级与跨角色占比失衡）
+        private double 护盾值 => Skill.Character != null ? Skill.Character.MaxHP * 护盾百分比 : 0;
+        private const double 护盾百分比 = 0.15;
 
         public override void OnEffectGained(HookContext ctx)
         {
@@ -47,6 +62,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (ctx.Trigger is not Character character) return;
             if (Skill.Character == null || Skill.Character != character) return;
             剩余再生 -= ctx.Elapsed;
+            剩余净化冷却 = Math.Max(0, 剩余净化冷却 - ctx.Elapsed);
             if (剩余再生 <= 0 && !有壳)
             {
                 有壳 = true;
@@ -63,14 +79,15 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             if (Skill.Character == null || Skill.Character != character) return default;
             if (!有壳) return default;
             有壳 = false;
-            // 强驱散：清除自身所有减益
-            List<Effect> debuffs = character.Effects.Where(e => e != this && e.IsDebuff && !ReferenceEquals(e.Skill, Skill)).ToList();
-            foreach (Effect e in debuffs)
+            if (剩余净化冷却 > 0)
             {
-                character.Effects.Remove(e);
-                e.OnEffectLost(new HookContext(GamingQueue, character));
+                WriteLine($"[ {character} ] 的海妖外壳破碎了！净化效果冷却中，剩余 {剩余净化冷却:0.##} {GameplayEquilibriumConstant.InGameTime}。");
+                return default;
             }
-            WriteLine($"[ {character} ] 的海妖外壳破碎了，减益效果被清除！");
+            // 强驱散：交给框架处理（isEnemy=false → 清除自身减益），自动尊重 DispelledType 与 BlockDispel 钩子（受内部冷却限制）
+            Dispel(character, character, false);
+            剩余净化冷却 = 净化冷却;
+            WriteLine($"[ {character} ] 的海妖外壳破碎了，减益效果被清除！净化进入冷却 {净化冷却:0.##} {GameplayEquilibriumConstant.InGameTime}。");
             return default;
         }
     }

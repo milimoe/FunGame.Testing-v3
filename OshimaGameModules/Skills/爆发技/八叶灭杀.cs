@@ -33,7 +33,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double ATKCoefficient => 0.5 + 0.1 * (Skill.Level - 1);
         public double Damage => (Skill.Character?.ATK ?? 0) * ATKCoefficient;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
-        public double LostHPCoefficient => 0.2 + 0.05 * (Skill.Level - 1);
+        // 重标：已损失生命值真伤系数 45% → 12%（L6）
+        public double LostHPCoefficient => 0.04 + 0.016 * (Skill.Level - 1);
         public double ExtraTrueDamage(Character target) => Math.Max(0, target.MaxHP - target.HP) * LostHPCoefficient * (Improvement > 0 ? 1 + Improvement : 1);
 
         public override void OnSkillCasted(SkillCastContext ctx)

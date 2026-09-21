@@ -1,6 +1,7 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
+using FunGame.Core.Model.EffectResult;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
@@ -27,37 +28,23 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
     {
         public override long Id => Skill.Id;
         public override string Name => Skill.Name;
-        public override string Description => $"攻击敌人时，有 {触发概率 * 100:0.##}% 概率提升 {暴击伤害提升 * 100:0.##}% 暴击伤害，持续 {持续时间:0.##} {GameplayEquilibriumConstant.InGameTime}。";
+        public override string Description => $"在普通攻击暴击时，有 {触发概率 * 100:0.##}% 概率将伤害提升 {暴击伤害提升 * 100:0.##}%。";
 
-        private double 触发概率 => Skill.Character != null ? Math.Min(0.45, 0.2 + Skill.Character.Level * 0.005) : 0.2;
-        private double 暴击伤害提升 => Skill.Character != null ? 0.25 + Skill.Character.Level * 0.002 : 0.25;
-        private double 持续时间 => Skill.Character != null ? 4 + Skill.Character.Level * 0.05 : 4;
+        private double 触发概率 => 0.15;
+        private double 暴击伤害提升 => Skill.Character != null ? 0.2 + (Skill.Character.Level - 1) * 0.05 : 0.2;
 
-        public override void AfterDamageCalculation(DamageContext ctx)
+        public override AlterActualDamageResult AlterActualDamageAfterCalculation(DamageContext ctx)
         {
-            if (ctx.Trigger is not Character character || ctx.Enemy is not Character enemy) return;
-            if (Skill.Character == null || Skill.Character != character) return;
-            if (ctx.DamageResult != DamageResult.Normal && ctx.DamageResult != DamageResult.Critical) return;
-            if (Random.NextDouble() > 触发概率) return;
-            // 刷新自身暴击伤害提升
-            List<Effect> olds = character.Effects.Where(e => e is DynamicsEffect && e.Name == nameof(恩赐解脱) + "·暴伤").ToList();
-            foreach (Effect e in olds)
+            if (ctx.Trigger is not Character character || ctx.Trigger != Skill.Character) return default;
+            if (!ctx.IsNormalAttack || ctx.DamageResult != DamageResult.Critical) return default;
+            if (Random.NextDouble() > 触发概率) return default;
+            double damage = ctx.Damage;
+            double exDamage = damage * 暴击伤害提升;
+            WriteLine($"[ {character} ] 发动了恩赐解脱！伤害提升了 {暴击伤害提升 * 100:0.##}%，额外造成 {exDamage:0.##} 点伤害！");
+            return new()
             {
-                character.Effects.Remove(e);
-                e.OnEffectLost(new HookContext(GamingQueue, character));
-            }
-            WriteLine($"[ {character} ] 发动了恩赐解脱！暴击伤害提升了 {暴击伤害提升 * 100:0.##}%！");
-            Effect buff = new DynamicsEffect(Skill, new Dictionary<string, object>()
-            {
-                { "excrd", 暴击伤害提升 }
-            }, character)
-            {
-                Name = nameof(恩赐解脱) + "·暴伤",
-                Durative = true,
-                Duration = 持续时间
+                DamageDelta = exDamage
             };
-            character.Effects.Add(buff);
-            buff.OnEffectGained(new HookContext(GamingQueue, character));
         }
     }
 }

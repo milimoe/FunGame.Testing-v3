@@ -261,7 +261,7 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
         DateTime start = DateTime.Now;
 
         // 模拟方法内部无真实 await（同步 CPU 密集），用 Task.Run 释放请求线程
-        List<string> messages = await Task.Run(async () => await FunGameSimulation.StartSimulationGame(false, false, true, false, hasMap: false), ct);
+        List<string> messages = await Task.Run(async () => await FunGameSimulation.StartSimulationGame(new SimulationOptions { IsTeam = true }), ct);
         double elapsed = (DateTime.Now - start).TotalSeconds;
 
         // 模拟把 rounds_archive.zip 写到了进程工作目录，归位到存档路径

@@ -35,7 +35,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public double ATKCoefficient => 0.55 + 0.12 * (Skill.Level - 1);
         public double Damage => (Skill.Character?.ATK ?? 0) * ATKCoefficient;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
-        public int 持续时间 => Skill.Level >= 5 ? 2 : 1;
+        // 重标：全敌强控持续限定 1 回合（原 L5+ 为 2 回合）
+        public int 持续时间 => 1;
         public double 概率 => 0.15 + 0.03 * (Skill.Level - 1);
         public double ActualProbability => Math.Min(0.4, 概率);
 
