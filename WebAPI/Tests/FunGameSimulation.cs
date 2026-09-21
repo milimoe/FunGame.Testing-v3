@@ -33,6 +33,12 @@ namespace Milimoe.FunGameTesting.Tests
         public static int? SeedOverride { get; set; } = null;
 
         /// <summary>
+        /// 固定武器 Id（0 = 不固定，按品质随机）。由 <see cref="SimulationOptions.FixedWeaponId"/> 传入。
+        /// <para/>用于平衡测试时消除「武器攻击力 20–170（8.5×）+ 副属性各异 + 武器类型倍率 1.41×」这组混淆变量。
+        /// </summary>
+        public static long FixedWeaponId { get; set; } = 0;
+
+        /// <summary>
         /// 本局实际使用的随机种子（开局确定并保留，便于复现）
         /// </summary>
         public static int Seed { get; private set; } = 0;
@@ -74,6 +80,9 @@ namespace Milimoe.FunGameTesting.Tests
                 Seed = SeedOverride ?? System.Random.Shared.Next();
                 Random = new Random(Seed);
 
+                // 固定武器（0 = 不固定）；平衡测试用，消除武器带来的攻击力/副属性/类型倍率变量
+                FixedWeaponId = options.FixedWeaponId;
+
                 // M = 0, W = 7, P1 = 1, P3 = 1
                 // M = 1, W = 6, P1 = 2, P3 = 0
                 // M = 2, W = 4, P1 = 0, P3 = 2
@@ -93,9 +102,11 @@ namespace Milimoe.FunGameTesting.Tests
 
                     List<Character> characters = [.. list.OrderBy(o => Random.Next()).Take(10)];
 
-                    int clevel = 10;
-                    int slevel = 2;
-                    int mlevel = 2;
+                    // 起始等级：默认 10 / 2 / 2（与旧版硬编码一致）；平衡测试可经 SimulationOptions 直接拉满
+                    // 到 60 / 6 / 8，使实测口径对齐《数值设计手册·判定基准》的标尺（否则会被低等级阶段稀释）
+                    int clevel = options.CharacterLevel > 0 ? options.CharacterLevel : 10;
+                    int slevel = options.SkillLevel > 0 ? options.SkillLevel : 2;
+                    int mlevel = options.NormalAttackLevel > 0 ? options.NormalAttackLevel : 2;
 
                     // 升级和赋能
                     for (int index = 0; index < characters.Count; index++)
@@ -425,7 +436,9 @@ namespace Milimoe.FunGameTesting.Tests
                             BuyItems(actionQueue, store);
                         }
 
-                        if (!useStore && nextDropTime <= 0)
+                        // 周期空投：EnablePeriodicDrop=false 时跳过，只保留开局那次（DropItems(..., addLevel: false)），
+                        // 使装备与技能池在整局内恒定，便于测量「技能在定态下的收益」
+                        if (!useStore && options.EnablePeriodicDrop && nextDropTime <= 0)
                         {
                             // 空投
                             Msg = "";
@@ -1045,7 +1058,13 @@ namespace Milimoe.FunGameTesting.Tests
                     continue;
                 }
                 Item? weapon = null, armor = null, shoe = null, accessory1 = null, accessory2 = null;
-                if (weapons.Length > 0)
+                if (FixedWeaponId != 0)
+                {
+                    // 平衡测试：固定武器，消除「攻击力 20–170（8.5×）+ 副属性各异 + 类型倍率 1.41×」的混淆
+                    weapon = FunGameService.Equipment.FirstOrDefault(i => i.Id == FixedWeaponId)
+                             ?? FunGameService.AllItems.FirstOrDefault(i => i.Id == FixedWeaponId);
+                }
+                if (weapon == null && weapons.Length > 0)
                 {
                     weapon = weapons[queue.Random.Next(weapons.Length)];
                 }
