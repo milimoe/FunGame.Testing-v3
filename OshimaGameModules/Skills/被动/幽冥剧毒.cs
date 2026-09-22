@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
@@ -30,7 +30,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => $"普通攻击命中后，为目标附加幽冥剧毒：每{GameplayEquilibriumConstant.InGameTime}造成目标已损失生命值 {剧毒比例 * 100:0.##}% 的魔法伤害，持续 {持续时间:0.##} {GameplayEquilibriumConstant.InGameTime}。";
 
         private double 持续时间 => Skill.Character != null ? 3 + Skill.Character.Level * 0.05 : 3;
-        private double 剧毒比例 => Skill.Character != null ? 0.04 + Skill.Character.Level * 0.0005 : 0.04;
+        // 平衡调整（2026-09-22）：已损失生命真伤 Lv60 7%/秒×6s=42% → 2%/秒×6s=12%（对标八叶灭杀整改后 12%）
+        private double 剧毒比例 => Skill.Character != null ? 0.005 + Skill.Character.Level * 0.00025 : 0.005;
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {

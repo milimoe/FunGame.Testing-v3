@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
@@ -38,7 +38,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 护盾系数 => Skill.Character != null ? 0.12 + Skill.Character.Level * 0.002 : 0.12;
         private double 强化持续时间 => Skill.Character != null ? 4 + Skill.Character.Level * 0.1 : 4;
         private double 行动速度提升 => Skill.Character != null ? 0.2 + Skill.Character.Level * 0.003 : 0.2;
-        private double 冷却时间 => Skill.Character != null ? 14 - Skill.Character.Level * 0.05 : 14;
+        // 平衡调整（2026-09-22）：护盾冷却 Lv60 11s → 25s（标尺 ≥25s）
+        private double 冷却时间 => Skill.Character != null ? 37 - Skill.Character.Level * 0.2 : 37;
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {

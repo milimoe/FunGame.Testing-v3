@@ -63,7 +63,9 @@ namespace Milimoe.FunGameTesting.Tests
             CommonPassiveSkills.AddRange([new 征服者(), new 致命节奏(), new 强攻(), new 电刑(), new 黑暗收割(), new 迅捷步法(), new 贪欲猎手(),
                 new 丛刃(), new 召唤艾黎(), new 相位猛冲(), new 奥术彗星(), new 风暴聚集(), new 不灭之握(), new 余震(), new 守护者(), new 骸骨镀层(), new 冰川增幅(),
                 new 先攻(), new 饼干配送(), new 折射(), new 恩赐解脱(), new 静电场(), new 竭心光环(), new 海妖外壳(), new 自然蔽护(), new 勇气之霎(),
-                new 深海重击(), new 反击螺旋(), new 刀光谍影(), new 幽冥剧毒(), new 掠夺者()]);
+                new 深海重击(), new 反击螺旋(), new 刀光谍影(), new 幽冥剧毒(), new 掠夺者(),
+                // 辅助型通用被动（2026-09-22 新增）：给予队友治疗 / 护盾 / 增益
+                new 生命链接(), new 共鸣护盾(), new 战地巡诊(), new 同袍之誓(), new 援护号令()]);
 
             CommonSuperSkills.AddRange([new 樱花无双击(), new 漆黑之牙(), new 女王之怒(), new 裁决塔罗(), new 光明之环(), new 圣星光旋(), new 炎龙倒海(), new 卫星激光(), new 泰山玄武靠(),
                 new 星杯领域(), new 魔枪洛亚(), new 八叶灭杀(), new 樱花残月(), new 圣洁祝福(), new 天堂阻灭(), new 歼灭()]);

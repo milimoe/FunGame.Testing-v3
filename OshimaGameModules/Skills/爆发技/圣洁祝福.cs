@@ -1,4 +1,4 @@
-using FunGame.Core.Api;
+﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
@@ -14,8 +14,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Name => "圣洁祝福";
         public override string Description => Effects.Count > 0 ? Effects.First().Description : "";
         public override string DispelDescription => Effects.Count > 0 ? Effects.First().DispelDescription : "";
-        public override double CD => 55;
-        public override double HardnessTime { get; set; } = 4;
+        // 调整：CD 55 → 60（爆发技下限 60）
+        public override double CD => 60;
+        // 调整：硬直 4 → 8（爆发技区间 8–13）
+        public override double HardnessTime { get; set; } = 8;
         public override bool CanSelectEnemy => false;
         public override bool CanSelectTeammate => true;
         public override bool CanSelectSelf => false;

@@ -435,7 +435,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         雇佣兵团 = 4046,
         不息之流 = 4047,
         概念之骰 = 4048,
-        掠夺者 = 4049
+        掠夺者 = 4049,
+        // —— 辅助型通用被动（2026-09-22 新增）：填补「通用被动全为自身加成」的空缺 ——
+        生命链接 = 4050,
+        共鸣护盾 = 4051,
+        战地巡诊 = 4052,
+        同袍之誓 = 4053,
+        援护号令 = 4054
     }
 
     public enum ItemPassiveID : long

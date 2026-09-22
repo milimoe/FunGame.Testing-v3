@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
 
@@ -18,8 +18,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public 灾难一掷(Character? character = null) : base(SkillType.Skill, character)
         {
             CastRange = 6;
-            Effects.Add(new 基于攻击力的伤害_带基础伤害(this, 80, 65, 0.11, 0.055, DamageType.Physical));
-            Effects.Add(new 施加概率负面(this, EffectType.Cripple, false, 0, 1, 0, 0.35, 0.03));
+            // 调整：L6 基础值 405→350（留噪声余量，目标 ≤1.13×普攻）
+            Effects.Add(new 基于攻击力的伤害_带基础伤害(this, 80, 54, 0.11, 0.055, DamageType.Physical));
+            // 调整：战斗不能概率 L6 50% → 40%（强控上限 40%）
+            Effects.Add(new 施加概率负面(this, EffectType.Cripple, false, 0, 1, 0, 0.30, 0.02));
         }
     }
 }

@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
@@ -30,7 +30,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => $"造成伤害后，令目标进入竭心状态：每{GameplayEquilibriumConstant.InGameTime}受到当前生命值 {灼烧比例 * 100:0.##}% 的真实伤害，持续 {持续时间:0.##} {GameplayEquilibriumConstant.InGameTime}，并禁止其一切生命回复。";
 
         private double 持续时间 => Skill.Character != null ? 4 + Skill.Character.Level * 0.05 : 4;
-        private double 灼烧比例 => Skill.Character != null ? 0.02 + Skill.Character.Level * 0.0002 : 0.02;
+        // 平衡调整（2026-09-22）：生命流失 Lv60 3.2%/秒 → 3%/秒（对标泰山玄武靠 3% 基线）
+        private double 灼烧比例 => Skill.Character != null ? 0.015 + Skill.Character.Level * 0.00025 : 0.015;
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {

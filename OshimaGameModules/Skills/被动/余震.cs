@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
@@ -32,10 +32,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private double 剩余冷却 = 0;
 
-        private double 冷却时间 => Skill.Character != null ? 12 - Skill.Character.Level * 0.04 : 12;
+        // 平衡调整（2026-09-22）：CD Lv60 9.6s → 12s（Admin：余震 CD 偏短）
+        private double 冷却时间 => Skill.Character != null ? 18 - Skill.Character.Level * 0.1 : 18;
         private double 强化持续时间 => Skill.Character != null ? 5 + Skill.Character.Level * 0.1 : 5;
         private double 双抗提升 => Skill.Character != null ? 0.15 + Skill.Character.Level * 0.002 : 0.15;
-        private double 溅射伤害 => Skill.Character != null ? 80 + Skill.Character.Level * 7 + Skill.Character.PrimaryAttributeValue * 0.5 : 80;
+        // 平衡调整（2026-09-22）：Lv60 溅射 559.65 → 427.72（−24%）（Admin：余震数值稍高）
+        private double 溅射伤害 => Skill.Character != null ? 80 + Skill.Character.Level * 5 + Skill.Character.PrimaryAttributeValue * 0.4 : 80;
         private int 溅射目标数 => 2;
 
         public override void AfterDamageCalculation(DamageContext ctx)

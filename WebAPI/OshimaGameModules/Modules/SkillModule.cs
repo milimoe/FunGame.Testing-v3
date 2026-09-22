@@ -246,6 +246,12 @@ namespace Milimoe.FunGameTesting.OshimaGameModules
                     (long)PassiveID.反击螺旋 => new 反击螺旋(),
                     (long)PassiveID.刀光谍影 => new 刀光谍影(),
                     (long)PassiveID.幽冥剧毒 => new 幽冥剧毒(),
+                    // 辅助型通用被动（2026-09-22 新增）：给予队友治疗 / 护盾 / 增益
+                    (long)PassiveID.生命链接 => new 生命链接(),
+                    (long)PassiveID.共鸣护盾 => new 共鸣护盾(),
+                    (long)PassiveID.战地巡诊 => new 战地巡诊(),
+                    (long)PassiveID.同袍之誓 => new 同袍之誓(),
+                    (long)PassiveID.援护号令 => new 援护号令(),
                     (long)ItemPassiveID.攻击之爪 => new 攻击之爪技能(),
                     (long)ItemPassiveID.糖糖一周年纪念武器 => new 糖糖一周年纪念武器技能(),
                     (long)ItemPassiveID.糖糖一周年纪念防具 => new 糖糖一周年纪念防具技能(),

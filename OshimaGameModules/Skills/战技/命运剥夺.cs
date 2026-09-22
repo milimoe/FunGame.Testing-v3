@@ -1,4 +1,4 @@
-using FunGame.Core.Api;
+﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
@@ -41,7 +41,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string DispelDescription => "被驱散性：不可驱散";
         public override DispelledType DispelledType => DispelledType.CannotBeDispelled;
 
-        private double 伤害系数 => Level > 0 ? 1.0 + 0.2 * (Level - 1) : 1.0;
+        /// <summary>
+        /// 摧毁奖励时的稳定魔法伤害系数（基于攻击力，无基础伤害）
+        /// <para/>· 平衡调整（2026-09-22）：L6 由 200% 降至 125%，对齐战技单体上限「≤1.2×普攻」。
+        /// 实测：原 1.47×普攻（超上限 23%），目标 ≤1.20×普攻。
+        /// </summary>
+        // 调整（二轮）：L6 125% → 110%（留 ±5% 测量噪声余量）
+        private double 伤害系数 => Level > 0 ? 0.9 + 0.04 * (Level - 1) : 0.9;
 
         public override void OnSkillCasted(SkillCastContext ctx)
         {

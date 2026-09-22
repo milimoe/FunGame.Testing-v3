@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 
@@ -31,7 +31,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 剩余冷却 = 0;
 
         private double 冷却时间 => Skill.Character != null ? Math.Max(3, 8 - Skill.Character.Level * 0.05) : 8;
-        private double 彗星伤害 => Skill.Character != null ? 70 + Skill.Character.Level * 6 + Skill.Character.PrimaryAttributeValue * 0.6 : 70;
+        // 平衡调整（2026-09-22）：Lv60 501.58 → 359.65（−28%）。
+        // 锚：与「已测试基线」征服者的每局总贡献对齐（征服者 23.7k/局，奥术彗星原 31.7k/局 = 1.34×）。
+        // 注：不采用「加 CD」——实测技能命中 63 次/局、平均间隔 12.4s，CD 5s 完全不拦，加 CD 到 12.4s 前无效。
+        private double 彗星伤害 => Skill.Character != null ? 60 + Skill.Character.Level * 4 + Skill.Character.PrimaryAttributeValue * 0.5 : 60;
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {

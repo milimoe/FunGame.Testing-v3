@@ -12,7 +12,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => Effects.Count > 0 ? Effects.First().Description : "";
         public override string DispelDescription => Effects.Count > 0 ? Effects.First().DispelDescription : "";
         public override double EPCost => 25;
-        public override double CD => 15;
+        // 调整：CD 15 → 18（战技区间 18–45）
+        public override double CD => 18;
         public override double HardnessTime { get; set; } = 3;
         public override bool CanSelectSelf => true;
         public override bool CanSelectEnemy => false;

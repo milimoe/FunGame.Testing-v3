@@ -15,7 +15,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override double MPCost => Level > 0 ? 120 + (115 * (Level - 1)) : 120;
         public override double CD => Level > 0 ? 45 - (0.5 * (Level - 1)) : 45;
         public override double CastTime => 3;
-        public override double HardnessTime { get; set; } = 9;
+        // 调整：硬直 9 → 8（魔法区间 3–8）
+        public override double HardnessTime { get; set; } = 8;
         public override bool CanSelectSelf => true;
         public override bool CanSelectTeammate => true;
         public override bool CanSelectEnemy => false;

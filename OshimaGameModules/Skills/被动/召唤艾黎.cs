@@ -1,4 +1,4 @@
-using FunGame.Core.Api;
+﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
@@ -34,7 +34,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double 艾黎伤害 => Skill.Character != null ? 45 + Skill.Character.Level * 4 + Skill.Character.PrimaryAttributeValue * 0.35 : 45;
         private double 护盾生命阈值 => 0.5;
         private double 护盾值 => Skill.Character != null ? 60 + Skill.Character.Level * 9 : 60;
-        private double 护盾冷却 => Skill.Character != null ? 8 - Skill.Character.Level * 0.03 : 8;
+        // 平衡调整（2026-09-22）：护盾再生间隔 Lv60 6.2s → 25s（标尺 ≥25s；样板：海妖外壳 35s）
+        private double 护盾冷却 => Skill.Character != null ? 31 - Skill.Character.Level * 0.1 : 31;
 
         public override void AfterDamageCalculation(DamageContext ctx)
         {

@@ -12,7 +12,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string DispelDescription => Effects.Count > 0 ? Effects.First(e => e is 造成虚弱).DispelDescription : "";
         public override string ExemptionDescription => Effects.Count > 0 ? Effects.First(e => e is 造成虚弱).ExemptionDescription : "";
         public override double MPCost => Level > 0 ? 75 + (75 * (Level - 1)) : 75;
-        public override double CD => Level > 0 ? 30 - (1.5 * (Level - 1)) : 30;
+        // 调整：L8 CD 19.5 → 20.5（魔法下限 20）
+        public override double CD => Level > 0 ? 31 - (1.5 * (Level - 1)) : 31;
         public override double CastTime => 11;
         public override double HardnessTime { get; set; } = 4;
         public override int CanSelectTargetCount => 1;

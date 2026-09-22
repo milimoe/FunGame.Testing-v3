@@ -1,4 +1,4 @@
-using FunGame.Core.Api;
+﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
@@ -12,7 +12,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => Effects.Count > 0 ? Effects.First().Description : "";
         public override double EPCost => 60;
         public override double CD => 18;
-        public override double HardnessTime { get; set; } = 6;
+        // 平衡调整（2026-09-22）：硬直 6 → 7（战技区间 7–10）
+        public override double HardnessTime { get; set; } = 7;
 
         public 快速狙击(Character? character = null) : base(SkillType.Skill, character)
         {
@@ -27,7 +28,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Name => Skill.Name;
         public override string Description => $"随机对{Skill.TargetDescription()}造成 {BaseDamage:0.##} + {ATKCoefficient * 100:0.##}% 攻击力 [ {Damage:0.##} ] 点物理伤害。";
 
-        private double BaseDamage => Skill.Level > 0 ? 85 + 65 * (Skill.Level - 1) : 85;
+        // 调整：L6 基础值 410→375，实测 1.26×普攻 压至 ≤1.20
+        // 调整：L6 基础值 410→325（留噪声余量，目标 ≤1.13×普攻）
+        private double BaseDamage => Skill.Level > 0 ? 85 + 48 * (Skill.Level - 1) : 85;
         private double ATKCoefficient => Skill.Level > 0 ? 0.12 + 0.06 * (Skill.Level - 1) : 0.12;
         private double Damage => BaseDamage + ATKCoefficient * (Skill.Character?.ATK ?? 0);
 

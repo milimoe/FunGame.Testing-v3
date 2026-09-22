@@ -15,7 +15,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => Effects.Count > 0 ? Effects.First().Description : "";
         public override string DispelDescription => Effects.Count > 0 ? Effects.First().DispelDescription : "";
         public override double CD => 100;
-        public override double HardnessTime { get; set; } = 16;
+        // 调整：硬直 16 → 13（爆发技区间 8–13）
+        public override double HardnessTime { get; set; } = 13;
         public override bool SelectAllEnemies => true;
 
         public 圣星光旋(Character? character = null) : base(character)
@@ -33,9 +34,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
             (Improvement > 0 ? $"灵魂绑定伤害加成： {Improvement * 100:0.##}% [ {ImprovementDamage:0.##} ] 点，" : "") + $"总伤害 {Damage + ImprovementDamage:0.##} 点。" +
             $"随后，有 25% 概率对受到伤害的目标造成眩晕 1 回合。眩晕：进入完全行动不能状态。";
 
-        public double PACoefficient => 0.25 + 0.04 * (Skill.Level - 1);
+        // 加强：实测仅 0.62×普攻，低于爆发技下限 0.67 —— L6 核心属性 45%→50%、真伤 180→210
+        public double PACoefficient => 0.25 + 0.05 * (Skill.Level - 1);
         public double PADamage => (Skill.Character?.PrimaryAttributeValue ?? 0) * PACoefficient;
-        public double GeneralDamage => 30 * Skill.Level;
+        public double GeneralDamage => 35 * Skill.Level;
         public double Damage => GeneralDamage + PADamage;
         public double ImprovementDamage => Improvement > 0 ? Damage * Improvement : 0;
 

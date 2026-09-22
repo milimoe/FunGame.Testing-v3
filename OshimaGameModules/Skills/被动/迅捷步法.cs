@@ -31,7 +31,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         private double 行动系数提升 => Skill.Character != null ? 0.02 + Skill.Character.Level / 10 * 0.005 : 0.02;
         private double 加速系数提升 => Skill.Character != null ? 0.02 + Skill.Character.Level / 10 * 0.005 : 0.02;
-        private double 生命回复 => Skill.Character != null ? 20 + Skill.Character.Level * 6 : 20;
+        // 平衡调整（2026-09-22）：Lv60 回复 380 → 320（Admin：砍 60）
+        private double 生命回复 => Skill.Character != null ? 20 + Skill.Character.Level * 5 : 20;
         private double 持续时间 => Skill.Character != null ? 10 + Skill.Character.Level * 0.1 : 10;
 
         public override void AfterDamageCalculation(DamageContext ctx)

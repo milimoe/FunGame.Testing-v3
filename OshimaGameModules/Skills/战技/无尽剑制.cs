@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
 
@@ -11,7 +11,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override string Description => Effects.Count > 0 ? string.Join("", Effects.Select(e => e.Description)) : "";
         public override double EPCost => 90;
         public override double CD => 40;
-        public override double HardnessTime { get; set; } = 12;
+        // 调整：硬直 12 → 10（战技区间 7–10）
+        public override double HardnessTime { get; set; } = 10;
         public override bool SelectAllEnemies => true;
 
         public 无尽剑制(Character? character = null) : base(SkillType.Skill, character)

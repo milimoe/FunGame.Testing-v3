@@ -1,4 +1,4 @@
-using FunGame.Core.Entity;
+﻿using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects;
 
@@ -16,7 +16,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public 霸王疾风(Character? character = null) : base(SkillType.Skill, character)
         {
             CastRange = 4;
-            Effects.Add(new 基于攻击力的伤害_带基础伤害(this, 85, 70, 0.12, 0.06, DamageType.Physical));
+            // 调整：L6 基础值 435→385（同时解除「基础值顶格 + 系数顶格」的双顶格）
+            Effects.Add(new 基于攻击力的伤害_带基础伤害(this, 85, 60, 0.12, 0.06, DamageType.Physical));
         }
     }
 }
