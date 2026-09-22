@@ -1,3 +1,4 @@
+using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
@@ -28,7 +29,74 @@ namespace Milimoe.FunGameTesting.Tests
             TestSummonRewardRedirectToMaster();
             TestSummonDoesNotConsumeCharacterReward();
             TestFateSkillsAndEventStream();
+            TestPassiveRewardMountsExactlyOnce();
+            TestAddToCharacterIsIdempotent();
             Console.WriteLine($"回合奖励回归测试完成：{(_failures == 0 ? "全部通过" : $"{_failures} 个断言失败")}");
+        }
+
+        /// <summary>
+        /// 场景8：<see cref="Effect.AddToCharacter"/> 对「同一实例已在目标身上」是幂等的
+        /// <para/>与 <see cref="Effect.RemoveFromCharacter"/> 对称：Remove 只在确实移除成功时触发 <c>OnEffectLost</c>，
+        /// Add 也必须只在确实新增时触发 <c>OnEffectGained</c>；否则调用方多调一次 Add 就会让累加型特效留下净值残留（C1 那个 bug 的成因）。
+        /// </summary>
+        private static void TestAddToCharacterIsIdempotent()
+        {
+            XinYin actor = new();
+            MixGamingQueue queue = CreateQueue([actor]);
+            queue.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, false, id => new() { { "exatk", 60d } });
+
+            Skill holder = Factory.OpenFactory.GetInstance<Skill>((long)EffectID.ExATK, "", []);
+            Effect effect = Factory.OpenFactory.GetInstance((long)EffectID.ExATK, "", holder, new(new Dictionary<string, object> { { "exatk", 60d } }));
+            holder.Effects.Add(effect);
+
+            double before = actor.ExATK2;
+            effect.AddToCharacter(actor);
+            double afterFirst = actor.ExATK2;
+            effect.AddToCharacter(actor);   // 第二次：同一实例已在身上，应被守卫拦下
+            double afterSecond = actor.ExATK2;
+
+            Check(Math.Abs(afterFirst - before - 60) < 0.001, "首次挂载生效（+60）", $"差值={afterFirst - before:0.##}");
+            Check(Math.Abs(afterSecond - afterFirst) < 0.001, "重复挂载同一实例被守卫拦下、不再加值",
+                $"第二次差值={afterSecond - afterFirst:0.##}");
+            Check(actor.Effects.Count(e => ReferenceEquals(e, effect)) == 1, "状态栏中该特效仍只有一份");
+
+            effect.RemoveFromCharacter(actor);
+            Check(Math.Abs(actor.ExATK2 - before) < 0.001, "移除后回到挂载前的值（Add / Remove 严格对称）",
+                $"最终={actor.ExATK2:0.##} 期望={before:0.##}");
+        }
+
+        /// <summary>
+        /// 场景7：被动奖励「挂载一次、回收一次」—— 防 #191 那类双挂载回归
+        /// <para/>奖励技能在 <c>BindAndRelease</c> 里由 <c>skill.Character = character</c> + <c>skill.Level = 1</c>
+        /// 触发 <see cref="Skill.OnLevelUp"/> 自动挂载（<see cref="OpenSkill"/> 的 <c>AddPassiveEffectToCharacter()</c> 返回 <c>Effects</c>）。<para/>
+        /// 若再手动 <c>effect.AddToCharacter()</c>，ExATK 这类「加值/减值」特效就会 <c>OnEffectGained</c> 两次、<c>OnEffectLost</c> 一次
+        /// （<see cref="Effect.AddToCharacter"/> 对集合幂等但无条件重放钩子，<see cref="Effect.RemoveFromCharacter"/> 才有 guard）
+        /// → 每发一次奖励永久多一份属性，奖励越叠越多、对局越打越短。#188~#191 正是这个 bug。
+        /// </summary>
+        private static void TestPassiveRewardMountsExactlyOnce()
+        {
+            XinYin actor = new();
+            MixGamingQueue queue = CreateQueue([actor]);
+
+            // 造一份「被动 ExATK 奖励」（与强运/命运馈赠的构造方式一致：OpenSkill 承载 Skill，Effect 按 EffectID 构造）
+            Skill reward = Factory.OpenFactory.GetInstance<Skill>((long)EffectID.ExATK, "", []);
+            Effect effect = Factory.OpenFactory.GetInstance((long)EffectID.ExATK, "", reward, new(new Dictionary<string, object> { { "exatk", 60d } }));
+            reward.Effects.Add(effect);
+            reward.Name = $"[R] {effect.Name}";
+            Check(!reward.IsActive, "构造出的奖励是被动奖励（走挂载分支，而不是被立即释放）");
+
+            queue.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, true, id => new() { { "exatk", 60d } });
+            queue.AddRoundReward(actor, 1, reward);
+            Check(queue.QueryRoundRewards(actor, 1).Contains(reward), "奖励已调度到角色下个行动回合");
+
+            double before = actor.ExATK2;
+            queue.ProcessTurn(actor);
+            double after = actor.ExATK2;
+            Check(Math.Abs(after - before) < 0.001,
+                "被动奖励挂载与回收对称：结算后 ExATK2 回到发放前的值（不残留）",
+                $"发放前={before:0.##} 结算后={after:0.##} 差值={after - before:0.##}");
+            Check(!actor.Effects.Contains(effect) && !actor.Skills.Contains(reward),
+                "结算后奖励的特效与技能都已从角色身上移除");
         }
 
         /// <summary>
@@ -198,9 +266,10 @@ namespace Milimoe.FunGameTesting.Tests
             MixGamingQueue queue = CreateQueue([caster, dummy]);
 
             int injected = 0;
+            bool injectCasting = true;
             queue.CharacterDecisionCompletedEvent += ctx =>
             {
-                if (ReferenceEquals(ctx.Trigger, caster))
+                if (injectCasting && ReferenceEquals(ctx.Trigger, caster))
                 {
                     caster.CharacterState = CharacterState.Casting;
                     injected++;
@@ -240,10 +309,17 @@ namespace Milimoe.FunGameTesting.Tests
             queue.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, false, id => new() { { "exatk", 60d } });
             RunTurns(queue, 600);
 
+            // 收尾：停止注入吟唱，再跑几回合让「最后一回合顺延出去的奖励」在结算回合被清掉。
+            // 否则循环正好停在一次顺延中途，残留数是循环边界产物而不是泄漏。
+            injectCasting = false;
+            RunTurns(queue, 10);
+
             Check(injected > 0, "成功构造「回合以吟唱结束」的局面", $"注入回合数={injected}");
             Check(carryOverRemoved > 0, "被动奖励在吟唱回合顺延，并在结算回合以 IsCarryOver 移除",
                 $"顺延移除={carryOverRemoved}");
-            Check(gained.Count - lost.Count == 0, "顺延链路无残留", $"发放={gained.Count} 移除={lost.Count}");
+            // 对局已结束时无人再行动，挂着的顺延奖励不可能再结算，此时不苛求账目平衡
+            Check(queue.GameOver || gained.Count - lost.Count == 0, "顺延链路无残留",
+                $"发放={gained.Count} 移除={lost.Count} 对局结束={queue.GameOver}");
         }
 
         /// <summary>
@@ -407,7 +483,8 @@ namespace Milimoe.FunGameTesting.Tests
                 c.HP = c.MaxHP;
                 c.MP = c.MaxMP;
             }
-            MixGamingQueue queue = new(characters, log is null ? _ => { } : log.Add)
+            MixGamingQueue queue = new(characters, log is null ? _ => { }
+            : log.Add)
             {
                 MaxRespawnTimes = 1,
                 UseQueueProtected = false

@@ -1,3 +1,6 @@
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Model.Framework;
@@ -7,9 +10,6 @@ using Microsoft.Extensions.FileProviders;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.OshimaGameModules.Classes;
 using Milimoe.FunGameTesting.Tests;
-using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
 
 // ============ 初始化游戏模块（与 Testing-v3 的 Program.cs Main 一致，进程内直接调用模拟类） ============
 CharacterModule characterModule = new();
@@ -331,57 +331,57 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
             switch (type)
             {
                 case SoloMessageTypes.GamingStart:
-                {
-                    SoloGameOptions options = new();
-                    if (data.ValueKind == JsonValueKind.Object)
                     {
-                        if (data.TryGetProperty("characterCount", out JsonElement v)) options.CharacterCount = v.GetInt32();
-                        if (data.TryGetProperty("level", out v)) options.Level = v.GetInt32();
-                        if (data.TryGetProperty("skillLevel", out v)) options.SkillLevel = v.GetInt32();
-                        if (data.TryGetProperty("normalAttackLevel", out v)) options.NormalAttackLevel = v.GetInt32();
-                        if (data.TryGetProperty("maxRound", out v)) options.MaxRound = v.GetInt32();
-                        if (data.TryGetProperty("maxRespawnTimes", out v)) options.MaxRespawnTimes = v.GetInt32();
-                        if (data.TryGetProperty("teamMode", out v)) options.TeamMode = v.GetBoolean();
-                        if (data.TryGetProperty("teamSize", out v)) options.TeamSize = v.GetInt32();
-                        if (data.TryGetProperty("maxScoreToWin", out v)) options.MaxScoreToWin = v.GetInt32();
-                        if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
-                        if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
-                        if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
-                        if (data.TryGetProperty("initialItemQuality", out v)) options.InitialItemQuality = v.GetInt32();
-                        if (data.TryGetProperty("dropItemsIntervalSeconds", out v)) options.DropItemsIntervalSeconds = v.GetInt32();
-                        if (data.TryGetProperty("enableTurnDiagnostics", out v)) options.EnableTurnDiagnostics = v.GetBoolean();
-                        if (data.TryGetProperty("seed", out v) && v.ValueKind == JsonValueKind.Number) options.Seed = v.GetInt32();
+                        SoloGameOptions options = new();
+                        if (data.ValueKind == JsonValueKind.Object)
+                        {
+                            if (data.TryGetProperty("characterCount", out JsonElement v)) options.CharacterCount = v.GetInt32();
+                            if (data.TryGetProperty("level", out v)) options.Level = v.GetInt32();
+                            if (data.TryGetProperty("skillLevel", out v)) options.SkillLevel = v.GetInt32();
+                            if (data.TryGetProperty("normalAttackLevel", out v)) options.NormalAttackLevel = v.GetInt32();
+                            if (data.TryGetProperty("maxRound", out v)) options.MaxRound = v.GetInt32();
+                            if (data.TryGetProperty("maxRespawnTimes", out v)) options.MaxRespawnTimes = v.GetInt32();
+                            if (data.TryGetProperty("teamMode", out v)) options.TeamMode = v.GetBoolean();
+                            if (data.TryGetProperty("teamSize", out v)) options.TeamSize = v.GetInt32();
+                            if (data.TryGetProperty("maxScoreToWin", out v)) options.MaxScoreToWin = v.GetInt32();
+                            if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
+                            if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
+                            if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
+                            if (data.TryGetProperty("initialItemQuality", out v)) options.InitialItemQuality = v.GetInt32();
+                            if (data.TryGetProperty("dropItemsIntervalSeconds", out v)) options.DropItemsIntervalSeconds = v.GetInt32();
+                            if (data.TryGetProperty("enableTurnDiagnostics", out v)) options.EnableTurnDiagnostics = v.GetBoolean();
+                            if (data.TryGetProperty("seed", out v) && v.ValueKind == JsonValueKind.Number) options.Seed = v.GetInt32();
+                        }
+                        session = registry.Create(options);
+                        session.Start(sink, options);
+                        break;
                     }
-                    session = registry.Create(options);
-                    session.Start(sink, options);
-                    break;
-                }
 
                 case SoloMessageTypes.GamingAction:
-                {
-                    if (session is null) break;
-                    if (!data.TryGetProperty("requestId", out JsonElement rid)) break;
-                    JsonElement? payload = data.TryGetProperty("payload", out JsonElement p)
-                        && p.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? p : null;
-                    session.TryResolve(rid.GetString() ?? "", payload);
-                    break;
-                }
+                    {
+                        if (session is null) break;
+                        if (!data.TryGetProperty("requestId", out JsonElement rid)) break;
+                        JsonElement? payload = data.TryGetProperty("payload", out JsonElement p)
+                            && p.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? p : null;
+                        session.TryResolve(rid.GetString() ?? "", payload);
+                        break;
+                    }
 
                 case SoloMessageTypes.GamingResume:
-                {
-                    // 重连：接管仍在运行的对局并补发完整快照
-                    SoloGameSession? running = registry.Current;
-                    if (running is { Running: true })
                     {
-                        session = running;
-                        running.AttachSink(sink);
+                        // 重连：接管仍在运行的对局并补发完整快照
+                        SoloGameSession? running = registry.Current;
+                        if (running is { Running: true })
+                        {
+                            session = running;
+                            running.AttachSink(sink);
+                        }
+                        else
+                        {
+                            await sink.SendAsync(SoloMessageTypes.Notice, new { message = "当前没有进行中的对局" }, context.RequestAborted);
+                        }
+                        break;
                     }
-                    else
-                    {
-                        await sink.SendAsync(SoloMessageTypes.Notice, new { message = "当前没有进行中的对局" }, context.RequestAborted);
-                    }
-                    break;
-                }
 
                 case SoloMessageTypes.GamingEnd:
                     session?.Stop();
@@ -389,13 +389,13 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                     break;
 
                 case SoloMessageTypes.GamingPause:
-                {
-                    // 暂停 / 继续：暂停时引擎线程阻塞，回合不推进、决策也不计时超时
-                    SoloGameSession? target = session ?? registry.Current;
-                    bool paused = !data.TryGetProperty("paused", out JsonElement pv) || pv.ValueKind != JsonValueKind.False;
-                    target?.SetPaused(paused);
-                    break;
-                }
+                    {
+                        // 暂停 / 继续：暂停时引擎线程阻塞，回合不推进、决策也不计时超时
+                        SoloGameSession? target = session ?? registry.Current;
+                        bool paused = !data.TryGetProperty("paused", out JsonElement pv) || pv.ValueKind != JsonValueKind.False;
+                        target?.SetPaused(paused);
+                        break;
+                    }
 
                 case SoloMessageTypes.Ping:
                     await sink.SendAsync(SoloMessageTypes.Pong, new { ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, context.RequestAborted);
