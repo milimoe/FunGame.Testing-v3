@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
+using Milimoe.FunGameTesting.OshimaGameModules.Effects;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
@@ -23,7 +24,18 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.SkillEffects
         public override bool ExemptDuration => true;
 
         private string 概率文本 => ActualProbability == 1 ? "" : $"{ActualProbability * 100:0.##}% 概率";
-        private double ActualProbability => Calculation.PercentageCheck(Level > 0 ? (_probability + _probabilityLevelGrowth * (Level - 1) * MagicEfficacy) : _probability);
+        /// <summary>
+        /// 实际命中概率 —— 统一走 <see cref="EfficacyHit.命中率"/>（2026-09-23 统一口径）。
+        /// <para/>✅ **为什么本效果类被战技 / 爆发技混用也安全**（Admin 指出，已实测核对）：
+        /// 全库 **55 处**重写 `MagicBottleneck` 的技能**清一色是魔法**（`SkillType.Magic`），
+        /// 战技 / 爆发技 / 物品 / 被动**都不重写** ⇒ 它们的 `MagicBottleneck` 取基类默认 **0**
+        /// ⇒ `MagicEfficacy` 在 `瓶颈 == 0` 时**直接返回 1.0**（不是浮点近似，是精确值）
+        /// ⇒ 统一公式 `(基础 + 成长×(Lv−1)) × 1.0` 与旧公式 `基础 + 成长×(Lv−1)×1.0` **完全等价**。
+        /// <para/>同理，那批「基础概率 ≥ 1 且无成长」的**必中型控制**（石化之矢 / 无相飞刀 / 陀螺舞 /
+        /// 鲨鱼锚击 / 裁决塔罗 …）全是战技或爆发技 ⇒ `clamp(1.0 × 1.0) = 1.0` ⇒ **仍然必中**。
+        /// <para/>所以**无需按技能类型或必中性分流**，一个分支都不用 —— 这是机制保证的结果，不是巧合。
+        /// </summary>
+        private double ActualProbability => EfficacyHit.命中率(_probability, _probabilityLevelGrowth, Level, MagicEfficacy);
         private string 持续时间 => _durative && _duration > 0 ? $"{实际持续时间:0.##}" + $" {GameplayEquilibriumConstant.InGameTime}" : (!_durative && _durationTurn > 0 ? 实际持续时间 + " 回合" : $"0 {GameplayEquilibriumConstant.InGameTime}");
         private double 实际持续时间 => _durative && _duration > 0 ? (_duration + _levelGrowth * (Level - 1) * MagicEfficacy) : (!_durative && _durationTurn > 0 ? ((int)Math.Round(_durationTurn + _levelGrowth * (Level - 1) * MagicEfficacy, 0, MidpointRounding.ToPositiveInfinity)) : 0);
         private readonly EffectType _effectType;

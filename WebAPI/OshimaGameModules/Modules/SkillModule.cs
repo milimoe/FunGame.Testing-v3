@@ -101,6 +101,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules
                     (long)MagicID.时间加速复 => new 时间加速复(),
                     (long)MagicID.时间减速复 => new 时间减速复(),
                     (long)MagicID.十二宫星环 => new 十二宫星环(),
+                    (long)MagicID.时间剥夺 => new 时间剥夺(),
                     (long)SkillID.疾风步 => new 疾风步(),
                     (long)SkillID.助威 => new 助威(),
                     (long)SkillID.挑拨 => new 挑拨(),
@@ -159,6 +160,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules
                     (long)SkillID.灾难一掷 => new 灾难一掷(),
                     (long)SkillID.血腥旋转 => new 血腥旋转(),
                     (long)SkillID.断罪斩 => new 断罪斩(),
+                    // 决策点维度（2026-09-23 新增）
+                    (long)SkillID.战术部署 => new 战术部署(),
+                    (long)SkillID.过载 => new 过载(),
+                    (long)SuperSkillID.催战鼓 => new 催战鼓(),
                     (long)SkillID.抢夺命运 => new 抢夺命运(),
                     (long)SkillID.命运剥夺 => new 命运剥夺(),
                     (long)SkillID.命运馈赠 => new 命运馈赠(),
@@ -252,6 +257,9 @@ namespace Milimoe.FunGameTesting.OshimaGameModules
                     (long)PassiveID.战地巡诊 => new 战地巡诊(),
                     (long)PassiveID.同袍之誓 => new 同袍之誓(),
                     (long)PassiveID.援护号令 => new 援护号令(),
+                    (long)PassiveID.战术余裕 => new 战术余裕(),
+                    (long)ItemPassiveID.万能钥匙 => new 万能钥匙技能(),
+                    (long)ItemPassiveID.节拍器 => new 节拍器技能(),
                     (long)ItemPassiveID.攻击之爪 => new 攻击之爪技能(),
                     (long)ItemPassiveID.糖糖一周年纪念武器 => new 糖糖一周年纪念武器技能(),
                     (long)ItemPassiveID.糖糖一周年纪念防具 => new 糖糖一周年纪念防具技能(),
@@ -260,6 +268,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules
                     (long)ItemPassiveID.糖糖一周年纪念饰品2 => new 糖糖一周年纪念饰品技能2(),
                     (long)ItemActiveID.经验书 => new 经验书技能(),
                     (long)ItemActiveID.礼包 => new 礼包技能(),
+                    (long)ItemActiveID.应急装置 => new 应急装置技能(),
                     _ => null
                 };
             };

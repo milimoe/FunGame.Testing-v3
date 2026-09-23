@@ -3,7 +3,8 @@ namespace Milimoe.FunGameTesting.Tests
     /// <summary>
     /// <see cref="FunGameSimulation.StartSimulationGame"/> 的参数包，替代原先一长串位置 / 命名参数
     /// <para/>· 用法：<c>new SimulationOptions { IsTeam = true, BindToCharacter = true }</c>
-    /// <para/>· <see cref="MaxRespawnTimesMix"/> 在 <c>new</c> 时默认为 1（与旧版可选参数默认值一致），其余字段默认为 false
+    /// <para/>· <see cref="MaxRespawnTimesMix"/> 在 <c>new</c> 时默认为 1（与旧版可选参数默认值一致），
+    /// <see cref="BindToCharacter"/> 默认为 <c>true</c>（角色绑定的回合奖励默认启用），其余字段默认为 false
     /// </summary>
     public struct SimulationOptions
     {
@@ -31,7 +32,10 @@ namespace Milimoe.FunGameTesting.Tests
         /// <summary>调试模式（输出更多运行细节）</summary>
         public bool IsDebug { get; set; }
 
-        /// <summary>是否启用「角色绑定的回合奖励」（对应 <c>InitRoundRewards</c> 的 bindToCharacter）</summary>
+        /// <summary>
+        /// 是否启用「角色绑定的回合奖励」（对应 <c>InitRoundRewards</c> 的 bindToCharacter）。<para/>
+        /// <b>默认 true</b>：不启用时【命运XX】系技能（抢夺 / 剥夺 / 馈赠）与【强运】会全部静默失效。
+        /// </summary>
         public bool BindToCharacter { get; set; }
 
         /// <summary>
@@ -77,7 +81,7 @@ namespace Milimoe.FunGameTesting.Tests
 
         /// <summary>
         /// 构造参数包：<see cref="MaxRespawnTimesMix"/> 默认 1，等级默认为 10 / 2 / 2（与旧版硬编码一致），
-        /// <see cref="EnablePeriodicDrop"/> 默认 true，其余布尔默认 false
+        /// <see cref="EnablePeriodicDrop"/> 与 <see cref="BindToCharacter"/> 默认 true，其余布尔默认 false
         /// </summary>
         public SimulationOptions()
         {
@@ -86,6 +90,8 @@ namespace Milimoe.FunGameTesting.Tests
             SkillLevel = 2;
             NormalAttackLevel = 2;
             EnablePeriodicDrop = true;
+            // 角色绑定的回合奖励默认启用：否则命运系技能与强运全部静默失效
+            BindToCharacter = true;
         }
     }
 }

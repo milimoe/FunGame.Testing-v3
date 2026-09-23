@@ -1,5 +1,6 @@
 ﻿using FunGame.Core.Api;
 using FunGame.Core.Entity;
+using Milimoe.FunGameTesting.OshimaGameModules.Effects;
 using FunGame.Core.Library.Constant;
 using FunGame.Core.Model.EffectContext;
 using FunGame.Core.Model.Framework;
@@ -56,7 +57,8 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         private double Damage => Skill.Level > 0 ? 基础数值伤害 + 基础伤害等级成长 * (Skill.Level - 1) : 基础数值伤害;
         private double 基础数值伤害 { get; set; } = 50;
         private double 基础伤害等级成长 { get; set; } = 40;
-        private double ActualConfusionProbability => Level > 0 ? (_confusionProbability + _confusionProbabilityLevelGrowth * (Level - 1) * MagicEfficacy) : _confusionProbability;
+                /// <summary>实际混乱概率：统一走 <see cref="EfficacyHit.命中率"/>（效能乘整体，2026-09-23 统一口径）。</summary>
+        private double ActualConfusionProbability => EfficacyHit.命中率(_confusionProbability, _confusionProbabilityLevelGrowth, Level, MagicEfficacy);
         private readonly bool _durative;
         private readonly double _duration;
         private readonly int _durationTurn;

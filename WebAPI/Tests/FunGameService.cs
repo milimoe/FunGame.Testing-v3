@@ -52,7 +52,11 @@ namespace Milimoe.FunGameTesting.Tests
                 new 火焰碎击(), new 螺旋之刃(), new 霸王疾风(), new 导力装甲(), new 回复原状(), new 强打(), new 龙神功(), new 月华掌(), new 雷神脚(), new 弓刃交错(),
                 new 神圣祈祷(), new 牺牲之箭(), new 石化之矢(), new 死亡制裁(), new 落叶(), new 风花阵(), new 陀螺舞(), new 光破斩(), new 跳跃点射(), new 光鬼斩(),
                 new 雷索吸缚(), new 狂刃剑舞(), new 无相飞刀(), new 破邪显正(), new 号令(), new 千剑之雨(), new 无尽剑制(), new 灾难一掷(), new 血腥旋转(),
-                new 抢夺命运(), new 命运剥夺(), new 命运馈赠(), new 命运之赐(), new 断罪斩()]);
+                new 抢夺命运(), new 命运剥夺(), new 命运馈赠(), new 命运之赐(), new 断罪斩(),
+                // 决策点维度（2026-09-23 新增）
+                new 战术部署(), new 过载(),
+                // 决策点/节奏维度（2026-09-23 新增）
+                new 战术余裕()]);
 
             SuperSkills.AddRange([new 极寒渴望(), new 身心一境(), new 绝对领域(), new 零式灭杀(), new 三相灵枢(), new 变幻之心(), new 熵灭极诣(), new 残香凋零(), new 饕餮盛宴(),
                 new 宿命时律(), new 千羽瞬华(), new 咒怨洪流(), new 放监(), new 归元环(), new 海王星的野望(), new 全军出击(), new 宿命之潮(), new 神之因果()]);
@@ -68,19 +72,26 @@ namespace Milimoe.FunGameTesting.Tests
                 new 生命链接(), new 共鸣护盾(), new 战地巡诊(), new 同袍之誓(), new 援护号令()]);
 
             CommonSuperSkills.AddRange([new 樱花无双击(), new 漆黑之牙(), new 女王之怒(), new 裁决塔罗(), new 光明之环(), new 圣星光旋(), new 炎龙倒海(), new 卫星激光(), new 泰山玄武靠(),
-                new 星杯领域(), new 魔枪洛亚(), new 八叶灭杀(), new 樱花残月(), new 圣洁祝福(), new 天堂阻灭(), new 歼灭()]);
+                new 星杯领域(), new 魔枪洛亚(), new 八叶灭杀(), new 樱花残月(), new 圣洁祝福(), new 天堂阻灭(), new 歼灭(), new 催战鼓()]);
 
             Magics.AddRange([new 冰霜攻击(), new 火之矢(), new 水之矢(), new 风之轮(), new 石之锤(), new 心灵之霞(), new 次元上升(), new 暗物质(),
                 new 回复术(), new 治愈术(), new 复苏术(), new 圣灵术(), new 时间加速(), new 时间减速(), new 反魔法领域(), new 沉默十字(), new 虚弱领域(), new 混沌烙印(), new 凝胶稠絮(),
                 new 大地之墙(), new 盖亚之盾(), new 风之守护(), new 结晶防护(), new 强音之力(), new 神圣祝福(), new 根源屏障(), new 灾难冲击波(), new 银色荆棘(), new 等离子之波(),
                 new 地狱之门(), new 钻石星尘(), new 死亡咆哮(), new 鬼魅之痛(), new 导力停止(), new 冰狱冥嚎(), new 火山咆哮(), new 水蓝轰炸(), new 岩石之息(), new 弧形日珥(), new 苍白地狱(), new 破碎虚空(),
                 new 弧光消耗(), new 回复术改(), new 回复术复(), new 治愈术复(), new 风之守护复(), new 强音之力复(), new 结晶防护复(), new 神圣祝福复(), new 时间加速改(), new 时间减速改(),
-                new 时间加速复(), new 时间减速复(), new 十二宫星环()]);
+                new 时间加速复(), new 时间减速复(), new 十二宫星环(), new 时间剥夺()]);
 
             Dictionary<string, Item> exItems = Factory.GetGameModuleInstances<Item>(OshimaGameModuleConstant.General, OshimaGameModuleConstant.Item);
             Equipment.AddRange(exItems.Values.Where(i => (int)i.ItemType >= 0 && (int)i.ItemType < 5));
             Equipment.AddRange([new 攻击之爪10(), new 攻击之爪25(), new 攻击之爪40(), new 攻击之爪55(), new 攻击之爪70(), new 攻击之爪85(), new 糖糖一周年纪念武器(),
-                new 糖糖一周年纪念防具(), new 糖糖一周年纪念鞋子(), new 糖糖一周年纪念饰品1(), new 糖糖一周年纪念饰品2()]);
+                new 糖糖一周年纪念防具(), new 糖糖一周年纪念鞋子(), new 糖糖一周年纪念饰品1(), new 糖糖一周年纪念饰品2(),
+                new 行军医箱1(), new 行军医箱2(), new 行军医箱3(),
+                new 共鸣核心1(), new 共鸣核心2(), new 共鸣核心3(),
+                new 接力信标1(), new 接力信标2(), new 接力信标3(),
+                new 应急装置1(), new 应急装置2(), new 应急装置3(),
+                // 决策点/节奏维度（2026-09-23 新增）
+                new 万能钥匙1(), new 万能钥匙2(), new 万能钥匙3(),
+                new 节拍器1(), new 节拍器2(), new 节拍器3()]);
 
             Items.AddRange(exItems.Values.Where(i => (int)i.ItemType > 4));
             Items.AddRange([new 小经验书(), new 中经验书(), new 大经验书(), new 升华之印(), new 流光之印(), new 永恒之印(), new 技能卷轴(), new 智慧之果(), new 奥术符文(), new 混沌之核(),
