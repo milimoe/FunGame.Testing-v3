@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\FunGame.Core\FunGame.Core.csproj" />
+    <ProjectReference Include="..\..\FunGame.Core\src\FunGame.Core.csproj" />
     <ProjectReference Include="..\OshimaGameModules\OshimaGameModules.csproj" />
     <ProjectReference Include="..\WebAPI\FunGame.Testing-v3.WebAPI.csproj" />
   </ItemGroup>

@@ -17,7 +17,7 @@ public sealed record MapDto(string Name, int Length, int Width, int Height, floa
 public sealed record SkillDto(
     string Guid, long Id, string Name, string Description, int Level, string SkillType,
     bool IsSuperSkill, bool IsMagic, bool IsActive, bool Enable, bool IsInEffect,
-    double CurrentCD, double RealCD, double RealMPCost, double RealEPCost,
+    double CurrentCD, double RealCD, double RealMPCost, double RealEPCost, double RealCastTime,
     bool CanSelectEnemy, bool CanSelectTeammate, bool CanSelectSelf,
     // CastRange：施法距离（格）。CastAnywhere 为真时该值代表「全图」，UI 应显示「全图」
     int CastRange,
@@ -51,7 +51,10 @@ public sealed record EffectDto(
     bool IsDurative,
     double RemainDuration,
     int RemainDurationTurn,
-    bool IsInEffect);
+    bool IsInEffect)
+{
+    public string EffectTypeName { get; init; } = "";
+}
 
 /// <summary>角色</summary>
 public sealed record CharacterDto(
@@ -64,7 +67,10 @@ public sealed record CharacterDto(
     // Attributes：全部属性（等级/经验/攻防/力量敏捷智力/暴击闪避/回复/穿透/移动距离/攻击距离…）
     Dictionary<string, string> Attributes,
     // Equipments：装备栏（只含已装备的槽位）
-    List<EquipmentDto> Equipments);
+    List<EquipmentDto> Equipments)
+{
+    public string StateName { get; init; } = "";
+}
 
 /// <summary>行动顺序表条目</summary>
 public sealed record QueueEntryDto(string Guid, string DisplayName, double HardnessTime, int Order, bool IsPlayer, string? TeamName);
@@ -116,7 +122,12 @@ public sealed record GameStateDto(
     // MaxScoreToWin：死亡竞赛夺冠人头数（0 表示非死亡竞赛）
     int MaxScoreToWin = 0,
     // Paused：对局是否已暂停（暂停期间引擎线程不推进）
-    bool Paused = false);
+    bool Paused = false)
+{
+    public long StateRevision { get; init; }
+    public long? PresentationStep { get; init; }
+    public PendingCastDto[] PendingCasts { get; init; } = [];
+}
 
 /// <summary>赛后结算条目</summary>
 public sealed record RankingDto(
@@ -174,7 +185,7 @@ public static class SoloGameMapper
         return new SkillDto(
             s.Guid.ToString(), s.Id, s.Name, s.Description ?? "", s.Level, s.SkillType.ToString(),
             s.IsSuperSkill, s.IsMagic, s.IsActive, s.Enable, s.IsInEffect,
-            s.CurrentCD, s.RealCD, s.RealMPCost, s.RealEPCost,
+            s.CurrentCD, s.RealCD, s.RealMPCost, s.RealEPCost, s.RealCastTime,
             s.CanSelectEnemy, s.CanSelectTeammate, s.CanSelectSelf,
             s.CastRange, s.CastAnywhere,
             usable, reason);
@@ -261,7 +272,7 @@ public static class SoloGameMapper
                 e.Durative,
                 e.RemainDuration,
                 e.RemainDurationTurn,
-                e.IsInEffect))];
+                e.IsInEffect) { EffectTypeName = SkillSet.GetEffectTypeName(e.EffectType) })];
     }
 
     public static CharacterDto ToCharacter(
@@ -292,8 +303,13 @@ public static class SoloGameMapper
             teamName,
             skills, items, effects,
             c.GetAttributeValues(),
-            ToEquipments(c));
+            ToEquipments(c)) { StateName = ToStateName(c.CharacterState) };
     }
+
+    // Core's restriction message helper defaults to "完全行动不能" even for Actionable.
+    // Normal / unknown states must be handled separately; restrictions use the existing Core translation.
+    public static string ToStateName(CharacterState state) => state == CharacterState.Actionable ? "待行动"
+        : Enum.IsDefined(state) ? CharacterSet.GetCharacterState(state) : "状态未知";
 
     public static DecisionPointsDto? ToDP(DecisionPoints? dp)
     {

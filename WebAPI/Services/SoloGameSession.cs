@@ -20,7 +20,7 @@ namespace FunGame.Testing.WebAPI.Services;
 /// <para>注意：Core 的事件是同步委托，因此本会话运行在专属后台线程上，
 /// 阻塞等待不会占用线程池请求线程。</para>
 /// </summary>
-public sealed class SoloGameSession : IDisposable
+public sealed partial class SoloGameSession : IDisposable
 {
     public const string ModeName = "solo";
 
@@ -47,7 +47,7 @@ public sealed class SoloGameSession : IDisposable
     private CancellationTokenSource _cts = new();
     private Thread? _thread;
     private int _round;
-    private int _logSent;
+    private long _logBaseCursor;
     private bool _disposed;
     /// <summary>玩家决策已超时升级为 AI 托管（避免反复等满超时导致回合/游戏停滞）</summary>
     private volatile bool _aiEscalated;
@@ -121,6 +121,7 @@ public sealed class SoloGameSession : IDisposable
         _sink = sink;
         DecisionTimeout = TimeSpan.FromSeconds(Math.Clamp(options.DecisionTimeoutSeconds, 5, 600));
         RequireContinue = options.RequireContinue;
+        _waitForPresentation = options.WaitForPresentation;
         RoundDelayMs = Math.Clamp(options.RoundDelayMs, 0, 5000);
         Running = true;
         _thread = new Thread(() => RunGame(options)) { IsBackground = true, Name = $"solo-{Id}" };
@@ -143,6 +144,11 @@ public sealed class SoloGameSession : IDisposable
     /// </summary>
     public void SetPaused(bool paused)
     {
+        if (!OnGameThread)
+        {
+            InvokeCheckpoint(() => SetPaused(paused));
+            return;
+        }
         if (_paused == paused) return;
         _paused = paused;
         if (paused)
@@ -162,16 +168,14 @@ public sealed class SoloGameSession : IDisposable
     /// <summary>阻塞直到恢复运行（被取消则抛出），返回值为 true 表示已恢复</summary>
     private bool WaitWhilePaused()
     {
-        if (_pauseGate.IsSet) return true;
-        try
+        DrainCheckpointCommands();
+        while (!_cts.IsCancellationRequested && !_pauseGate.IsSet)
         {
-            _pauseGate.Wait(_cts.Token);
-            return true;
+            _checkpointWake.WaitOne(50);
+            DrainCheckpointCommands();
+            RetryCheckpointDelivery();
         }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+        return !_cts.IsCancellationRequested;
     }
 
     /// <summary>客户端回传决策结果</summary>
@@ -220,33 +224,36 @@ public sealed class SoloGameSession : IDisposable
 
     public void AttachSink(IGameEventSink sink)
     {
+        if (!OnGameThread)
+        {
+            InvokeCheckpoint(() => AttachSink(sink));
+            return;
+        }
+        _presentationWaitStep = null; // Resume baseline abandons old playback waits.
         PlayerConnected = true;
         _sink = sink;
         // 重连后夺回玩家角色的控制权（此前断线/超时托管已交还 AI）
         ReleasePlayerFromAI("玩家重新连接");
         // 重连：补发完整快照（地图必须每次携带：前端棋子位置由 grid.characters 驱动）
-        PushState();
+        _sentDecisionIds.Clear();
+        // 强制屏障；成功之前不允许下发该连接的决策。
+        if (!PublishCheckpoint(forceBaseline: true)) return;
 
-        // 补发仍在等待的决策请求：否则重连后玩家看不到待办操作，对局会一直卡在这里
-        foreach (KeyValuePair<string, (string Kind, object Payload)> kv in _pendingRequests)
-        {
-            try
-            {
-                _sink?.SendAsync(SoloMessageTypes.GamingRequest,
-                    new { requestId = kv.Key, kind = kv.Value.Kind, payload = kv.Value.Payload },
-                    CancellationToken.None).GetAwaiter().GetResult();
-            }
-            catch
-            {
-                /* 忽略 */
-            }
-        }
+        // PublishCheckpoint 成功后统一补发仍有效的决策，禁止绕过基线屏障。
     }
 
     /// <summary>玩家断开：取消所有挂起的决策（按各自兜底策略执行），并将玩家角色交给 AI 托管</summary>
     public void MarkDisconnected()
     {
+        if (!OnGameThread)
+        {
+            if (_thread?.IsAlive != true) return;
+            InvokeCheckpoint(MarkDisconnected);
+            return;
+        }
+        _presentationWaitStep = null; // Offline AI must not wait for an absent client.
         PlayerConnected = false;
+        _sink = null;
         foreach (TaskCompletionSource<JsonElement?> tcs in _pending.Values)
         {
             tcs.TrySetResult(null);
@@ -326,8 +333,13 @@ public sealed class SoloGameSession : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
-        _cts.Dispose();
-        _pauseGate.Dispose();
+        if (_thread is not null && !OnGameThread) _thread.Join(2000);
+        if (_thread?.IsAlive != true)
+        {
+            _cts.Dispose();
+            _pauseGate.Dispose();
+            _checkpointWake.Dispose();
+        }
         foreach (TaskCompletionSource<JsonElement?> tcs in _pending.Values) tcs.TrySetCanceled();
         _pending.Clear();
     }
@@ -374,7 +386,7 @@ public sealed class SoloGameSession : IDisposable
             player.Promotion = 200;
             WriteLine($"选择了 [ {player} ]！");
 
-            // ---- 团队划分（5V5：玩家所在队固定命名「蓝队」，对方为「红队」） ----
+            // ---- 团队划分（默认 3V3：玩家所在队固定命名「蓝队」，对方为「红队」） ----
             _teamMode = options.TeamMode;
             _maxScoreToWin = options.TeamMode ? Math.Max(1, options.MaxScoreToWin) : 0;
             List<Character> blue = [];
@@ -404,7 +416,7 @@ public sealed class SoloGameSession : IDisposable
                 _teamQueue.AddTeam(BlueTeamName, blue);
                 _teamQueue.AddTeam(RedTeamName, red);
                 WriteLine("");
-                WriteLine("=== 团队模式 5V5 · 死亡竞赛 ===");
+                WriteLine($"=== 团队模式 {blue.Count}V{red.Count} · 死亡竞赛 ===");
                 WriteLine($"你被随机分配到 [ {BlueTeamName} ]；率先取得 {_maxScoreToWin} 个人头的队伍获胜（无限复活）。");
                 WriteLine($"[ {BlueTeamName} ]：{string.Join(" / ", blue.Select(c => c.ToString()))}");
                 WriteLine($"[ {RedTeamName} ]：{string.Join(" / ", red.Select(c => c.ToString()))}");
@@ -478,8 +490,9 @@ public sealed class SoloGameSession : IDisposable
                 gameId = Id,
                 mode = Mode,
                 playerGuid = player.Guid.ToString(),
-                state = Snapshot()
+                state = CaptureSnapshot()
             });
+            PublishCheckpoint(forceBaseline: true);
 
             // ---- 主循环 ----
             int i = 1;
@@ -528,9 +541,12 @@ public sealed class SoloGameSession : IDisposable
                     }
                     finally
                     {
+                        AbandonPresentationAttack();
+                        SweepPresentationCasts();
                         _diagActor = null;
                     }
 
+                    WaitForClientPresentation(); // Include end-of-turn HP / life changes before the next actor.
                     Send(SoloMessageTypes.GamingRound, new { gameId = Id, round = _round, actorGuid = actor.Guid.ToString() });
 
                     if (isGameEnd)
@@ -559,10 +575,18 @@ public sealed class SoloGameSession : IDisposable
                 }
 
                 if (queue.GameOver) break;
+                WaitForClientPresentation(); // Time-lapse feedback drains before selecting the next actor.
 
                 if (RoundDelayMs > 0)
                 {
-                    Thread.Sleep(RoundDelayMs);
+                    var until = Environment.TickCount64 + RoundDelayMs;
+                    while (Environment.TickCount64 < until && !_cts.IsCancellationRequested)
+                    {
+                        var remaining = until - Environment.TickCount64;
+                        if (remaining <= 0) break;
+                        _checkpointWake.WaitOne((int)Math.Min(50, remaining));
+                        DrainCheckpointCommands();
+                    }
                 }
             }
 
@@ -591,6 +615,7 @@ public sealed class SoloGameSession : IDisposable
         }
         finally
         {
+            DrainCheckpointCommands();
             _diagTimer?.Dispose();
             _diagTimer = null;
             _diagActor = null;
@@ -647,6 +672,7 @@ public sealed class SoloGameSession : IDisposable
     {
         Running = false;
         Finished = true;
+        SweepPresentationCasts(force: true);
         FlushState();
         // 收尾时把还没答的决策一并作废，否则客户端会一直等一条永远不会来的请求
         DropPendingDecisions("对局结束");
@@ -744,6 +770,11 @@ public sealed class SoloGameSession : IDisposable
         queue.CharacterInquiryEvent += OnCharacterInquiry;
         queue.CharacterMoveEvent += OnCharacterMove;
         queue.CharacterActionTakenEvent += OnActionTaken;
+        queue.CharacterNormalAttackEvent += OnPresentationNormalAttack;
+        queue.CharacterPreCastSkillEvent += OnPresentationPreCast;
+        queue.CharacterCastSkillEvent += OnPresentationSkillRelease;
+        queue.CharacterCastItemSkillEvent += OnPresentationSkillRelease;
+        queue.InterruptCastingEvent += OnPresentationCastInterrupted;
         queue.QueueUpdatedEvent += OnQueueUpdated;
         queue.TurnEndEvent += OnTurnEnd;
     }
@@ -968,23 +999,51 @@ public sealed class SoloGameSession : IDisposable
         int rawMax = 1;
         bool selectAll = false;
 
-        if (ctx.Skill is Skill skill)
+        if (ctx.Skill is Skill skill && ctx.Trigger is not null)
         {
-            if (skill.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
-            if (skill.CanSelectEnemy) selectable.AddRange(ctx.Enemys);
-            if (skill.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
-            rawMax = Math.Max(1, skill.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
             selectAll = skill.SelectAllEnemies || skill.SelectAllTeammates;
-            if (skill.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
+            List<Character> enemyPool = skill.SelectAllEnemies
+                ? [.. ctx.AllEnemys.Where(c => c.HP > 0 && !c.IsUnselectable)]
+                : ctx.Enemys;
+            List<Character> teammatePool = skill.SelectAllTeammates
+                ? [.. ctx.AllTeammates.Where(c => c.HP > 0)]
+                : ctx.Teammates;
+            selectable = skill.GetSelectableTargets(
+                ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
+            if (selectAll)
+            {
+                selectable = [.. selectable.Where(c =>
+                    skill.SelectAllEnemies
+                    && (enemyPool.Contains(c) || skill.AllowSelectDead && c.HP == 0 && ctx.AllEnemys.Contains(c))
+                    || skill.SelectAllTeammates
+                    && (ReferenceEquals(c, ctx.Trigger)
+                        || teammatePool.Contains(c)
+                        || skill.AllowSelectDead && c.HP == 0 && ctx.AllTeammates.Contains(c)))];
+            }
+            rawMax = selectAll
+                ? Math.Max(1, selectable.Count)
+                : Math.Max(1, skill.RealCanSelectTargetCount(enemyPool, teammatePool));
         }
-        else if (ctx.NormalAttack is NormalAttack attack)
+        else if (ctx.NormalAttack is NormalAttack attack && ctx.Trigger is not null)
         {
-            if (attack.CanSelectSelf && ctx.Trigger is not null) selectable.Add(ctx.Trigger);
-            if (attack.CanSelectEnemy) selectable.AddRange(ctx.Enemys);
-            if (attack.CanSelectTeammate) selectable.AddRange(ctx.Teammates);
-            rawMax = Math.Max(1, attack.RealCanSelectTargetCount(ctx.Enemys, ctx.Teammates));
             selectAll = attack.SelectAllEnemies || attack.SelectAllTeammates;
-            if (attack.SelectAllEnemies && selectable.Count == 0) selectable.AddRange(ctx.Enemys);
+            List<Character> enemyPool = attack.SelectAllEnemies
+                ? [.. ctx.AllEnemys.Where(c => c.HP > 0 && !c.IsUnselectable)]
+                : ctx.Enemys;
+            List<Character> teammatePool = attack.SelectAllTeammates
+                ? [.. ctx.AllTeammates.Where(c => c.HP > 0)]
+                : ctx.Teammates;
+            selectable = attack.GetSelectableTargets(
+                ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
+            if (selectAll)
+            {
+                selectable = [.. selectable.Where(c =>
+                    attack.SelectAllEnemies && enemyPool.Contains(c)
+                    || attack.SelectAllTeammates && (ReferenceEquals(c, ctx.Trigger) || teammatePool.Contains(c)))];
+            }
+            rawMax = selectAll
+                ? Math.Max(1, selectable.Count)
+                : Math.Max(1, attack.RealCanSelectTargetCount(enemyPool, teammatePool));
         }
         else
         {
@@ -1033,7 +1092,7 @@ public sealed class SoloGameSession : IDisposable
             // selectAll：本技能/普攻是「选取全体」类，前端应默认替玩家勾选全部可选目标
             selectAll,
             // 攻击/施法距离（黄）：地图据此高亮可选范围；移动距离（绿）另在 TargetGrid 阶段下发
-            range = castSkill?.CastAnywhere == true ? -1 : (castSkill?.CastRange ?? actor.ATR),
+            range = selectAll || castSkill?.CastAnywhere == true ? -1 : (castSkill?.CastRange ?? actor.ATR),
             attackRange = actor.ATR,
             moveRange = actor.MOV,
             actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
@@ -1047,7 +1106,7 @@ public sealed class SoloGameSession : IDisposable
                 maxHp = c.MaxHP,
                 gridId = _map?.GetCharacterCurrentGrid(c)?.Id ?? -1,
                 isSelf = ReferenceEquals(c, actor),
-                isTeammate = ctx.Teammates.Contains(c)
+                isTeammate = _queue?.IsTeammate(actor, c) ?? false
             }).ToList()
         });
 
@@ -1197,9 +1256,18 @@ public sealed class SoloGameSession : IDisposable
         return response;
     }
 
-    private void OnCharacterMove(MoveContext ctx) => PushState();
+    private void OnCharacterMove(MoveContext ctx)
+    {
+        if (!_waitForPresentation) PushState(); // Gated clients publish the completed movement in OnActionTaken.
+    }
 
-    private void OnActionTaken(ActionContext ctx) => PushState();
+    private void OnActionTaken(ActionContext ctx)
+    {
+        CompletePresentationAttack();
+        SweepPresentationCasts();
+        if (_waitForPresentation) WaitForClientPresentation();
+        else PushState();
+    }
 
     private void OnQueueUpdated(QueueUpdatedContext ctx)
     {
@@ -1236,6 +1304,8 @@ public sealed class SoloGameSession : IDisposable
         if (_cts.IsCancellationRequested) return null;
         // 暂停中不下发新决策：等恢复后再问，避免玩家在暂停时收到倒计时压力
         if (!WaitWhilePaused()) return null;
+        WaitForClientPresentation(); // Never start a player decision countdown behind earlier visuals.
+        if (_cts.IsCancellationRequested) return null;
 
         // ---- 回合内决策护栏：手动角色的决策循环在 Core 里没有次数上限，
         //      这里识别"同一类决策被反复索要"的打转，并把玩家交 AI 托管以强制结束本回合 ----
@@ -1258,21 +1328,10 @@ public sealed class SoloGameSession : IDisposable
         TaskCompletionSource<JsonElement?> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[requestId] = tcs;
         _pendingRequests[requestId] = (kind, payload);
+        _initialDecisionIds.Add(requestId);
 
         // 决策下发前先强制推送一次完整状态，保证 UI 处于最新
         FlushState();
-
-        try
-        {
-            // 下发决策时携带超时时长，前端据此显示倒计时，玩家能明确知道"现在轮到我、还剩多久"
-            _sink?.SendAsync(SoloMessageTypes.GamingRequest,
-                new { requestId, kind, payload, timeoutMs = (int)DecisionTimeout.TotalMilliseconds }, _cts.Token)
-                .GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            WriteLine($"下发决策请求失败：{ex.Message}");
-        }
 
         try
         {
@@ -1284,6 +1343,8 @@ public sealed class SoloGameSession : IDisposable
             while (true)
             {
                 if (_cts.IsCancellationRequested) break;
+                DrainCheckpointCommands();
+                RetryCheckpointDelivery();
                 // 暂停期间不计入决策超时：阻塞在闸门上，恢复时把暂停时长补回截止时间
                 if (!_pauseGate.IsSet)
                 {
@@ -1314,6 +1375,8 @@ public sealed class SoloGameSession : IDisposable
         {
             _pending.TryRemove(requestId, out _);
             _pendingRequests.TryRemove(requestId, out _);
+            _sentDecisionIds.Remove(requestId);
+            _initialDecisionIds.Remove(requestId);
         }
     }
 
@@ -1324,7 +1387,11 @@ public sealed class SoloGameSession : IDisposable
         lock (_logLock)
         {
             _log.Add(line);
-            if (_log.Count > 5000) _log.RemoveRange(0, 1000);
+            if (_log.Count > 5000)
+            {
+                _log.RemoveRange(0, 1000);
+                _logBaseCursor += 1000;
+            }
         }
     }
 
@@ -1345,7 +1412,8 @@ public sealed class SoloGameSession : IDisposable
     /// <summary>节流推送（战斗事件密集时合并；日志按游标增量，不会丢失）</summary>
     private void PushState()
     {
-        if (_sink is null) return;
+        if (_openPresentationAttack is not null) return;
+        DrainCheckpointCommands();
         lock (_logLock)
         {
             if (_pushClock.ElapsedMilliseconds - _lastPushMs < PushMinIntervalMs) return;
@@ -1357,7 +1425,8 @@ public sealed class SoloGameSession : IDisposable
     /// <summary>强制推送（决策下发前 / 每回合结算 / 对局结束时调用）</summary>
     private void FlushState()
     {
-        if (_sink is null) return;
+        if (_openPresentationAttack is not null) return;
+        DrainCheckpointCommands();
         lock (_logLock)
         {
             _lastPushMs = _pushClock.ElapsedMilliseconds;
@@ -1367,18 +1436,15 @@ public sealed class SoloGameSession : IDisposable
 
     private void SendState()
     {
-        List<string> newLines;
-        lock (_logLock)
-        {
-            newLines = _log.Skip(_logSent).ToList();
-            _logSent = _log.Count;
-        }
-        Send(SoloMessageTypes.GamingState, new { state = Snapshot(), log = newLines });
+        PublishCheckpoint();
     }
 
     // ==================== 快照 ====================
 
     public GameStateDto Snapshot()
+        => _latestCheckpointSnapshot ?? throw new InvalidOperationException("Initial checkpoint is not ready.");
+
+    private GameStateDto CaptureSnapshot()
     {
         List<Character> all = _characters.Count > 0 ? [.. _characters] : [];
         // Core / 模组可能在开局后派生出额外单位（例：Oshima「雇佣兵团」召唤的雇佣兵），
@@ -1511,22 +1577,23 @@ public sealed class SoloGameSession : IDisposable
 /// <summary>单人局启动参数</summary>
 public sealed class SoloGameOptions
 {
-    public int CharacterCount { get; set; } = 10;
+    public int CharacterCount { get; set; } = 6;
     public int Level { get; set; } = 60;
     public int SkillLevel { get; set; } = 6;
     public int NormalAttackLevel { get; set; } = 8;
     public int MaxRound { get; set; } = 999;
     /// <summary>最大复活次数：0 = 不复活；-1 = 无限复活（团队死亡竞赛用）</summary>
     public int MaxRespawnTimes { get; set; } = -1;
-    /// <summary>团队模式（红蓝 5V5）。关闭则为原有混战模式</summary>
+    /// <summary>团队模式（默认红蓝 3V3）。关闭则为原有混战模式</summary>
     public bool TeamMode { get; set; } = true;
-    /// <summary>每队人数（团队模式下默认 5 ⇒ 5V5）</summary>
-    public int TeamSize { get; set; } = 5;
+    /// <summary>每队人数（团队模式下默认 3 ⇒ 3V3）</summary>
+    public int TeamSize { get; set; } = 3;
     /// <summary>死亡竞赛夺冠人头数（团队比分先到者获胜；0 = 不用比分判定）</summary>
     public int MaxScoreToWin { get; set; } = 10;
     /// <summary>单个决策的等待上限。超时即把玩家角色交 AI 托管，保证回合一定能推进（外层限时）</summary>
     public int DecisionTimeoutSeconds { get; set; } = 30;
     public bool RequireContinue { get; set; } = false;
+    public bool WaitForPresentation { get; set; } = false; // Opt-in: legacy Web UI remains non-gated.
     public int RoundDelayMs { get; set; } = 250;
     /// <summary>初始装备品质（QualityType：0白 1绿 2蓝 3紫 4橙 5红，5=红及以上）。开局空投按此品质发放</summary>
     public int InitialItemQuality { get; set; } = 0;
@@ -1542,20 +1609,20 @@ public sealed class SoloGameOptions
     public int? Seed { get; set; } = null;
 }
 
-/// <summary>单人模式专用地图（12 x 12 平面，与 WPF GameMapTesting 的 TestMap 一致）</summary>
+/// <summary>单人模式专用地图（9 x 9 平面）</summary>
 public sealed class SoloMap : GameMap
 {
     public override string Name => "SoloMap";
     public override string Description => "单人模式测试地图";
     public override string Version => "1.0.0";
     public override string Author => "FunGame Testing";
-    public override int Length => 12;
-    public override int Width => 12;
+    public override int Length => 9;
+    public override int Width => 9;
     public override int Height => 1;
     public override float Size => 32;
 
     /// <summary>
-    /// 钳制过大的射程：本图仅 12×12，曼哈顿距离达到 (长-1)+(宽-1) 即可覆盖全图。
+    /// 钳制过大的射程：本图仅 9×9，曼哈顿距离达到 (长-1)+(宽-1) 即可覆盖全图。
     /// 引擎默认实现按 O(range²) 遍历 —— 实测出现过 range=144（某物品/技能的"全图"射程），
     /// 单次调用约 8.4 万次迭代；该调用位于回合内层决策循环中，被高频重复时对局近乎停滞
     /// （看门狗实测 100+ 秒不返回，CPU 100%）。这里把射程上限压到"刚好覆盖全图"。

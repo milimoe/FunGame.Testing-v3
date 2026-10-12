@@ -80,7 +80,7 @@ public sealed class SoloWebSocketSink : IGameEventSink
 
     public async Task SendAsync(string type, object data, CancellationToken ct)
     {
-        if (!IsOpen) return;
+        if (!IsOpen) throw new IOException("Solo WebSocket is not open.");
         SoloEnvelope envelope = SoloEnvelope.Ok(type, Interlocked.Increment(ref _seq), data);
         byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(envelope, JsonOptions));
 
@@ -88,7 +88,7 @@ public sealed class SoloWebSocketSink : IGameEventSink
         if (!await _gate.WaitAsync(SendTimeout, ct).ConfigureAwait(false))
         {
             MarkBroken();
-            return;
+            throw new TimeoutException("Solo WebSocket send gate timed out.");
         }
         try
         {
@@ -98,13 +98,15 @@ public sealed class SoloWebSocketSink : IGameEventSink
             {
                 // 发送超时：判定连接不可用并中断，避免游戏线程被永久拖住
                 MarkBroken();
-                return;
+                ct.ThrowIfCancellationRequested();
+                throw new TimeoutException("Solo WebSocket send timed out.");
             }
             await send.ConfigureAwait(false);
         }
         catch
         {
             MarkBroken();
+            throw;
         }
         finally
         {

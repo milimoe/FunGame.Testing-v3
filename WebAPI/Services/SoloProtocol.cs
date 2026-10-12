@@ -31,6 +31,7 @@ public static class SoloMessageTypes
     public const string GamingResume = "gaming.resume";
     /// <summary>暂停 / 继续（d: { paused: bool }）；暂停期间引擎线程阻塞，不推进回合也不计决策超时</summary>
     public const string GamingPause = "gaming.pause";
+    public const string GamingPresentationDone = "gaming.presentation.done";
 }
 
 /// <summary>错误体</summary>

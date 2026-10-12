@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\FunGame.Core\FunGame.Core.csproj" />
+    <ProjectReference Include="..\..\FunGame.Core\src\FunGame.Core.csproj" />
   </ItemGroup>
 
   <!-- 内容模组实体 JSON 配置：随库输出到 modules/oshima-studios/（Factory.GetGameModuleInstances 的 BaseDirectory/modules/ 约定） -->

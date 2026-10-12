@@ -1,0 +1,347 @@
+using System.Reflection;
+using FunGame.Core.Api;
+using FunGame.Core.Entity;
+using FunGame.Core.Library.Constant;
+using FunGame.Core.Model.Framework;
+using FunGame.Core.Model.Queue;
+using Milimoe.FunGameTesting.OshimaGameModules;
+using Milimoe.FunGameTesting.OshimaGameModules.Characters;
+using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
+using Milimoe.FunGameTesting.OshimaGameModules.Items;
+using Milimoe.FunGameTesting.OshimaGameModules.Skills;
+
+namespace Milimoe.FunGameTesting.Tests;
+
+/// <summary>通过 WebAPI 的完整模组初始化入口运行协同行动集成测试。</summary>
+public static class ChainActionTest
+{
+    public static int RunAllTests()
+    {
+        var tests = new (string Name, Action Test)[]
+        {
+            ("完整模组数据已加载", () =>
+            {
+                Check(FunGameService.Characters.Count >= 18, "真实角色不足");
+                Check(FunGameService.AllSkills.Count > 80 && FunGameService.AllItems.Count > 20, "完整技能/物品库未加载");
+                Console.WriteLine($"  characters={FunGameService.Characters.Count}, skills={FunGameService.AllSkills.Count}, items={FunGameService.AllItems.Count}");
+            }),
+            ("真实普攻的伤害归属、双方硬直和确认公式", () =>
+            {
+                Fixture f = new();
+                ChainActionRequest? request = null;
+                f.Q.TurnStartEvent += ctx => { request = Submit(f, f.A, f.B, CharacterActionType.NormalAttack, [f.D]); return true; };
+                int decisions = 0;
+                f.Q.DecideActionEvent += ctx => ++decisions switch
+                { 1 => CharacterActionType.NormalAttack, 2 => CharacterActionType.ChainAction, _ => CharacterActionType.EndTurn };
+                f.Q.SelectNormalAttackTargetsEvent += ctx => [f.D];
+                f.Q.SelectChainActionEvent += (actor, pending) => request?.Id;
+                double bHardness = f.B.NormalAttack.RealHardnessTime, aHardness = f.A.NormalAttack.RealHardnessTime;
+                f.Run(f.A);
+                Equal(Calculation.Round2Digits(.5 + bHardness), f.Q.HardnessTime[f.B], "协作方即时硬直");
+                Equal(Calculation.Round2Digits(Math.Max(aHardness, 3) + 2), f.Q.LastRound.HardnessTime, "确认参与最大硬直公式");
+                var execution = f.Q.LastRound.Actions.Single(a => a.Actor == f.B);
+                Check(execution.Damages.GetValueOrDefault(f.D) > 0, "真实普攻未记录 B 的伤害");
+                Check(execution.TurnActor == f.A, "回合归属丢失");
+                Equal(1, execution.DecisionPointsCost, "B 成本");
+            }),
+            ("真实战技金刚击的伤害、EP、冷却与特效记录", () =>
+            {
+                Fixture f = new();
+                Skill skill = f.Learn(new 金刚击(f.B));
+                double ep = f.B.EP, cost = skill.RealEPCost, hp = f.D.HP;
+                double epAtRelease = double.NaN;
+                f.Q.CharacterCastSkillEvent += ctx => { if (ctx.Skill == skill) epAtRelease = f.B.EP; };
+                f.During(f.A, () =>
+                {
+                    var request = Submit(f, f.A, f.B, CharacterActionType.CastSkill, [f.D], skill);
+                    var result = f.Q.ConfirmChainAction(f.A, request.Id);
+                    Check(result.IsSuccess, result.FailReason);
+                    Equal(cost, result.Record!.EPCost, "战技 EP 记录");
+                    Equal(ep - cost, epAtRelease, "战技效果触发前的 EP 扣费（伤害可恢复能量）");
+                    Equal(skill.RealCD, skill.CurrentCD, "战技冷却");
+                    Check(f.D.HP < hp && result.Record!.Damages.GetValueOrDefault(f.D) > 0, "模组伤害未执行");
+                    Check(f.Q.LastRound.Effects[f.B].Contains(skill), "实际执行者的模组特效记录缺失");
+                });
+            }),
+            ("真实回复弹作用于当前角色，治疗贡献归 B", () =>
+            {
+                Fixture f = new();
+                Skill skill = f.Learn(new 回复弹(f.B));
+                f.A.HP -= 1000;
+                double hp = f.A.HP;
+                f.During(f.A, () =>
+                {
+                    var result = f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.CastSkill, [f.A], skill).Id);
+                    Check(result.IsSuccess && f.A.HP > hp, "真实治疗未作用到出队的 A");
+                    Check(result.Record!.Heals.GetValueOrDefault(f.A) > 0, "治疗记录缺失");
+                    Check(f.Q.CharacterStatistics[f.B].TotalHeal > 0, "治疗贡献未归 B");
+                    Equal(0, f.Q.CharacterStatistics[f.A].TotalHeal, "A 不承担 B 的治疗贡献");
+                });
+            }),
+            ("真实爆发极寒渴望消耗 2 DP 并挂载自身增益", () =>
+            {
+                Fixture f = new();
+                Skill skill = f.Learn(new 极寒渴望(f.B));
+                int dp = f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints;
+                double lifesteal = f.B.Lifesteal;
+                f.During(f.A, () =>
+                {
+                    var result = f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.CastSuperSkill, [f.B], skill).Id);
+                    Check(result.IsSuccess, result.FailReason);
+                    Equal(dp - 2, f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints, "协同爆发 DP");
+                    Equal(0, f.B.EP, "真实爆发 EP 消耗");
+                    Check(f.B.Effects.Any(e => e is 极寒渴望特效) && f.B.Lifesteal > lifesteal, "模组增益未挂载");
+                });
+            }),
+            ("真实小回复药扣次数并记录治疗", () =>
+            {
+                Fixture f = new();
+                Item item = new 小回复药();
+                item.Skills.Active!.Character = f.B;
+                f.B.Items.Add(item);
+                f.A.HP -= 2000;
+                f.During(f.A, () =>
+                {
+                    var request = f.Q.SubmitChainAction(f.A, f.B, CharacterActionType.UseItem, [f.A], out string reason, item: item);
+                    Check(request != null, reason);
+                    var result = f.Q.ConfirmChainAction(f.A, request!.Id);
+                    Check(result.IsSuccess && result.Record!.Heals.GetValueOrDefault(f.A) > 0, "模组物品效果未执行");
+                    Equal(0, item.RemainUseTimes, "物品使用次数");
+                    Check(!f.B.Items.Contains(item), "耗尽物品未移除");
+                });
+            }),
+            ("真实冰霜攻击保留预算、冻结硬直与释放扣 MP", () =>
+            {
+                Fixture f = new();
+                Skill skill = f.Learn(new 冰霜攻击(f.B));
+                double mp = f.B.MP, castTime = skill.RealCastTime;
+                int originalDP = f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints;
+                Guid requestId = Guid.Empty;
+                f.During(f.A, () =>
+                {
+                    var request = Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], skill);
+                    requestId = request.Id;
+                    Check(f.Q.ConfirmChainAction(f.A, request.Id).IsCasting, "未开始真实魔法吟唱");
+                    Equal(mp, f.B.MP, "吟唱开始不扣 MP");
+                    Equal(Calculation.Round2Digits(castTime), f.Q.HardnessTime[f.B], "真实吟唱时间");
+                    Check(!f.Q.AssistDetails[f.A].NotDamageAssistLastTime.ContainsKey(f.B), "开始吟唱不能计助攻");
+                });
+                f.OnlyNext(f.B);
+                f.Run(f.B);
+                Equal(Calculation.Round2Digits(.5 + skill.RealHardnessTime), f.Q.LastRound.HardnessTime, "冻结原硬直恢复");
+                Equal(originalDP - 2, f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints, "释放不补 DP");
+                Equal(mp - skill.RealMPCost, f.B.MP, "真实魔法释放扣费");
+                var action = f.Q.LastRound.Actions.Single();
+                Check(action.IsSuccess && action.Damages.GetValueOrDefault(f.D) > 0, "真实魔法伤害未执行");
+                Check(action.ChainActionRequestId == requestId && action.TurnActor == f.A, "吟唱归属丢失");
+                RoundRecord decoded = JsonService.GetObject<RoundRecord>(JsonService.GetString(f.Q.LastRound.Snapshot()))!;
+                Check(decoded.Actions.Single().ChainActionRequestId == requestId, "完整回合 JSON 关联丢失");
+            }),
+            ("真实金刚击打断协同魔法", () =>
+            {
+                Fixture f = new();
+                Skill magic = f.Learn(new 冰霜攻击(f.B));
+                Skill interrupt = new 金刚击(f.D) { Level = 1 };
+                f.During(f.A, () =>
+                {
+                    f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id);
+                    interrupt.OnSkillCasted(f.Q, f.D, [f.B], []);
+                    Check(f.B.CharacterState != CharacterState.Casting, "真实打断特效没有终止吟唱");
+                    Equal(3.5, f.Q.HardnessTime[f.B], "打断保留原硬直加 3");
+                    Check(!f.Q.AssistDetails[f.A].NotDamageAssistLastTime.ContainsKey(f.B), "打断不产生有效辅助");
+                });
+            }),
+            ("协同吟唱不领取角色回合奖励", () =>
+            {
+                Fixture f = new();
+                f.Q.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, true, id => new() { { "exatk", 60d } });
+                Skill reward = Factory.OpenFactory.GetInstance<Skill>((long)EffectID.ExATK, "", []);
+                f.Q.AddRoundReward(f.B, 1, reward);
+                Skill magic = f.Learn(new 冰霜攻击(f.B));
+                f.During(f.A, () => f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id));
+                f.OnlyNext(f.B);
+                f.Run(f.B);
+                Check(f.Q.LastRound.RoundRewards.Count == 0 && f.Q.LastRound.RoundRewardEvents.All(r => !r.Skills.Contains(reward)), "结算回合领取了普通奖励");
+                Check(f.Q.QueryRoundRewards(f.B, 1).Contains(reward), "下次正常回合奖励被消耗");
+            }),
+            ("模组雇佣兵提交及作为回合角色", () =>
+            {
+                Fixture f = new();
+                雇佣兵 unit = new(f.A, "协同") { Level = 10 };
+                unit.Recovery(100d);
+                f.Q.AddCharacter(unit, .25, false);
+                f.During(f.A, () =>
+                {
+                    var request = Submit(f, f.A, unit, CharacterActionType.NormalAttack, [f.D]);
+                    Check(f.Q.ConfirmChainAction(f.A, request.Id).IsSuccess, "真实雇佣兵协作失败");
+                });
+                f.Q.AddCharacter(unit, 0, false);
+                f.Q.ChangeCharacterHardnessTime(f.B, .5 - f.Q.HardnessTime[f.B], false, false);
+                f.During(unit, () => Check(f.Q.GetAvailableChainActors(unit).Contains(f.B), "雇佣兵回合未识别主人队友"));
+            }),
+            ("真实战技跨队友回合消耗延续预算", () =>
+            {
+                Fixture f = new();
+                Skill skill = f.Learn(new 金刚击(f.B));
+                var dp = f.Q.CharacterDecisionPoints[f.B];
+                int budget = dp.CurrentDecisionPoints;
+                f.During(f.A, () => f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.NormalAttack, [f.D]).Id));
+                f.Q.AddCharacter(f.C, 0, false);
+                f.Q.ChangeCharacterHardnessTime(f.B, .5 - f.Q.HardnessTime[f.B], false, false);
+                f.During(f.C, () => Check(f.Q.ConfirmChainAction(f.C, Submit(f, f.C, f.B, CharacterActionType.CastSkill, [f.D], skill).Id).IsSuccess, "跨回合协作失败"));
+                Equal(budget - 3, dp.CurrentDecisionPoints, "两种动作延续扣减");
+                Equal(1, dp.ActionTypes[CharacterActionType.NormalAttack], "普通攻击配额延续");
+                Equal(1, dp.ActionTypes[CharacterActionType.CastSkill], "战技配额扣减");
+            }),
+            ("固定种子完整模组团队战斗与协同 AI", () =>
+            {
+                int totalChains = 0;
+                foreach (int seed in new[] { 20261012, 20261013, 20261014 }) totalChains += RunModuleBattle(seed);
+                Check(totalChains > 0, "完整对局未执行协同行动");
+            }),
+            ("现有回合奖励回归", () => RunExisting(typeof(RoundRewardTest), RoundRewardTest.RunAllTests)),
+            ("现有特效自动记录回归", () => RunExisting(typeof(EffectAutoRecordTest), EffectAutoRecordTest.RunAllTests))
+        };
+        int failures = 0;
+        foreach (var test in tests)
+        {
+            try { test.Test(); Console.WriteLine($"[PASS] {test.Name}"); }
+            catch (Exception ex) { failures++; Console.WriteLine($"[FAIL] {test.Name}: {ex}"); }
+        }
+        Console.WriteLine($"ChainAction integration: {tests.Length - failures}/{tests.Length} passed");
+        return failures == 0 ? 0 : 1;
+    }
+
+    private static int RunModuleBattle(int seed)
+    {
+        Random random = new(seed);
+        List<Character> characters = [.. FunGameService.Characters.OrderBy(_ => random.Next()).Take(8).Select(c => c.Copy())];
+        foreach (Character c in characters)
+        {
+            c.Level = 10;
+            FunGameService.AddCharacterSkills(c, 1, 2, 2);
+            foreach (Skill template in FunGameService.Skills.OrderBy(_ => random.Next()).Take(2))
+            {
+                Skill skill = template.Copy();
+                skill.Level = 2;
+                skill.AddSkillToCharacter(c);
+            }
+            c.Recovery(100d);
+        }
+        TeamGamingQueue queue = new(characters, _ => { }, seed: seed);
+        queue.AddTeam("蓝队", characters.Take(4));
+        queue.AddTeam("红队", characters.Skip(4));
+        queue.InitActionQueue();
+        queue.SetCharactersToAIControl(false, false, characters);
+        queue.TurnStartEvent += ctx =>
+        {
+            Character owner = ctx.Trigger!;
+            foreach (Character actor in queue.GetAvailableChainActors(owner))
+            {
+                List<Character> enemies = queue.GetEnemies(actor).Where(e => queue.Queue.Contains(e) && !e.IsUnselectable).ToList();
+                List<Character> friends = queue.GetTeammates(actor).Where(e => queue.Queue.Contains(e) && !e.IsUnselectable).ToList();
+                var options = actor.Skills.Where(s => s.IsActive && s.Level > 0).OrderBy(_ => random.Next()).ToList();
+                bool submitted = false;
+                foreach (Skill skill in options)
+                {
+                    CharacterActionType type = skill.SkillType switch
+                    {
+                        SkillType.Skill => CharacterActionType.CastSkill,
+                        SkillType.SuperSkill => CharacterActionType.CastSuperSkill,
+                        SkillType.Magic => CharacterActionType.PreCastSkill,
+                        _ => CharacterActionType.None
+                    };
+                    List<Character> targets = skill.GetSelectableTargets(actor, enemies, friends, enemies, friends);
+                    if (targets.Count == 0) continue;
+                    targets = targets.Take(skill.RealCanSelectTargetCount(enemies, friends)).ToList();
+                    if (queue.SubmitChainAction(owner, actor, type, targets, out _, skill) != null) { submitted = true; break; }
+                }
+                if (!submitted && enemies.Count > 0) queue.SubmitChainAction(owner, actor, CharacterActionType.NormalAttack, [enemies[0]], out _);
+            }
+            return true;
+        };
+        int turns = 0, chains = 0, actions = 0;
+        while (!queue.GameOver && turns < 600 && queue.NextCharacter() is Character actor)
+        {
+            queue.ProcessTurn(actor);
+            turns++;
+            actions += queue.LastRound.Actions.Count;
+            chains += queue.LastRound.Actions.Count(a => a.ActionType == CharacterActionType.ChainAction && a.IsSuccess);
+            Check(queue.HardnessTime.Values.All(t => double.IsFinite(t) && t >= 0), "真实对局硬直无效");
+            Check(queue.CharacterDecisionPoints.Values.All(dp => dp.CurrentDecisionPoints >= 0), "真实对局出现负预算");
+        }
+        Console.WriteLine($"  seed={seed}, turns={turns}, actions={actions}, chains={chains}, finished={queue.GameOver}");
+        Check(queue.GameOver, $"种子 {seed} 在 600 回合内没有正常结束");
+        Check(actions > 0, "没有实际战斗记录");
+        return chains;
+    }
+
+    private static void RunExisting(Type type, Action run)
+    {
+        FieldInfo failures = type.GetField("_failures", BindingFlags.NonPublic | BindingFlags.Static)!;
+        failures.SetValue(null, 0);
+        run();
+        Check((int)failures.GetValue(null)! == 0, $"{type.Name} 存在失败断言");
+    }
+    private static ChainActionRequest Submit(Fixture f, Character owner, Character actor, CharacterActionType type, List<Character> targets, Skill? skill = null)
+        => f.Q.SubmitChainAction(owner, actor, type, targets, out string reason, skill) ?? throw new InvalidOperationException(reason);
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+    }
+    private static void Equal(double expected, double actual, string message)
+        => Check(Math.Abs(expected - actual) < .001, $"{message}: expected {expected:0.####}, actual {actual:0.####}");
+
+    private sealed class Fixture
+    {
+        public Character A { get; } = new OshimaShiya();
+        public Character B { get; } = new NanGanYu();
+        public Character C { get; } = new Yang();
+        public Character D { get; } = new XinYin();
+        public TeamGamingQueue Q { get; }
+        public Fixture()
+        {
+            foreach (Character c in new[] { A, B, C, D })
+            {
+                c.Level = 10;
+                c.InitialHP = 5000;
+                c.InitialMP = 1000;
+                c.ER = 0;
+                c.Recovery(100d);
+            }
+            Q = new([A, B, C, D], _ => { }, seed: 20261012);
+            Q.AddTeam("T1", [A, B, C]);
+            Q.AddTeam("T2", [D]);
+            Q.AddCharacter(A, 0, false);
+            Q.AddCharacter(B, .5, false);
+            Q.AddCharacter(D, .8, false);
+            Q.AddCharacter(C, 1.2, false);
+            foreach (DecisionPoints dp in Q.CharacterDecisionPoints.Values) dp.CurrentDecisionPoints = 7;
+        }
+        public Skill Learn(Skill skill)
+        {
+            skill.Level = 1;
+            skill.AddSkillToCharacter(B);
+            return skill;
+        }
+        public void Run(Character expected)
+        {
+            Character? actor = Q.NextCharacter();
+            Check(actor == expected, $"应轮到 {expected}，实际 {actor}");
+            Q.ProcessTurn(actor!);
+        }
+        public void During(Character owner, Action action)
+        {
+            GamingQueue.TurnStartEventHandler start = ctx => { action(); return true; };
+            GamingQueue.DecideActionEventHandler decide = ctx => CharacterActionType.EndTurn;
+            Q.TurnStartEvent += start;
+            Q.DecideActionEvent += decide;
+            try { Run(owner); }
+            finally { Q.TurnStartEvent -= start; Q.DecideActionEvent -= decide; }
+        }
+        public void OnlyNext(Character actor)
+        {
+            foreach (Character other in Q.Queue.Where(c => c != actor).ToArray()) Q.RemoveCharacterFromQueue(other);
+        }
+    }
+}

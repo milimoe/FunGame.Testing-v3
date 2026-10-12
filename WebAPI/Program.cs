@@ -24,6 +24,13 @@ OshimaClasses.RegisterAll();
 // 筽祀牻世界观职业：3 职业 × 2 流派（铎京导械师 / META🐴熵噬者 / 深海同盟深潮行者）
 OshimaWorldClasses.RegisterAll();
 
+// 完整模组协同行动集成测试：不启动 HTTP 服务，不写战斗存档。
+if (args.Contains("--test-chain-action"))
+{
+    Environment.ExitCode = ChainActionTest.RunAllTests();
+    return;
+}
+
 // ============ 辅助方法（局部函数） ============
 static CharacterRefDto ToRef(Character character) =>
     new(character.Guid.ToString(), character.Name, character.FirstName, character.NickName, character.User?.Username ?? "");
@@ -346,6 +353,7 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                             if (data.TryGetProperty("maxScoreToWin", out v)) options.MaxScoreToWin = v.GetInt32();
                             if (data.TryGetProperty("decisionTimeoutSeconds", out v)) options.DecisionTimeoutSeconds = v.GetInt32();
                             if (data.TryGetProperty("requireContinue", out v)) options.RequireContinue = v.GetBoolean();
+                            if (data.TryGetProperty("waitForPresentation", out v)) options.WaitForPresentation = v.GetBoolean();
                             if (data.TryGetProperty("roundDelayMs", out v)) options.RoundDelayMs = v.GetInt32();
                             if (data.TryGetProperty("initialItemQuality", out v)) options.InitialItemQuality = v.GetInt32();
                             if (data.TryGetProperty("dropItemsIntervalSeconds", out v)) options.DropItemsIntervalSeconds = v.GetInt32();
@@ -386,6 +394,15 @@ app.Map("/ws/solo", async (HttpContext context, SoloGameRegistry registry) =>
                 case SoloMessageTypes.GamingEnd:
                     session?.Stop();
                     registry.Stop();
+                    break;
+
+                case SoloMessageTypes.GamingPresentationDone:
+                    if (session is not null && data.TryGetProperty("gameId", out var presentationGame)
+                        && presentationGame.ValueKind == JsonValueKind.String
+                        && data.TryGetProperty("step", out var presentationStep)
+                        && presentationStep.ValueKind == JsonValueKind.Number
+                        && presentationStep.TryGetInt64(out var completedStep))
+                        session.AcknowledgePresentation(presentationGame.GetString() ?? "", completedStep);
                     break;
 
                 case SoloMessageTypes.GamingPause:

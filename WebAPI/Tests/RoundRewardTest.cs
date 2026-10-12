@@ -153,8 +153,12 @@ namespace Milimoe.FunGameTesting.Tests
 
             // ---- 5) 十二宫星环【强运】：目标回合结束时随机生成 2~3 份绑定自身的奖励 ----
             // 注意必须给技能设等级：Effect.IsInEffect => Level > 0，等级为 0 时【强运】会被回合结束钩子跳过
-            十二宫星环 zodiac = new() { Level = 1 };
-            zodiac.OnSkillCasted(queue, caster, [target], []);
+            // 该模组已按魔法效能判定命中；绑定施法者并临时达到必中 INT，测试奖励链路。
+            十二宫星环 zodiac = new(caster) { Level = 1 };
+            double beforeInt = caster.ExINT;
+            caster.ExINT += Math.Max(0, 2 * zodiac.MagicBottleneck - caster.INT);
+            try { zodiac.OnSkillCasted(queue, caster, [target], []); }
+            finally { caster.ExINT = beforeInt; }
             Check(target.Effects.Any(e => e is 强运), "十二宫星环：已为目标附加【强运】");
             HashSet<Skill> beforeLuck = [.. queue.QueryRoundRewards(target, 1)];
             log.Clear();
