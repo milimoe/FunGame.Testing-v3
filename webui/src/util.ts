@@ -36,13 +36,19 @@ export const charName = (c?: CharLike | null): string =>
   c?.NickName || c?.Name || c?.FirstName || c?.nickName || c?.name || '未知角色'
 
 // ===== 枚举映射（CharacterActionType / SkillType / EffectType / EquipSlotType）=====
+// CharacterActionType 顺序与 Core 的 Library/Constant/TypeEnum.cs 严格一致：
+// 0 None / 1 Move / 2 NormalAttack / 3 PreCastSkill / 4 CastSkill / 5 CastSuperSkill / 6 UseItem / 7 ChainAction / 8 EndTurn
 export const ACTION_TYPE_NAMES: Record<number, string> = {
-  0: '无', 1: '移动', 2: '普通攻击', 3: '施法前摇', 4: '施放技能', 5: '施放爆发技', 6: '使用物品', 7: '结束回合',
+  0: '无', 1: '移动', 2: '普通攻击', 3: '施法前摇', 4: '施放技能', 5: '施放爆发技', 6: '使用物品',
+  7: '协同行动', 8: '结束回合',
 }
 
 export const ACTION_TYPE_ICONS: Record<number, string> = {
-  0: '·', 1: '🚶', 2: '⚔️', 3: '🪄', 4: '✨', 5: '💥', 6: '🎒', 7: '⏹️',
+  0: '·', 1: '🚶', 2: '⚔️', 3: '🪄', 4: '✨', 5: '💥', 6: '🎒', 7: '🤝', 8: '⏹️',
 }
+
+/** CharacterActionType.ChainAction —— 协同行动的「确认」记录（与实际的执行记录成对出现） */
+export const ACTION_TYPE_CHAIN_ACTION = 7
 
 export const SKILL_TYPE_NAMES: Record<number, string> = {
   0: '魔法', 1: '战技', 2: '爆发技', 3: '被动', 4: '物品',

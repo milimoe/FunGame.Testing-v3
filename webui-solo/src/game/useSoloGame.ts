@@ -261,7 +261,7 @@ export function useSoloGame(baseUrl: string): SoloGameController {
     const client = clientRef.current
     if (!client || !s.decision) return
     const kind = s.decision.kind ?? s.decision.payload.kind
-    if (kind === 'Skill' || kind === 'Item' || kind === 'Targets' || kind === 'TargetGrid' || kind === 'TargetGrids' || kind === 'Inquiry') {
+    if (kind === 'Skill' || kind === 'Item' || kind === 'Targets' || kind === 'TargetGrid' || kind === 'TargetGrids' || kind === 'ChainAction' || kind === 'Inquiry') {
       client.sendDecision(s.decision.requestId, { cancelled: true })
       setState((prev) => ({ ...prev, decision: null, decisionDeadline: null }))
     }

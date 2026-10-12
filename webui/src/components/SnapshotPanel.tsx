@@ -372,12 +372,15 @@ function SnapshotDetail({ snapshot, allSnapshots, onBack }: {
                         <span className="text-slate-500">被动效果</span>
                       ) : (
                         <>
-                          剩余 <span className="tabular-nums text-slate-600">{fmt(ef.RemainDuration, 1)}s</span>
+                          剩余{' '}
+                          {/* 回合制特效（Effect.Durative = false）只走 RemainDurationTurn，RemainDuration 恒为 0；
+                              时间制特效只走 RemainDuration。二者都渲染会出现「剩余 0s · 3 回合」这种误导性读数。 */}
+                          {ef.RemainDuration > 0 && (
+                            <span className="tabular-nums text-slate-600">{fmt(ef.RemainDuration, 1)}s</span>
+                          )}
+                          {ef.RemainDuration > 0 && ef.RemainDurationTurn > 0 ? ' · ' : null}
                           {ef.RemainDurationTurn > 0 && (
-                            <>
-                              {' '}
-                              · <span className="tabular-nums text-slate-600">{ef.RemainDurationTurn}</span> 回合
-                            </>
+                            <span className="tabular-nums text-slate-600">{ef.RemainDurationTurn} 回合</span>
                           )}
                         </>
                       )}

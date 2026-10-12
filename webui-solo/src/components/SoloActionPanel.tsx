@@ -32,12 +32,12 @@ import { shapeLabel } from '../game/shape'
 
 export type SkillIntent = 'all' | 'normal' | 'super'
 
-type ActionKey = 'Move' | 'NormalAttack' | 'Skill' | 'SuperSkill' | 'UseItem' | 'EndTurn'
+type ActionKey = 'Move' | 'NormalAttack' | 'Skill' | 'SuperSkill' | 'UseItem' | 'ChainAction' | 'EndTurn'
 
-const ACTION_ORDER: ActionKey[] = ['Move', 'NormalAttack', 'Skill', 'SuperSkill', 'UseItem', 'EndTurn']
+const ACTION_ORDER: ActionKey[] = ['Move', 'NormalAttack', 'Skill', 'SuperSkill', 'UseItem', 'ChainAction', 'EndTurn']
 
 /** 点击后立刻提交、直接进入下级菜单的行动类型（不需要确认） */
-const ONE_TAP: ReadonlySet<ActionKey> = new Set<ActionKey>(['Skill', 'SuperSkill', 'UseItem'])
+const ONE_TAP: ReadonlySet<ActionKey> = new Set<ActionKey>(['Skill', 'SuperSkill', 'UseItem', 'ChainAction'])
 
 const ACTION_META: Record<ActionKey, { label: string; icon: string; engine: string; intent: SkillIntent; desc: string }> = {
   Move: {
@@ -75,6 +75,13 @@ const ACTION_META: Record<ActionKey, { label: string; icon: string; engine: stri
     intent: 'all',
     desc: '使用背包物品：点一下直接进入物品列表，挑一件后看详情再确认。',
   },
+  ChainAction: {
+    label: '协同行动',
+    icon: '🤝',
+    engine: 'ChainAction',
+    intent: 'all',
+    desc: '让队友在你本回合内代为出手：动作与资源都由该队友承担，你只消耗 1 点决策点与协同硬直。点一下直接进入申请列表。',
+  },
   EndTurn: {
     label: '结束回合',
     icon: '⏭',
@@ -90,6 +97,7 @@ const QUOTA_KEY: Partial<Record<ActionKey, string>> = {
   Skill: 'CastSkill',
   SuperSkill: 'CastSuperSkill',
   UseItem: 'UseItem',
+  ChainAction: 'ChainAction',
 }
 
 /** 子列表里有条目但全都不可用（CD/资源不足等）：按钮保留入口，仅可进入查看详情 */
@@ -103,6 +111,7 @@ const KIND_TITLE: Record<string, string> = {
   Targets: '选择目标',
   TargetGrid: '选择格子',
   TargetGrids: '选择范围',
+  ChainAction: '协同行动',
   Inquiry: '询问',
   Continue: '继续',
 }
@@ -666,6 +675,10 @@ export default function SoloActionPanel({
     const exhausted = (k: ActionKey): string | null => {
       if (k === 'Move' || k === 'EndTurn') return null
       if (k === 'NormalAttack') return quotaOf(k)?.remaining === 0 ? '普通攻击次数已用尽' : null
+      if (k === 'ChainAction') {
+        // 协同行动的配额无限，唯一门槛是「本回合有没有队友提交了有效申请」
+        return (payload.chainActions ?? []).length === 0 ? '暂无队友申请' : null
+      }
       if (k === 'Skill') {
         if (normalSkills.length + magicSkills.length === 0) return '没有战技 / 魔法'
         return anyUsableSkill || anyUsableMagic ? null : VIEW_ONLY_HINT
@@ -796,6 +809,79 @@ export default function SoloActionPanel({
       if (draft?.k !== 'action') return
       const m = ACTION_META[draft.key]
       onSubmit({ actionType: m.engine }, m.intent)
+    }
+  } else if (payload.kind === 'ChainAction') {
+    title = '协同行动'
+    tone = 'blue'
+    const applications = payload.applications ?? []
+    const pickedId = draft?.k === 'choice' ? draft.keys[0] : null
+    const picked = applications.find((a) => a.id === pickedId) ?? null
+    const shortName = (s: string) => s.replace(/^Lv\.\d+\s*/, '')
+    body = (
+      <div className="space-y-2.5">
+        <p className="text-[11.5px] leading-relaxed text-ink-600">
+          队友申请在你的本回合内代为出手：动作的决策点与资源由该队友承担，你只消耗 1 点决策点与协同硬直。
+          选中一份申请后确认。
+        </p>
+        <div className="space-y-2">
+          {applications.map((a) => {
+            const moveName = a.skill?.name || a.item?.name || a.actionTypeName
+            const targetNames = (a.targets ?? []).map((t) => shortName(t.displayName)).join('、')
+            const tagColor =
+              a.actionType === 'NormalAttack' ? '#b45309' : a.actionType === 'UseItem' ? '#0f766e' : '#6d28d9'
+            return (
+              <PickRow
+                key={a.id}
+                selected={pickedId === a.id}
+                onClick={() => setDraft({ k: 'choice', keys: [a.id] })}
+                tag={a.actionTypeName}
+                tagColor={tagColor}
+                name={`${shortName(a.actorName)} → ${moveName}`}
+                hint={targetNames ? `目标：${targetNames}` : a.skill?.skillTypeName || '无目标'}
+                meta={
+                  a.skill ? (
+                    <>
+                      {a.skill.mpCost > 0 ? <div className="text-alliance-600">{fmt(a.skill.mpCost)} MP</div> : null}
+                      {a.skill.epCost > 0 ? <div className="text-gold-600">{fmt(a.skill.epCost)} EP</div> : null}
+                    </>
+                  ) : undefined
+                }
+              />
+            )
+          })}
+        </div>
+        {picked ? (
+          <DetailCard tone="blue">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[14px] leading-none">🤝</span>
+              <span className="text-[13px] font-bold text-ink-800">
+                {shortName(picked.actorName)} · {picked.skill?.name || picked.item?.name || picked.actionTypeName}
+              </span>
+            </div>
+            <Kv
+              items={[
+                picked.skill ? `类型 ${picked.skill.skillTypeName}` : null,
+                picked.skill && picked.skill.mpCost > 0 ? `MP ${fmt(picked.skill.mpCost)}` : null,
+                picked.skill && picked.skill.epCost > 0 ? `EP ${fmt(picked.skill.epCost)}` : null,
+                picked.targets.length > 0 ? `目标：${picked.targets.map((t) => shortName(t.displayName)).join('、')}` : null,
+              ]}
+            />
+            <p className="mt-1.5 whitespace-pre-wrap text-[11.5px] leading-relaxed text-ink-600">
+              {picked.skill?.description || picked.item?.description || '该协同动作没有描述'}
+            </p>
+          </DetailCard>
+        ) : (
+          <div className="rounded-xl border border-dashed border-ink-400/30 px-2.5 py-2 text-center text-[11px] text-ink-400">
+            选中一份申请后确认；也可以取消回到行动菜单。
+          </div>
+        )}
+      </div>
+    )
+    canCancel = true
+    confirmLabel = '确认协同'
+    confirmDisabled = !pickedId
+    onConfirm = () => {
+      if (pickedId) onSubmit({ chainActionId: pickedId })
     }
   } else if (payload.kind === 'Skill') {
     title = skillIntent === 'super' ? '选择爆发技' : '选择技能'
@@ -1186,6 +1272,7 @@ export default function SoloActionPanel({
     : payload.kind === 'Targets' ? '选择目标'
     : payload.kind === 'TargetGrid' ? '选择移动格子'
     : payload.kind === 'TargetGrids' ? '选择施放范围'
+    : payload.kind === 'ChainAction' ? '选择协同申请'
     : payload.kind === 'Inquiry' ? '询问'
     : payload.kind === 'Continue' ? '继续'
     : payload.kind === 'SelectCharacter' ? '选择出战角色' : null

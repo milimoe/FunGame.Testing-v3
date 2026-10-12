@@ -71,6 +71,8 @@ public static class DecisionKind
     public const string Targets = "Targets";
     public const string TargetGrid = "TargetGrid";
     public const string TargetGrids = "TargetGrids";
+    /// <summary>协同行动：回合角色已决定确认某份队友申请，需要玩家挑出「确认哪一份」</summary>
+    public const string ChainAction = "ChainAction";
     public const string Inquiry = "Inquiry";
     public const string Continue = "Continue";
 }

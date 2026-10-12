@@ -145,6 +145,15 @@ export interface ActionRecord {
   Round: number
   AllCharacters?: CharacterRef[]
   Actor: CharacterRef | null
+  // ===== 协同行动（旧档无这三个字段）=====
+  // 协同动作所属回合的角色；普通动作为空
+  TurnActor?: CharacterRef | null
+  // 确认记录中的实际协作方（Actor 是确认者，ChainActor 是代为出手的队友）
+  ChainActor?: CharacterRef | null
+  // 关联的协同申请：确认记录与执行记录共享同一 Id
+  ChainActionRequestId?: string | null
+  // 协调产生的非伤害辅助关系（伤害仍归实际执行者）
+  NonDamageAssistTargets?: CharacterRef[]
   ActionIndex: number
   ActionType: number
   Skill?: unknown

@@ -145,7 +145,7 @@ export function ValueBar({
 }
 
 // ===== 标签 =====
-export function Badge({ children, tone = 'slate' }: { children: ReactNode; tone?: 'slate' | 'red' | 'green' | 'amber' | 'indigo' | 'cyan' }) {
+export function Badge({ children, tone = 'slate' }: { children: ReactNode; tone?: 'slate' | 'red' | 'green' | 'amber' | 'indigo' | 'cyan' | 'fuchsia' }) {
   const tones = {
     slate: 'bg-slate-100 text-slate-600',
     red: 'bg-red-100 text-red-600',
@@ -153,6 +153,8 @@ export function Badge({ children, tone = 'slate' }: { children: ReactNode; tone?
     amber: 'bg-amber-100 text-amber-700',
     indigo: 'bg-violet-100 text-violet-700',
     cyan: 'bg-pink-100 text-pink-700',
+    // 协同行动专用：与技能类型（indigo/violet）区分开
+    fuchsia: 'bg-fuchsia-100 text-fuchsia-700',
   }
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>
 }

@@ -261,12 +261,20 @@ public static class ChainActionTest
             return true;
         };
         int turns = 0, chains = 0, actions = 0;
-        while (!queue.GameOver && turns < 600 && queue.NextCharacter() is Character actor)
+        // 上限 1500：Core #194（AI 自主提交/确认协同 + DP 判定改为 >=）后 seed 20261012 的对局
+        // 由 <600 回合拉长到 1021 回合，属正常的消耗战而非卡死（HP 持续衰减直至分出胜负）。
+        while (!queue.GameOver && turns < 1500 && queue.NextCharacter() is Character actor)
         {
             queue.ProcessTurn(actor);
             turns++;
             actions += queue.LastRound.Actions.Count;
             chains += queue.LastRound.Actions.Count(a => a.ActionType == CharacterActionType.ChainAction && a.IsSuccess);
+            // 长局进度探针：只有超过 200 回合的对局才会打印，用于区分「变长」与「卡死」
+            if (turns % 200 == 0)
+            {
+                double hp = characters.Sum(c => Math.Max(0, c.HP));
+                Console.WriteLine($"    [probe] seed={seed} turn={turns} hpSum={hp:0} actions={actions} chains={chains}");
+            }
             Check(queue.HardnessTime.Values.All(t => double.IsFinite(t) && t >= 0), "真实对局硬直无效");
             Check(queue.CharacterDecisionPoints.Values.All(dp => dp.CurrentDecisionPoints >= 0), "真实对局出现负预算");
         }

@@ -144,6 +144,30 @@ public sealed record TeamRankingDto(
 /// <summary>角色选择候选项</summary>
 public sealed record CharacterOptionDto(string Guid, long Id, string Name, string FirstName, string NickName, string DisplayName, string Info);
 
+// ==================== 协同行动（ChainAction） ====================
+
+/// <summary>协同申请中携带的技能（只读展示用）</summary>
+public sealed record ChainSkillDto(long Id, string Name, string SkillType, string SkillTypeName, string Description, double MPCost, double EPCost);
+
+/// <summary>协同申请中携带的物品（只读展示用）</summary>
+public sealed record ChainItemDto(long Id, string Name, string Description);
+
+/// <summary>协同申请中携带的目标（已按提交时的集合复制）</summary>
+public sealed record ChainTargetDto(string Guid, string DisplayName);
+
+/// <summary>
+/// 一份协同申请：队友 <see cref="ActorName"/> 申请在当前回合角色的回合内代为出手。
+/// 下游只需展示与选择，合法性由引擎在确认时重验。
+/// </summary>
+public sealed record ChainApplicationDto(
+    string Id,
+    string ActorGuid, string ActorName,
+    // ActionType：NormalAttack / CastSkill / PreCastSkill / CastSuperSkill / UseItem
+    string ActionType, string ActionTypeName,
+    ChainSkillDto? Skill, ChainItemDto? Item,
+    List<ChainTargetDto> Targets,
+    List<long> TargetGridIds);
+
 // ==================== 实体 → DTO 映射 ====================
 
 public static class SoloGameMapper
@@ -354,4 +378,27 @@ public static class SoloGameMapper
 
     public static CharacterOptionDto ToOption(Character c) =>
         new(c.Guid.ToString(), c.Id, c.Name, c.FirstName, c.NickName, c.ToStringWithLevel(), c.GetInfo(false, false));
+
+    // ---- 协同行动 ----
+    public static ChainApplicationDto ToChainApplication(ChainActionRequest request) =>
+        new(request.Id.ToString(),
+            request.Actor.Guid.ToString(), request.Actor.ToStringWithLevel(),
+            request.ActionType.ToString(), ChainActionTypeName(request.ActionType),
+            request.Skill is null ? null : new ChainSkillDto(request.Skill.Id, request.Skill.Name,
+                request.Skill.SkillType.ToString(), SkillSet.GetSkillTypeName(request.Skill.SkillType),
+                request.Skill.Description ?? "", request.Skill.RealMPCost, request.Skill.RealEPCost),
+            request.Item is null ? null : new ChainItemDto(request.Item.Id, request.Item.Name, request.Item.Description ?? ""),
+            [.. request.Targets.Select(t => new ChainTargetDto(t.Guid.ToString(), t.ToStringWithLevel()))],
+            [.. request.TargetGrids.Select(g => g.Id)]);
+
+    private static string ChainActionTypeName(CharacterActionType type) => type switch
+    {
+        CharacterActionType.NormalAttack => "普通攻击",
+        CharacterActionType.CastSkill => "战技",
+        CharacterActionType.PreCastSkill => "魔法",
+        CharacterActionType.CastSuperSkill => "爆发技",
+        CharacterActionType.UseItem => "物品",
+        CharacterActionType.ChainAction => "协同行动",
+        _ => type.ToString(),
+    };
 }

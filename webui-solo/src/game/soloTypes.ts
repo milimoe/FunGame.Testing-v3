@@ -164,6 +164,43 @@ export interface SoloCharacterDto {
   equipments: SoloEquipmentDto[]
 }
 
+/** 协同行动申请：队友希望在当前回合角色的回合内代为出手 */
+export interface SoloChainSkillDto {
+  id: number
+  name: string
+  skillType: string
+  skillTypeName: string
+  description: string
+  mpCost: number
+  epCost: number
+}
+
+export interface SoloChainItemDto {
+  id: number
+  name: string
+  description: string
+}
+
+export interface SoloChainTargetDto {
+  guid: string
+  displayName: string
+}
+
+export interface SoloChainApplicationDto {
+  /** 申请标识，确认时原样回传 */
+  id: string
+  /** 申请方（实际执行动作的队友） */
+  actorGuid: string
+  actorName: string
+  /** NormalAttack / CastSkill / PreCastSkill / CastSuperSkill / UseItem */
+  actionType: string
+  actionTypeName: string
+  skill: SoloChainSkillDto | null
+  item: SoloChainItemDto | null
+  targets: SoloChainTargetDto[]
+  targetGridIds: number[]
+}
+
 export interface SoloQueueEntryDto {
   guid: string
   displayName: string
@@ -315,6 +352,10 @@ export type SoloDecisionPayload =
       enemyOptions?: SoloTargetOptionDto[]
       /** 场上（射程内）的队友列表，含名称与血量 */
       teammateOptions?: SoloTargetOptionDto[]
+      /** 协同行动：本回合可确认的队友申请（为空则隐藏「协同行动」入口） */
+      chainActions?: SoloChainApplicationDto[]
+      /** 是否存在可确认的协同申请 */
+      canChainAction?: boolean
     }
   | { kind: 'Skill'; actorGuid: string; actorGridId?: number; atr?: number; mov?: number; skills: SoloSkillDto[] }
   | { kind: 'Item'; actorGuid: string; actorGridId?: number; atr?: number; mov?: number; items: SoloItemDto[] }
@@ -365,6 +406,13 @@ export type SoloDecisionPayload =
       includeCharacterGrid?: boolean
     }
   | {
+      kind: 'ChainAction'
+      actorGuid: string
+      actorName?: string
+      /** 待确认的协同申请列表；确认后由服务端执行实际动作 */
+      applications: SoloChainApplicationDto[]
+    }
+  | {
       kind: 'Inquiry'
       actorGuid: string
       topic: string
@@ -402,6 +450,7 @@ export type SoloDecisionReply =
   | { targetGuids: string[] }
   | { gridId: number }
   | { gridIds: number[] }
+  | { chainActionId: string }
   | { choices?: string[]; number?: number; text?: string; cancel?: boolean }
   | { cancelled: boolean }
 

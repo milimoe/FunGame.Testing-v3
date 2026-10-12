@@ -4,6 +4,7 @@ import type { ActionRecord, CharacterRef, InquiryRecord, RoundRecord, RoundSumma
 import { ROUND_REWARD_BINDING, ROUND_REWARD_KIND } from '../types'
 import { Badge, CharChip, DescText, ErrorBox, HBar, Section, Spinner } from './ui'
 import {
+  ACTION_TYPE_CHAIN_ACTION,
   ACTION_TYPE_ICONS,
   actionTypeName,
   buildCheckpointDescMaps,
@@ -277,7 +278,19 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
   itemDesc: Map<number, string>
 }) {
   const chars = useMemo(() => charIndex(action.AllCharacters ?? fallbackChars), [action.AllCharacters, fallbackChars])
-  const name = action.Skill?.Name || action.Item?.Name || actionTypeName(action.ActionType)
+
+  // ---- 协同行动 ----
+  // 一次成功确认会产生两条记录（共享 ChainActionRequestId）：
+  //   · ActionType = ChainAction：A 的确认记录，Actor = A、ChainActor = 代为出手的队友 B
+  //   · 其余类型：B 的执行记录，Actor = B、TurnActor = 协调者 A
+  const isChainConfirm = action.ActionType === ACTION_TYPE_CHAIN_ACTION
+  const chainCoordinator = action.ChainActionRequestId ? action.TurnActor ?? null : null
+  const chainExecutor = action.ChainActor ?? null
+  const assistTargets = action.NonDamageAssistTargets ?? []
+
+  const name = isChainConfirm
+    ? (chainExecutor ? `确认协同行动（由 ${charName(chainExecutor)} 代为出手）` : '确认协同行动')
+    : action.Skill?.Name || action.Item?.Name || actionTypeName(action.ActionType)
   const icon = ACTION_TYPE_ICONS[action.ActionType] ?? '·'
   const damages = keyedToEntries(action.Damages)
   const heals = keyedToEntries(action.Heals)
@@ -295,13 +308,15 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
       <div className="flex flex-col items-center">
         <span
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base ring-1 ${
-            action.IsSuccess === false
-              ? 'bg-red-50 ring-red-200'
-              : damages.length > 0
+            isChainConfirm
+              ? 'bg-fuchsia-50 ring-fuchsia-200'
+              : action.IsSuccess === false
                 ? 'bg-red-50 ring-red-200'
-                : heals.length > 0
-                  ? 'bg-emerald-50 ring-emerald-200'
-                  : 'bg-rose-50 ring-rose-200'
+                : damages.length > 0
+                  ? 'bg-red-50 ring-red-200'
+                  : heals.length > 0
+                    ? 'bg-emerald-50 ring-emerald-200'
+                    : 'bg-rose-50 ring-rose-200'
           }`}
         >
           {icon}
@@ -313,12 +328,23 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-400">#{action.ActionIndex}</span>
           <CharChip char={action.Actor} size="sm" />
-          <span className="text-xs text-slate-400">{actionTypeName(action.ActionType)}</span>
+          {!isChainConfirm && <span className="text-xs text-slate-400">{actionTypeName(action.ActionType)}</span>}
           <span className="font-semibold text-slate-800">{name}</span>
+          {isChainConfirm && <Badge tone="fuchsia">🤝 协同行动</Badge>}
+          {!isChainConfirm && chainCoordinator && <Badge tone="fuchsia">🤝 由 {charName(chainCoordinator)} 协调</Badge>}
           {action.Skill?.Name && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
           {action.IsSuccess === false && <Badge tone="red">失败</Badge>}
           {inquiries.length > 0 && <Badge tone="cyan">💬 {inquiries.length} 次询问</Badge>}
         </div>
+
+        {/* 协同行动：把协调者与执行者的关系讲清楚（两条记录共享同一申请 Id） */}
+        {action.ChainActionRequestId && (
+          <p className="mt-1 text-xs text-fuchsia-600">
+            {isChainConfirm
+              ? `${charName(action.Actor)} 发起协同，由 ${charName(chainExecutor)} 代为出手（消耗 1 决策点 + 协同硬直）`
+              : `${charName(action.Actor)} 受 ${charName(chainCoordinator)} 协调出手，资源与配额由执行者承担`}
+          </p>
+        )}
 
         {/* 技能 / 物品描述 */}
         {desc ? <DescText text={desc} /> : null}
@@ -331,6 +357,16 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
             目标：
             {action.Targets.map(t => (
+              <CharChip key={t.Guid} char={t} size="sm" />
+            ))}
+          </div>
+        )}
+
+        {/* 协同产生的非伤害辅助关系（伤害仍归实际执行者） */}
+        {assistTargets.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            协作助攻：
+            {assistTargets.map(t => (
               <CharChip key={t.Guid} char={t} size="sm" />
             ))}
           </div>
