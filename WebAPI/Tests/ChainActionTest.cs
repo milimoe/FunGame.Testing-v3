@@ -7,6 +7,7 @@ using FunGame.Core.Model.Queue;
 using Milimoe.FunGameTesting.OshimaGameModules;
 using Milimoe.FunGameTesting.OshimaGameModules.Characters;
 using Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects;
+using Milimoe.FunGameTesting.OshimaGameModules.Effects.PassiveEffects;
 using Milimoe.FunGameTesting.OshimaGameModules.Items;
 using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
@@ -145,9 +146,10 @@ public static class ChainActionTest
                 f.During(f.A, () =>
                 {
                     f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id);
+                    double remaining = f.Q.HardnessTime[f.B];
                     interrupt.OnSkillCasted(f.Q, f.D, [f.B], []);
                     Check(f.B.CharacterState != CharacterState.Casting, "真实打断特效没有终止吟唱");
-                    Equal(3.5, f.Q.HardnessTime[f.B], "打断保留原硬直加 3");
+                    Equal(.5 + remaining, f.Q.HardnessTime[f.B], "打断还原原硬直并保留剩余吟唱时间");
                     Check(!f.Q.AssistDetails[f.A].NotDamageAssistLastTime.ContainsKey(f.B), "打断不产生有效辅助");
                 });
             }),
@@ -194,6 +196,55 @@ public static class ChainActionTest
                 Equal(budget - 3, dp.CurrentDecisionPoints, "两种动作延续扣减");
                 Equal(1, dp.ActionTypes[CharacterActionType.NormalAttack], "普通攻击配额延续");
                 Equal(1, dp.ActionTypes[CharacterActionType.CastSkill], "战技配额扣减");
+            }),
+            ("真实魔法资源不足后保留预算重新决策", () =>
+            {
+                Fixture f = new();
+                Skill magic = f.Learn(new 冰霜攻击(f.B));
+                f.During(f.A, () => f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id));
+                f.B.MP = 0;
+                f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints = 3;
+                int decisions = 0;
+                f.Q.DecideActionEvent += ctx => ++decisions == 1 ? CharacterActionType.NormalAttack : CharacterActionType.EndTurn;
+                f.Q.SelectNormalAttackTargetsEvent += ctx => [f.D];
+                f.Q.AddCharacter(f.B, 0, false);
+                f.Run(f.B);
+
+                Check(decisions == 2, "释放失败后没有继续决策");
+                Check(f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints == 2, "失败后恢复了预算或重复扣费");
+                ActionRecord failure = f.Q.LastRound.Actions.Single(a => !a.IsSuccess);
+                Equal(f.Q.GameplayEquilibriumConstant.CastFailureHardnessTime, failure.HardnessTime, "失败尝试补偿硬直");
+                Check(f.Q.LastRound.Actions.Any(a => a.ActionType == CharacterActionType.NormalAttack && a.IsSuccess), "后续真实普攻未执行");
+            }),
+            ("真实控制特效终止吟唱并保留控制状态", () =>
+            {
+                Fixture f = new();
+                Skill magic = f.Learn(new 冰霜攻击(f.B));
+                f.During(f.A, () => f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id));
+                Skill source = new 金刚击(f.D) { Level = 1, GamingQueue = f.Q };
+                new 完全行动不能("眩晕", EffectType.Stun, source, f.D).AddToCharacter(f.B);
+
+                Check(f.B.CharacterState == CharacterState.NotActionable, "终止入口覆盖了真实控制状态");
+                Check(f.Q.LastRound.Actions.Any(a => a.Actor == f.B && !a.IsSuccess), "控制打断缺少施法者失败记录");
+            }),
+            ("真实疾风步使普通魔法丢失全部目标", () =>
+            {
+                Fixture f = new();
+                Skill magic = f.Learn(new 冰霜攻击(f.B));
+                f.Q.AddCharacter(f.A, 10, false);
+                f.Q.AddCharacter(f.B, 0, false);
+                GamingQueue.DecideActionEventHandler decide = ctx => CharacterActionType.PreCastSkill;
+                f.Q.DecideActionEvent += decide;
+                f.Q.SelectSkillEvent += ctx => magic;
+                f.Q.SelectSkillTargetsEvent += ctx => [f.D];
+                f.Run(f.B);
+                f.Q.DecideActionEvent -= decide;
+                Skill wind = new 疾风步(f.D) { Level = 1, GamingQueue = f.Q };
+                wind.OnSkillCasted(f.Q, f.D, [f.D], []);
+
+                Check(f.D.IsUnselectable, "真实疾风步未施加不可选中");
+                Check(f.B.CharacterState != CharacterState.Casting, "普通魔法未终止");
+                Check(f.Q.LastRound.Actions.Any(a => a.Actor == f.B && !a.IsSuccess), "目标丢失缺少施法者失败记录");
             }),
             ("固定种子完整模组团队战斗与协同 AI", () =>
             {
