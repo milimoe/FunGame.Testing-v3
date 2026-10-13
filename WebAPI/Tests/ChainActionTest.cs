@@ -151,7 +151,7 @@ public static class ChainActionTest
                     Check(!f.Q.AssistDetails[f.A].NotDamageAssistLastTime.ContainsKey(f.B), "打断不产生有效辅助");
                 });
             }),
-            ("协同吟唱不领取角色回合奖励", () =>
+            ("协同吟唱结算领取并回收角色回合奖励", () =>
             {
                 Fixture f = new();
                 f.Q.InitRoundRewards(new() { { (long)EffectID.ExATK, false } }, true, id => new() { { "exatk", 60d } });
@@ -161,8 +161,10 @@ public static class ChainActionTest
                 f.During(f.A, () => f.Q.ConfirmChainAction(f.A, Submit(f, f.A, f.B, CharacterActionType.PreCastSkill, [f.D], magic).Id));
                 f.OnlyNext(f.B);
                 f.Run(f.B);
-                Check(f.Q.LastRound.RoundRewards.Count == 0 && f.Q.LastRound.RoundRewardEvents.All(r => !r.Skills.Contains(reward)), "结算回合领取了普通奖励");
-                Check(f.Q.QueryRoundRewards(f.B, 1).Contains(reward), "下次正常回合奖励被消耗");
+                Check(f.Q.LastRound.RoundRewards.Contains(reward), "结算回合未领取角色回合奖励");
+                Check(f.Q.LastRound.RoundRewardEvents.Any(r => r.Kind == RoundRewardEventKind.Gained && r.Skills.Contains(reward)), "奖励发放事件缺失");
+                Check(f.Q.LastRound.RoundRewardEvents.Any(r => r.Kind == RoundRewardEventKind.Lost && r.Skills.Contains(reward)), "奖励回收事件缺失");
+                Check(!f.B.Skills.Contains(reward) && !f.Q.QueryRoundRewards(f.B, 1).Contains(reward), "已结算的奖励未回收");
             }),
             ("模组雇佣兵提交及作为回合角色", () =>
             {
@@ -279,7 +281,7 @@ public static class ChainActionTest
             Check(queue.CharacterDecisionPoints.Values.All(dp => dp.CurrentDecisionPoints >= 0), "真实对局出现负预算");
         }
         Console.WriteLine($"  seed={seed}, turns={turns}, actions={actions}, chains={chains}, finished={queue.GameOver}");
-        Check(queue.GameOver, $"种子 {seed} 在 600 回合内没有正常结束");
+        Check(queue.GameOver, $"种子 {seed} 在 1500 回合内没有正常结束");
         Check(actions > 0, "没有实际战斗记录");
         return chains;
     }
@@ -340,7 +342,17 @@ public static class ChainActionTest
         }
         public void During(Character owner, Action action)
         {
-            GamingQueue.TurnStartEventHandler start = ctx => { action(); return true; };
+            GamingQueue.TurnStartEventHandler start = ctx =>
+            {
+                action();
+                // 直接确认的协调方硬直由宿主入账。
+                foreach (ActionRecord confirmation in Q.LastRound.Actions.Where(a => a.Actor == owner && a.ActionType == CharacterActionType.ChainAction && a.IsSuccess))
+                {
+                    confirmation.HardnessTime = Q.GameplayEquilibriumConstant.ChainActionHardnessTime;
+                    Q.CharacterDecisionPoints[owner].ActionsHardnessTime.Add(confirmation.HardnessTime);
+                }
+                return true;
+            };
             GamingQueue.DecideActionEventHandler decide = ctx => CharacterActionType.EndTurn;
             Q.TurnStartEvent += start;
             Q.DecideActionEvent += decide;
