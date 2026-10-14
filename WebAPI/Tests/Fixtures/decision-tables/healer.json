@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "oshima:test-healer",
+  "fallback": "endTurn",
+  "rules": [
+    {
+      "id": "heal-patient",
+      "priority": 100,
+      "target": {
+        "relation": "ally",
+        "selector": "lowestHpRatio",
+        "bind": "patient"
+      },
+      "when": {
+        "all": [
+          { "type": "target.hpRatio", "target": "patient", "operator": "lessThan", "value": 0.75 },
+          { "type": "skill.available", "skillId": 2025 }
+        ]
+      },
+      "action": { "type": "castSkill", "skillId": 2025, "target": "patient", "movement": "never" }
+    }
+  ]
+}

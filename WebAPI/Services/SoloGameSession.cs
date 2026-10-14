@@ -78,13 +78,6 @@ public sealed partial class SoloGameSession : IDisposable
     private const int MaxDecisionsPerTurn = 16; // 单回合决策总数硬上限
 
     /// <summary>
-    /// 已为哪个正常回合代 AI 队友提交过协同申请（<see cref="GamingQueue.ChainActionTurnId"/> 每回合唯一）。
-    /// 同一回合内玩家可多次行动、OnDecideAction 会被反复调用，借它保证每个回合只提交一次，
-    /// 避免 AI 队友的预算被反复重提同一份申请而掏空。
-    /// </summary>
-    private Guid? _chainSubmittedTurnId;
-
-    /// <summary>
     /// 本回合开始时，行动角色在引擎侧的 AI 托管判定（引擎在回合开头求值一次 isAI，
     /// 中途加入/移出 AI 集合都不会改变当前回合的局部值）。
     /// 用于识别"引擎认为它不是 AI"的角色：这类角色的内层决策循环无界，
@@ -883,13 +876,9 @@ public sealed partial class SoloGameSession : IDisposable
             return CharacterActionType.None; // 交给 AI
         }
         Character actor = ctx.Trigger!;
-        // ---- 协同行动：玩家回合首次决策前，代可协作的 AI 队友各提交一份申请 ----
-        // 单人局里「申请方 B」恒为 AI 队友（玩家只控制一个角色），而 Core 的 SubmitChainAction
-        // 是宿主职责、AI 不会自动提交；因此由本会话代提交，再随行动菜单一起下发给玩家确认。
-        PrepareTeammateChainActions(actor);
         List<ChainApplicationDto> chainApplications = _queue is null
             ? []
-            : [.. _queue.GetPendingChainActions(actor).Select(SoloGameMapper.ToChainApplication)];
+            : [.. _queue.GetPendingChainActions(actor).Select(request => SoloGameMapper.ToChainApplication(request, _queue))];
         // ---- 普通攻击「现在到底打不打得到」的权威口径 ----
         // ctx.Enemys 是「攻击可达 ∪ 施法可达」的并集：敌人只在施法射程内时它也在列表里，
         // 但此时提交普通攻击必然被引擎作废（OnSelectNormalAttackTargets 返回空 → 本次行动作废），
@@ -922,7 +911,7 @@ public sealed partial class SoloGameSession : IDisposable
             // 普攻可达目标（严格 ATR 口径）：为空即普通攻击必然作废，客户端应直接禁用按钮
             attackTargets = attackTargets.Select(c => ToTargetOption(c, actor)).ToList(),
             canNormalAttack = attackTargets.Count > 0,
-            // 协同行动：本回合可确认的队友申请（为空则客户端隐藏「协同行动」入口）
+            // 协同行动：本回合可确认的队友申请，空列表时入口禁用。
             chainActions = chainApplications,
             canChainAction = chainApplications.Count > 0
         });
@@ -938,106 +927,18 @@ public sealed partial class SoloGameSession : IDisposable
     // ==================== 协同行动 ====================
 
     /// <summary>
-    /// 为回合角色代 AI 队友收集协同申请（每个正常回合只做一次）。
-    /// <para>Core 要求每份申请都由「实际的申请方 B」提交，而单人局里 B 是 AI 队友、A 是玩家，
-    /// 因此由宿主代 B 提交。合法性由 <c>SubmitChainAction</c> 按射程 / 资源 / 配额重验：
-    /// 返回 null 表示这份申请不成立，静默跳过即可，不影响既有回合流程。</para>
-    /// </summary>
-    private void PrepareTeammateChainActions(Character turnActor)
-    {
-        if (_queue is null || _map is null) return;
-        if (!ReferenceEquals(turnActor, _player)) return;   // 只有玩家自己的回合才代提交
-        if (_queue.ChainActionTurnId is not Guid turnId || _chainSubmittedTurnId == turnId) return;
-        _chainSubmittedTurnId = turnId;
-        foreach (Character teammate in _queue.GetAvailableChainActors(turnActor))
-        {
-            if (IsPlayer(teammate)) continue;   // 玩家自己控制的角色不由宿主代提交
-            TrySubmitTeammateChainAction(turnActor, teammate);
-        }
-    }
-
-    /// <summary>
-    /// 代 AI 队友挑一份「有意义且合法」的申请：先辅助回合角色，其次攻击回合角色的敌人。
-    /// 目标集合只做初选，最终由引擎校验。
-    /// </summary>
-    private void TrySubmitTeammateChainAction(Character turnActor, Character teammate)
-    {
-        if (_queue is null) return;
-        List<Skill> skills = [.. teammate.Skills
-            .Where(s => s.SkillType != SkillType.Passive)
-            .OrderBy(s => s.SkillType)
-            .ThenByDescending(s => s.Level)];
-
-        // 1) 辅助：把技能作用在回合角色身上（护盾 / 治疗 / 增益类）
-        foreach (Skill skill in skills)
-        {
-            if (!skill.CanSelectTeammate && !skill.CanSelectSelf) continue;
-            if (!CanChainCast(teammate, skill)) continue;
-            if (_queue.SubmitChainAction(turnActor, teammate, ChainActionTypeOf(skill.SkillType), [turnActor], out _, skill) is not null)
-            {
-                WriteLine($"[ {teammate} ] 向 [ {turnActor} ] 提交协同申请：[ {skill.Name} ] → [ {turnActor} ]");
-                return;
-            }
-        }
-
-        // 2) 攻击：对回合角色的敌人先用普攻，再退到可用技能
-        foreach (Character enemy in _queue.GetEnemies(turnActor))
-        {
-            if (enemy.HP <= 0 || enemy.IsUnselectable) continue;
-            if (_queue.SubmitChainAction(turnActor, teammate, CharacterActionType.NormalAttack, [enemy], out _) is not null)
-            {
-                WriteLine($"[ {teammate} ] 向 [ {turnActor} ] 提交协同申请：普通攻击 → [ {enemy} ]");
-                return;
-            }
-            foreach (Skill skill in skills)
-            {
-                if (!skill.CanSelectEnemy || !CanChainCast(teammate, skill)) continue;
-                if (_queue.SubmitChainAction(turnActor, teammate, ChainActionTypeOf(skill.SkillType), [enemy], out _, skill) is not null)
-                {
-                    WriteLine($"[ {teammate} ] 向 [ {turnActor} ] 提交协同申请：[ {skill.Name} ] → [ {enemy} ]");
-                    return;
-                }
-            }
-        }
-    }
-
-    /// <summary>协同申请粗筛：引擎会在确认时重验，这里只排除明显不可能提交的动作</summary>
-    private static bool CanChainCast(Character actor, Skill skill) =>
-        skill.Level > 0 && skill.Enable && !skill.IsInEffect && skill.CurrentCD <= 0
-        && skill.RealMPCost <= actor.MP && skill.RealEPCost <= actor.EP;
-
-    private static CharacterActionType ChainActionTypeOf(SkillType type) => type switch
-    {
-        SkillType.Skill => CharacterActionType.CastSkill,
-        SkillType.SuperSkill => CharacterActionType.CastSuperSkill,
-        _ => CharacterActionType.PreCastSkill,   // Magic（含未分类）
-    };
-
-    /// <summary>
     /// 玩家确认「协同行动」后，Core 回调此处索要「确认哪一份申请」。
     /// 返回 null 表示放弃本次确认：引擎记为一次失败并重新询问行动类型，玩家可改选其他动作。
     /// </summary>
     private Guid? OnSelectChainAction(Character actor, IReadOnlyList<ChainActionRequest> pending)
     {
         if (pending.Count == 0) return null;
-        if (!IsPlayer(actor))
-        {
-            // AI 回合：Core 会自动确认第一份有效申请（本方法返回 null 即回落 AI 策略），
-            // 其中申请方可能是【玩家自己的角色】（Core #194 明确包含手动控制队友）。
-            // 这种情况玩家没有任何交互，必须写一行日志，否则场上凭空多出一个动作无从解释。
-            foreach (ChainActionRequest request in pending)
-            {
-                ChainApplicationDto app = SoloGameMapper.ToChainApplication(request);
-                string who = ReferenceEquals(request.Actor, _player) ? "你的角色" : $"[ {request.Actor} ]";
-                WriteLine($"[ {actor} ] 发动协同行动：由 {who} 代为使用 [ {app.Skill?.Name ?? app.Item?.Name ?? app.ActionTypeName} ]。");
-            }
-            return null;
-        }
+        if (!IsPlayer(actor)) return null;
         JsonElement? res = RequestDecision(DecisionKind.ChainAction, new
         {
             actorGuid = actor.Guid.ToString(),
             actorName = actor.ToStringWithLevel(),
-            applications = pending.Select(SoloGameMapper.ToChainApplication).ToList()
+            applications = pending.Select(request => SoloGameMapper.ToChainApplication(request, _queue!)).ToList()
         });
         if (res is null) return null;
         if (res.Value.ValueKind == JsonValueKind.Object

@@ -39,7 +39,7 @@ export const charName = (c?: CharLike | null): string =>
 // CharacterActionType 顺序与 Core 的 Library/Constant/TypeEnum.cs 严格一致：
 // 0 None / 1 Move / 2 NormalAttack / 3 PreCastSkill / 4 CastSkill / 5 CastSuperSkill / 6 UseItem / 7 ChainAction / 8 EndTurn
 export const ACTION_TYPE_NAMES: Record<number, string> = {
-  0: '无', 1: '移动', 2: '普通攻击', 3: '施法前摇', 4: '施放技能', 5: '施放爆发技', 6: '使用物品',
+  0: '无', 1: '移动', 2: '普通攻击', 3: '准备施法', 4: '施放技能', 5: '施放爆发技', 6: '使用物品',
   7: '协同行动', 8: '结束回合',
 }
 

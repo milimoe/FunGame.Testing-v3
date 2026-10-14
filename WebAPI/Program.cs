@@ -31,6 +31,13 @@ if (args.Contains("--test-chain-action"))
     return;
 }
 
+if (args.Contains("--test-decision-table"))
+{
+    string? filter = args.FirstOrDefault(a => a.StartsWith("--decision-filter=", StringComparison.Ordinal))?.Split('=', 2)[1];
+    Environment.ExitCode = DecisionTableTest.RunAllTests(filter);
+    return;
+}
+
 // ============ 辅助方法（局部函数） ============
 static CharacterRefDto ToRef(Character character) =>
     new(character.Guid.ToString(), character.Name, character.FirstName, character.NickName, character.User?.Username ?? "");

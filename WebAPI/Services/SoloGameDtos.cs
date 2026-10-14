@@ -166,7 +166,9 @@ public sealed record ChainApplicationDto(
     string ActionType, string ActionTypeName,
     ChainSkillDto? Skill, ChainItemDto? Item,
     List<ChainTargetDto> Targets,
-    List<long> TargetGridIds);
+    List<long> TargetGridIds,
+    int ActorDecisionPointsCost, int ConfirmationDecisionPointsCost,
+    double ConfirmationHardnessTime, double CastTime, long? CastCenterGridId);
 
 // ==================== 实体 → DTO 映射 ====================
 
@@ -347,7 +349,7 @@ public static class SoloGameMapper
         // 与引擎的实际记账保持一致（见 GamingQueue 的 PreCastSkill 分支）：
         //   普通攻击     → ActionTypes[NormalAttack]，配额 dp[NormalAttack]
         //   战技         → ActionTypes[CastSkill]，配额 dp[CastSkill]
-        //   魔法         → ActionTypes[PreCastSkill]，配额 dp[PreCastSkill]（魔法不校验配额，但决策点要够）
+        //   魔法         → ActionTypes[PreCastSkill]，配额 dp[PreCastSkill]
         //   爆发技       → ActionTypes[CastSuperSkill]，配额 dp[CastSuperSkill]
         //   物品         → ActionTypes[UseItem]，配额 dp[UseItem]
         var eq = dp.GameplayEquilibriumConstant;
@@ -358,6 +360,7 @@ public static class SoloGameMapper
             Quota(dp, used, CharacterActionType.PreCastSkill, "魔法", eq.DecisionPointsCostMagic),
             Quota(dp, used, CharacterActionType.CastSuperSkill, "爆发技", eq.DecisionPointsCostSuperSkill),
             Quota(dp, used, CharacterActionType.UseItem, "物品", eq.DecisionPointsCostItem),
+            Quota(dp, used, CharacterActionType.ChainAction, "协同确认", eq.DecisionPointsCostChainAction),
         ];
 
         return new DecisionPointsDto(
@@ -380,7 +383,7 @@ public static class SoloGameMapper
         new(c.Guid.ToString(), c.Id, c.Name, c.FirstName, c.NickName, c.ToStringWithLevel(), c.GetInfo(false, false));
 
     // ---- 协同行动 ----
-    public static ChainApplicationDto ToChainApplication(ChainActionRequest request) =>
+    public static ChainApplicationDto ToChainApplication(ChainActionRequest request, GamingQueue queue) =>
         new(request.Id.ToString(),
             request.Actor.Guid.ToString(), request.Actor.ToStringWithLevel(),
             request.ActionType.ToString(), ChainActionTypeName(request.ActionType),
@@ -389,7 +392,12 @@ public static class SoloGameMapper
                 request.Skill.Description ?? "", request.Skill.RealMPCost, request.Skill.RealEPCost),
             request.Item is null ? null : new ChainItemDto(request.Item.Id, request.Item.Name, request.Item.Description ?? ""),
             [.. request.Targets.Select(t => new ChainTargetDto(t.Guid.ToString(), t.ToStringWithLevel()))],
-            [.. request.TargetGrids.Select(g => g.Id)]);
+            [.. request.TargetGrids.Select(g => g.Id)],
+            queue.CharacterDecisionPoints[request.Actor].GetActionPointCost(request.ActionType, request.Skill, chainAction: true),
+            queue.GameplayEquilibriumConstant.DecisionPointsCostChainAction,
+            queue.GameplayEquilibriumConstant.ChainActionHardnessTime,
+            request.ActionType == CharacterActionType.PreCastSkill ? request.Skill?.RealCastTime ?? 0 : 0,
+            request.CastCenter?.Id);
 
     private static string ChainActionTypeName(CharacterActionType type) => type switch
     {

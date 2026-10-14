@@ -80,14 +80,14 @@ const ACTION_META: Record<ActionKey, { label: string; icon: string; engine: stri
     icon: '🤝',
     engine: 'ChainAction',
     intent: 'all',
-    desc: '让队友在你本回合内代为出手：动作与资源都由该队友承担，你只消耗 1 点决策点与协同硬直。点一下直接进入申请列表。',
+    desc: '查看队友已提交的行动申请。选中并确认后才执行；队友承担动作费用，你承担确认费用。也可继续选择其他行动。',
   },
   EndTurn: {
     label: '结束回合',
     icon: '⏭',
     engine: 'EndTurn',
     intent: 'all',
-    desc: '放弃剩余行动，把回合交给行动顺序表上的下一个角色。未用完的决策点不会保留。',
+    desc: '结束本回合，把行动交给下一角色。剩余决策点保留，可供后续协同或回合外动作使用。',
   },
 }
 
@@ -676,8 +676,9 @@ export default function SoloActionPanel({
       if (k === 'Move' || k === 'EndTurn') return null
       if (k === 'NormalAttack') return quotaOf(k)?.remaining === 0 ? '普通攻击次数已用尽' : null
       if (k === 'ChainAction') {
-        // 协同行动的配额无限，唯一门槛是「本回合有没有队友提交了有效申请」
-        return (payload.chainActions ?? []).length === 0 ? '暂无队友申请' : null
+        if ((payload.chainActions ?? []).length === 0) return '暂无有效申请'
+        const cost = quotaOf(k)?.decisionPointCost ?? payload.chainActions?.[0]?.confirmationDecisionPointsCost
+        return cost !== undefined && dp && dp.current < cost ? '确认所需决策点不足' : null
       }
       if (k === 'Skill') {
         if (normalSkills.length + magicSkills.length === 0) return '没有战技 / 魔法'
@@ -756,6 +757,11 @@ export default function SoloActionPanel({
                         {quotaFor(dp, 'CastSkill') ? <QuotaChip q={quotaFor(dp, 'CastSkill')!} label="战技" /> : null}
                         {quotaFor(dp, 'PreCastSkill') ? <QuotaChip q={quotaFor(dp, 'PreCastSkill')!} label="魔法" /> : null}
                       </>
+                    ) : k === 'ChainAction' ? (
+                      <>
+                        <Chip tone="quota">{payload.chainActions?.length ?? 0} 份申请</Chip>
+                        {q ? <Chip tone="quota">确认 {q.decisionPointCost} DP</Chip> : null}
+                      </>
                     ) : q ? (
                       <QuotaChip q={q} />
                     ) : used !== null && used > 0 ? (
@@ -811,7 +817,7 @@ export default function SoloActionPanel({
       onSubmit({ actionType: m.engine }, m.intent)
     }
   } else if (payload.kind === 'ChainAction') {
-    title = '协同行动'
+    title = '队友协同申请'
     tone = 'blue'
     const applications = payload.applications ?? []
     const pickedId = draft?.k === 'choice' ? draft.keys[0] : null
@@ -820,8 +826,8 @@ export default function SoloActionPanel({
     body = (
       <div className="space-y-2.5">
         <p className="text-[11.5px] leading-relaxed text-ink-600">
-          队友申请在你的本回合内代为出手：动作的决策点与资源由该队友承担，你只消耗 1 点决策点与协同硬直。
-          选中一份申请后确认。
+          以下申请由队友提交。选中并确认后才执行，队友承担动作费用，你承担确认费用。
+          不接受申请也可以返回行动菜单。
         </p>
         <div className="space-y-2">
           {applications.map((a) => {
@@ -836,15 +842,14 @@ export default function SoloActionPanel({
                 onClick={() => setDraft({ k: 'choice', keys: [a.id] })}
                 tag={a.actionTypeName}
                 tagColor={tagColor}
-                name={`${shortName(a.actorName)} → ${moveName}`}
-                hint={targetNames ? `目标：${targetNames}` : a.skill?.skillTypeName || '无目标'}
+                name={`${shortName(a.actorName)} 申请 · ${moveName}`}
+                hint={targetNames ? `目标：${targetNames}` : a.targetGridIds.length > 0 ? `范围：${a.targetGridIds.length} 格` : '无角色目标'}
                 meta={
-                  a.skill ? (
-                    <>
-                      {a.skill.mpCost > 0 ? <div className="text-alliance-600">{fmt(a.skill.mpCost)} MP</div> : null}
-                      {a.skill.epCost > 0 ? <div className="text-gold-600">{fmt(a.skill.epCost)} EP</div> : null}
-                    </>
-                  ) : undefined
+                  <>
+                    {a.actorDecisionPointsCost !== undefined ? <div>队友 {a.actorDecisionPointsCost} DP</div> : null}
+                    {a.skill && a.skill.mpCost > 0 ? <div className="text-alliance-600">{fmt(a.skill.mpCost)} MP</div> : null}
+                    {a.skill && a.skill.epCost > 0 ? <div className="text-gold-600">{fmt(a.skill.epCost)} EP</div> : null}
+                  </>
                 }
               />
             )
@@ -861,27 +866,37 @@ export default function SoloActionPanel({
             <Kv
               items={[
                 picked.skill ? `类型 ${picked.skill.skillTypeName}` : null,
+                picked.actorDecisionPointsCost !== undefined ? `队友动作 ${picked.actorDecisionPointsCost} DP` : null,
+                picked.confirmationDecisionPointsCost !== undefined ? `你的确认 ${picked.confirmationDecisionPointsCost} DP` : null,
+                picked.confirmationHardnessTime !== undefined ? `确认硬直贡献 ${fmt(picked.confirmationHardnessTime, 2)}` : null,
                 picked.skill && picked.skill.mpCost > 0 ? `MP ${fmt(picked.skill.mpCost)}` : null,
                 picked.skill && picked.skill.epCost > 0 ? `EP ${fmt(picked.skill.epCost)}` : null,
                 picked.targets.length > 0 ? `目标：${picked.targets.map((t) => shortName(t.displayName)).join('、')}` : null,
+                picked.castCenterGridId != null ? `施法中心 #${picked.castCenterGridId}` : null,
+                picked.targetGridIds.length > 0 ? `影响范围 ${picked.targetGridIds.length} 格` : null,
               ]}
             />
+            <p className="mt-1.5 text-[11px] leading-relaxed text-ink-500">
+              {picked.actionType === 'PreCastSkill'
+                ? `确认后开始吟唱${picked.castTime !== undefined ? ` ${fmt(picked.castTime, 2)}` : ''}，轮到队友时释放；MP 在释放时扣除。`
+                : '确认后由队友执行，随后继续由你选择行动。'}
+            </p>
             <p className="mt-1.5 whitespace-pre-wrap text-[11.5px] leading-relaxed text-ink-600">
               {picked.skill?.description || picked.item?.description || '该协同动作没有描述'}
             </p>
           </DetailCard>
         ) : (
           <div className="rounded-xl border border-dashed border-ink-400/30 px-2.5 py-2 text-center text-[11px] text-ink-400">
-            选中一份申请后确认；也可以取消回到行动菜单。
+            {applications.length === 0 ? '当前没有有效协同申请，可返回行动菜单。' : '选中一份申请后确认；也可以返回行动菜单。'}
           </div>
         )}
       </div>
     )
     canCancel = true
     confirmLabel = '确认协同'
-    confirmDisabled = !pickedId
+    confirmDisabled = !picked
     onConfirm = () => {
-      if (pickedId) onSubmit({ chainActionId: pickedId })
+      if (picked) onSubmit({ chainActionId: picked.id })
     }
   } else if (payload.kind === 'Skill') {
     title = skillIntent === 'super' ? '选择爆发技' : '选择技能'
@@ -1309,7 +1324,7 @@ export default function SoloActionPanel({
             onClick={onCancel}
             className="rounded-xl border border-ink-400/30 bg-parchment-200/70 px-3.5 py-2 text-[12.5px] font-medium text-ink-600 hover:bg-parchment-300/70"
           >
-            取消
+            {payload?.kind === 'ChainAction' ? '返回行动菜单' : '取消'}
           </button>
         ) : null}
         {confirmLabel ? (

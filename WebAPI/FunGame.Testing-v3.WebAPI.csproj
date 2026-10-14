@@ -12,4 +12,8 @@
     <ProjectReference Include="..\OshimaGameModules\OshimaGameModules.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="Tests\Fixtures\decision-tables\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" TargetPath="decision-tables\%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

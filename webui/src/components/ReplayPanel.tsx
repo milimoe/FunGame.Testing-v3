@@ -289,7 +289,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
   const assistTargets = action.NonDamageAssistTargets ?? []
 
   const name = isChainConfirm
-    ? (chainExecutor ? `确认协同行动（由 ${charName(chainExecutor)} 代为出手）` : '确认协同行动')
+    ? (action.IsSuccess === false ? '协同确认失败' : chainExecutor ? `确认 ${charName(chainExecutor)} 的协同申请` : '确认协同申请')
     : action.Skill?.Name || action.Item?.Name || actionTypeName(action.ActionType)
   const icon = ACTION_TYPE_ICONS[action.ActionType] ?? '·'
   const damages = keyedToEntries(action.Damages)
@@ -308,10 +308,10 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
       <div className="flex flex-col items-center">
         <span
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base ring-1 ${
-            isChainConfirm
-              ? 'bg-fuchsia-50 ring-fuchsia-200'
-              : action.IsSuccess === false
-                ? 'bg-red-50 ring-red-200'
+            action.IsSuccess === false
+              ? 'bg-red-50 ring-red-200'
+              : isChainConfirm
+                ? 'bg-fuchsia-50 ring-fuchsia-200'
                 : damages.length > 0
                   ? 'bg-red-50 ring-red-200'
                   : heals.length > 0
@@ -332,6 +332,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
           <span className="font-semibold text-slate-800">{name}</span>
           {isChainConfirm && <Badge tone="fuchsia">🤝 协同行动</Badge>}
           {!isChainConfirm && chainCoordinator && <Badge tone="fuchsia">🤝 由 {charName(chainCoordinator)} 协调</Badge>}
+          {!isChainConfirm && chainCoordinator && action.ActionType === 3 && action.IsSuccess !== false && <Badge tone="cyan">开始吟唱</Badge>}
           {action.Skill?.Name && <Badge tone="indigo">{skillTypeName(action.Skill.SkillType)}</Badge>}
           {action.IsSuccess === false && <Badge tone="red">失败</Badge>}
           {inquiries.length > 0 && <Badge tone="cyan">💬 {inquiries.length} 次询问</Badge>}
@@ -341,8 +342,14 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
         {action.ChainActionRequestId && (
           <p className="mt-1 text-xs text-fuchsia-600">
             {isChainConfirm
-              ? `${charName(action.Actor)} 发起协同，由 ${charName(chainExecutor)} 代为出手（消耗 1 决策点 + 协同硬直）`
-              : `${charName(action.Actor)} 受 ${charName(chainCoordinator)} 协调出手，资源与配额由执行者承担`}
+              ? action.IsSuccess === false
+                ? `${charName(action.Actor)} 未能确认${chainExecutor ? ` ${charName(chainExecutor)} 的` : ''}协同申请`
+                : `${charName(action.Actor)} 接受${chainExecutor ? ` ${charName(chainExecutor)} 的` : '队友的'}申请；下列费用为本次确认费用`
+              : action.IsSuccess === false
+                ? `${charName(action.Actor)} 的协同动作未完成${chainCoordinator ? `，原确认者为 ${charName(chainCoordinator)}` : ''}`
+                : action.ActionType === 3
+                  ? `${charName(action.Actor)} 开始协同吟唱，释放结果见后续行动记录`
+                  : `${charName(action.Actor)} 执行已确认的申请，动作费用和效果归执行者`}
           </p>
         )}
 
@@ -365,7 +372,7 @@ function ActionItem({ action, fallbackChars, skillDesc, itemDesc }: {
         {/* 协同产生的非伤害辅助关系（伤害仍归实际执行者） */}
         {assistTargets.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-            协作助攻：
+            非伤害辅助目标：
             {assistTargets.map(t => (
               <CharChip key={t.Guid} char={t} size="sm" />
             ))}
@@ -587,7 +594,7 @@ function CostLine({ action }: { action: ActionRecord }) {
   if (action.SkillCD > 0) parts.push(`CD ${fmt(action.SkillCD, 1)}s`)
   if (action.DecisionPointsCost > 0) parts.push(`决策点 -${fmt(action.DecisionPointsCost, 1)}`)
   if (action.CastTime > 0) parts.push(`吟唱 ${fmt(action.CastTime, 1)}s`)
-  if (action.HardnessTime > 0) parts.push(`硬直 ${fmt(action.HardnessTime, 1)}s`)
+  if (action.HardnessTime > 0) parts.push(`本次硬直贡献 ${fmt(action.HardnessTime, 1)}s`)
   if (parts.length === 0) return null
   return (
     <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-400">

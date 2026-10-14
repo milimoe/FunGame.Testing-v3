@@ -26,6 +26,67 @@ public static class ChainActionTest
                 Check(FunGameService.AllSkills.Count > 80 && FunGameService.AllItems.Count > 20, "完整技能/物品库未加载");
                 Console.WriteLine($"  characters={FunGameService.Characters.Count}, skills={FunGameService.AllSkills.Count}, items={FunGameService.AllItems.Count}");
             }),
+            ("手动回合收到 AI 队友申请，忽略申请不执行", () =>
+            {
+                Fixture f = new();
+                f.Q.SetCharactersToAIControl(false, false, [f.B]);
+                bool received = false;
+                f.Q.DecideActionEvent += ctx =>
+                {
+                    Check(ctx.ChainActions.Any(request => request.Actor == f.B && request.TurnActor == f.A), "玩家选择行动前没有 AI 队友申请");
+                    received = true;
+                    return CharacterActionType.EndTurn;
+                };
+                f.Run(f.A);
+                Check(received, "没有进入手动行动决策");
+                Equal(7, f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints, "忽略申请不消耗队友 DP");
+                Check(!f.Q.LastRound.Actions.Any(action => action.Actor == f.B), "忽略申请仍执行了队友动作");
+            }),
+            ("协同展示使用实际配置费用", () =>
+            {
+                Fixture f = new();
+                f.Q.GameplayEquilibriumConstant = new() { DecisionPointsCostChainAction = 2, ChainActionHardnessTime = 4 };
+                foreach (DecisionPoints points in f.Q.CharacterDecisionPoints.Values)
+                    points.GameplayEquilibriumConstant = f.Q.GameplayEquilibriumConstant;
+                f.During(f.A, () =>
+                {
+                    ChainActionRequest request = Submit(f, f.A, f.B, CharacterActionType.NormalAttack, [f.D]);
+                    FunGame.Testing.WebAPI.Services.ChainApplicationDto application = FunGame.Testing.WebAPI.Services.SoloGameMapper.ToChainApplication(request, f.Q);
+                    Equal(1, application.ActorDecisionPointsCost, "协作方动作费用");
+                    Equal(2, application.ConfirmationDecisionPointsCost, "配置的确认费用");
+                    Equal(4, application.ConfirmationHardnessTime, "配置的确认硬直");
+                    Equal(0, application.CastTime, "即时动作没有吟唱");
+                    var quota = FunGame.Testing.WebAPI.Services.SoloGameMapper.ToDP(f.Q.CharacterDecisionPoints[f.A])!.Quotas.Single(q => q.ActionType == "ChainAction");
+                    Equal(2, quota.DecisionPointCost, "菜单确认费用");
+                });
+            }),
+            ("手动回合主动确认 AI 队友申请", () =>
+            {
+                Fixture f = new();
+                f.Q.SetCharactersToAIControl(false, false, [f.B]);
+                int decisions = 0;
+                f.Q.DecideActionEvent += ctx => ++decisions == 1
+                    ? CharacterActionType.ChainAction : CharacterActionType.EndTurn;
+                Guid? selected = null;
+                f.Q.SelectChainActionEvent += (_, pending) => selected = pending.Single(request => request.Actor == f.B).Id;
+                f.Run(f.A);
+                Check(selected is not null, "玩家没有选择申请");
+                ActionRecord execution = f.Q.LastRound.Actions.Single(action => action.Actor == f.B);
+                Check(execution.TurnActor == f.A && execution.ChainActionRequestId == selected, "执行归属或申请 ID 不匹配");
+                Equal(7 - execution.DecisionPointsCost, f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints, "确认后扣队友动作成本");
+            }),
+            ("AI 回合不替手动队友代选动作", () =>
+            {
+                Fixture f = new();
+                f.Q.SetCharactersToAIControl(false, false, [f.A]);
+                f.Q.DecideActionEvent += ctx =>
+                {
+                    Check(ctx.ChainActions.Count == 0, "手动队友被自动提交申请");
+                    return CharacterActionType.EndTurn;
+                };
+                f.Run(f.A);
+                Equal(7, f.Q.CharacterDecisionPoints[f.B].CurrentDecisionPoints, "手动队友的预算被消耗");
+            }),
             ("真实普攻的伤害归属、双方硬直和确认公式", () =>
             {
                 Fixture f = new();

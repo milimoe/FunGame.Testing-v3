@@ -199,6 +199,11 @@ export interface SoloChainApplicationDto {
   item: SoloChainItemDto | null
   targets: SoloChainTargetDto[]
   targetGridIds: number[]
+  actorDecisionPointsCost?: number
+  confirmationDecisionPointsCost?: number
+  confirmationHardnessTime?: number
+  castTime?: number
+  castCenterGridId?: number | null
 }
 
 export interface SoloQueueEntryDto {
@@ -352,7 +357,7 @@ export type SoloDecisionPayload =
       enemyOptions?: SoloTargetOptionDto[]
       /** 场上（射程内）的队友列表，含名称与血量 */
       teammateOptions?: SoloTargetOptionDto[]
-      /** 协同行动：本回合可确认的队友申请（为空则隐藏「协同行动」入口） */
+      /** 协同行动：本回合可确认的队友申请 */
       chainActions?: SoloChainApplicationDto[]
       /** 是否存在可确认的协同申请 */
       canChainAction?: boolean
