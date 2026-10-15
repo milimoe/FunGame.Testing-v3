@@ -336,7 +336,7 @@ export default function SoloPanel() {
   const toggleTarget = useCallback(
     (guid: string) => {
       const p = state.decision?.payload
-      if (p?.kind !== 'Targets') return
+      if (p?.kind !== 'Targets' || p.selectAll) return
       const max = Math.max(1, p.maxTargets)
       setPickedTargets((prev) => {
         if (prev.includes(guid)) return prev.filter((g) => g !== guid)
@@ -429,7 +429,7 @@ export default function SoloPanel() {
         </span>
       ) : (
         <>
-          🎯 为「{payload.skillName || '技能'}」点选棋子
+          🎯 {payload.selectAll ? '确认' : '为'}「{payload.skillName || '技能'}」{payload.selectAll ? '的全体目标' : '点选棋子'}
           <b className="text-horde-600">
             {' '}
             · 已选 {pickedTargets.length}/{Math.max(1, payload.maxTargets)}

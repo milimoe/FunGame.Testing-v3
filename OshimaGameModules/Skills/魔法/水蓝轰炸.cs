@@ -14,13 +14,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override double CastTime => 8;
         public override double HardnessTime { get; set; } = 4;
         public override int CanSelectTargetCount => 3;
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Circle;
         public override int CanSelectTargetRange => 3;
         public override double MagicBottleneck => 16 + 17 * (Level - 1);
 
         public 水蓝轰炸(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             Effects.Add(new 基于核心属性的伤害(this, 15, 35, 0.15, 0.2));
         }
     }

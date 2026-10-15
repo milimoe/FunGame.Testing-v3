@@ -37,6 +37,14 @@ export default function HomePanel() {
       tag: '回放',
       note: '观战推算的基础数据',
     },
+    {
+      path: '/decisiontable',
+      glyph: '🧩',
+      title: '决策表编辑器',
+      desc: '可视化编排行动规则、目标与条件，预览匹配顺序并校验配置',
+      tag: '工具',
+      note: '本机草稿 · JSON 导入导出 · Core 校验',
+    },
   ]
 
   return (

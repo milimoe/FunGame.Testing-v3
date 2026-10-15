@@ -13,6 +13,13 @@ public static partial class DecisionTableTest
     private static void AddMapTests(List<(string Name, Action Test)> tests)
     {
         tests.Add(("全图指向性原地规划", CheckGlobalDirectional));
+        foreach (string preference in new[] { "current", "coverage", "safe" })
+        {
+            string current = preference;
+            tests.Add(($"真实魔法风险条件与缓存（{preference}）", () => CheckActualRisk(current)));
+        }
+        tests.Add(("真实即时战技使用位置风险评分", CheckRiskScoring));
+        tests.Add(("规则共享预算后真实战技继续执行", CheckSharedBudget));
         tests.Add(("有限射程移动后执行真实金刚击", CheckMoveToCast));
         tests.Add(("有限射程协同禁止移动", CheckChainRange));
         tests.Add(("风险上限拒绝危险吟唱", CheckUnsafeCasting));
@@ -88,6 +95,7 @@ public static partial class DecisionTableTest
         GameMap map = fixture.Queue.Map!;
         map.SetCharacterCurrentGrid(fixture.OtherEnemy, map[11, 4]!);
         Skill skill = fixture.Learn(new 火山咆哮());
+        skill.SkillType = global ? SkillType.Magic : SkillType.Skill;
         skill.CastAnywhere = global;
         skill.CastRange = 3;
         ActionConfig action = Actions.CastSkill(skill.Id, movement: "never");

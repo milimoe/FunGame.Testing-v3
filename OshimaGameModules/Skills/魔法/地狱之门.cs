@@ -30,13 +30,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
             }
         }
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Sector;
         public override int CanSelectTargetRange => 4;
         public override double MagicBottleneck => 15 + 20 * (Level - 1);
 
         public 地狱之门(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             Effects.Add(new 纯数值伤害(this, 75, 15, DamageType.Magical));
             Effects.Add(new 施加概率负面(this, EffectType.Bleed, true, 3, 0, 0.5, 0.2, 0.03, false, 85.0));
         }

@@ -20,11 +20,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override bool CanSelectEnemy => true;
         public override bool CanSelectTeammate => false;
         public override int CanSelectTargetCount => 3;
-        public override bool IsNonDirectional => true;
         public override int CanSelectTargetRange => 3;
 
         public 海王星的野望(Character? character = null) : base(SkillType.SuperSkill, character)
         {
+            IsNonDirectional = true;
             Effects.Add(new 海王星的野望特效(this));
         }
     }

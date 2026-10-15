@@ -32,13 +32,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
             }
         }
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Circle;
         public override int CanSelectTargetRange => 3;
         public override double MagicBottleneck => 14 + 14 * (Level - 1);
 
         public 治愈术复(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             SelectTargetPredicates.Add(c => c.HP > 0 && c.HP < c.MaxHP);
             Effects.Add(new 弱驱散特效(this));
             Effects.Add(new 纯数值回复生命(this, 420, 340));

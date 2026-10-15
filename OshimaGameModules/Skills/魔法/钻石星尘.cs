@@ -26,13 +26,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
             }
         }
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Circle;
         public override int CanSelectTargetRange => 2;
         public override double MagicBottleneck => 35 + 24 * (Level - 1);
 
         public 钻石星尘(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             ExemptionDescription = $"冻结{SkillSet.GetExemptionDescription(EffectType.Freeze)}\r\n易伤{SkillSet.GetExemptionDescription(EffectType.Vulnerable)}";
             Effects.Add(new 纯数值伤害(this, 60, 30, DamageType.Magical));
             Effects.Add(new 施加概率负面(this, EffectType.Freeze, false, 0, 1, 0, 0.2, 0.03));

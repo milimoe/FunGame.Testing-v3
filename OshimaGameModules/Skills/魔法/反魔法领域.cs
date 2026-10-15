@@ -48,13 +48,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         }
         private double 魔法消耗基础 { get; set; } = 85;
         private double 魔法消耗等级成长 { get; set; } = 80;
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Circle;
         public override int CanSelectTargetRange => 3;
         public override double MagicBottleneck => 13 + 14 * (Level - 1);
 
         public 反魔法领域(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             Effects.Add(new 造成封技(this, true, 15, 0, 1));
         }
     }

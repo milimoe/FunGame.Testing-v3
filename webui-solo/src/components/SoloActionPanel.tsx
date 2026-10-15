@@ -52,7 +52,7 @@ const ACTION_META: Record<ActionKey, { label: string; icon: string; engine: stri
     icon: '⚔',
     engine: 'NormalAttack',
     intent: 'all',
-    desc: '对单个敌人发起物理攻击，不消耗 MP。勾选后地图会亮出黄色攻击范围，点选目标棋子并确认。',
+    desc: '按当前普通攻击配置选择目标，不消耗 MP。勾选后查看攻击范围，再确认目标。',
   },
   Skill: {
     label: '战技 / 魔法',
@@ -395,7 +395,7 @@ function MonitorView({
   // 监视模式下先把攻击距离（黄）亮出来，玩家一眼就知道自己够得着多远
   useEffect(() => {
     if (player && player.gridId >= 0) {
-      onPreview({ attackRange: player.atr, moveRange: null, actorGridId: player.gridId })
+      onPreview({ attackRange: player.attackAnywhere ? -1 : player.attackRange ?? player.atr, moveRange: null, actorGridId: player.gridId })
     } else {
       onPreview(null)
     }
@@ -430,7 +430,7 @@ function MonitorView({
 
       {/* 基础射程 / 配额速览 */}
       <div className="flex flex-wrap gap-1.5">
-        <Chip tone="attack">攻击距离 {player.atr}</Chip>
+        <Chip tone="attack">攻击距离 {player.attackAnywhere ? '全图' : player.attackRange ?? player.atr}</Chip>
         <Chip tone="move">移动距离 {player.mov}</Chip>
         {dp ? <Chip tone="quota">决策点 {dp.current}/{dp.max}</Chip> : null}
         {(['NormalAttack', 'CastSkill', 'PreCastSkill', 'CastSuperSkill', 'UseItem'] as const).map((k) => {
@@ -746,7 +746,7 @@ export default function SoloActionPanel({
                   {/* 射程（黄 = 攻击/施法，绿 = 移动）与配额 */}
                   <span className="flex w-full flex-wrap items-center gap-1">
                     {k === 'Move' ? <Chip tone="move">移动 {payload.mov ?? '?'}</Chip> : null}
-                    {k === 'NormalAttack' ? <Chip tone="attack">攻击 {payload.atr ?? '?'}</Chip> : null}
+                    {k === 'NormalAttack' ? <Chip tone="attack">攻击 {payload.atr === -1 ? '全图' : payload.atr ?? '?'}</Chip> : null}
                     {k === 'Skill' && rangeSummary([...normalSkills, ...magicSkills]) ? (
                       <Chip tone="attack">{rangeSummary([...normalSkills, ...magicSkills])}</Chip>
                     ) : null}
@@ -1154,7 +1154,7 @@ export default function SoloActionPanel({
       <div className="space-y-2.5">
         <DetailCard tone="blue">
           <div className="text-[12.5px] font-bold text-ink-800">
-            {payload.kind === 'Targets' ? '请在地图上点选目标' : '请在地图上点选格子'}
+            {payload.kind === 'Targets' ? (tPayload?.selectAll ? '请确认全体目标' : '请在地图上点选目标') : '请在地图上点选格子'}
           </div>
           <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
             {payload.kind === 'TargetGrid'
@@ -1163,16 +1163,14 @@ export default function SoloActionPanel({
                 ? `非指向性技能：在黄色施法范围内点选一个【中心格】，选中后地图会用紫色预览技能形状（${
                     shapeLabel(tGridsPayload?.shapeRangeType)
                   }${(tGridsPayload?.shapeRadius ?? 0) > 0 ? ` 半径${tGridsPayload?.shapeRadius}` : ''}）覆盖的区域，按「确认施放」提交。`
-                : `为「${tPayload?.skillName || '技能'}」点选地图上的角色棋子，最多 ${tPayload?.maxTargets ?? 1} 个${
-                    tPayload?.selectAll ? '（本技能为全体选取，已默认全选）' : ''
-                  }。`}
+                : tPayload?.selectAll ? `「${tPayload.skillName}」将作用于以下全部合法目标。` : `为「${tPayload?.skillName || '技能'}」点选地图上的角色棋子，最多 ${tPayload?.maxTargets ?? 1} 个。`}
           </p>
         </DetailCard>
         {targets.length > 0 ? (
           <div className="space-y-1">
             <div className="text-[10.5px] text-ink-500">
               可选目标 <b className="text-ink-700">{targets.length}</b> 个
-              {tPayload?.selectAll ? <span className="ml-1 text-emerald-700">· 已默认全选</span> : null}
+              {tPayload?.selectAll ? <span className="ml-1 text-emerald-700">· 全体目标</span> : null}
             </div>
             {targets.map((t) => {
               const on = selectedKeys.includes(t.guid)
@@ -1180,6 +1178,7 @@ export default function SoloActionPanel({
               return (
                 <button
                   key={t.guid}
+                  disabled={tPayload?.selectAll}
                   onClick={() => {
                     const keys = draft?.k === 'choice' ? draft.keys : []
                     if (keys.includes(t.guid)) setDraft({ k: 'choice', keys: keys.filter((g) => g !== t.guid) })

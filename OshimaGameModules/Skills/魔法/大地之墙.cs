@@ -69,13 +69,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
                 };
             }
         }
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.Circle;
         public override int CanSelectTargetRange => 3;
         public override double MagicBottleneck => 12 + 13 * (Level - 1);
 
         public 大地之墙(Character? character = null) : base(SkillType.Magic, character)
         {
+            IsNonDirectional = true;
             Effect effect = new 大地之墙特效(this);
             Effect shield = new 增加物理护盾_特效持续型(this, 120, 160, true, 20)
             {

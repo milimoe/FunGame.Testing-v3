@@ -70,6 +70,8 @@ public sealed record CharacterDto(
     List<EquipmentDto> Equipments)
 {
     public string StateName { get; init; } = "";
+    public int AttackRange { get; init; }
+    public bool AttackAnywhere { get; init; }
 }
 
 /// <summary>行动顺序表条目</summary>
@@ -329,7 +331,12 @@ public static class SoloGameMapper
             teamName,
             skills, items, effects,
             c.GetAttributeValues(),
-            ToEquipments(c)) { StateName = ToStateName(c.CharacterState) };
+            ToEquipments(c))
+        {
+            StateName = ToStateName(c.CharacterState),
+            AttackRange = c.NormalAttack.AttackRange,
+            AttackAnywhere = c.NormalAttack.AttackAnywhere
+        };
     }
 
     // Core's restriction message helper defaults to "完全行动不能" even for Actionable.

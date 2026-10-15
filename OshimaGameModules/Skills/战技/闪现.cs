@@ -14,7 +14,6 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override double EPCost => 25;
         public override double CD => 35 - 1.5 * Level;
         public override double HardnessTime { get; set; } = 3;
-        public override bool IsNonDirectional => true;
         public override bool CanSelectSelf => true;
         public override bool CanSelectEnemy => false;
         public override bool CanSelectTeammate => false;
@@ -24,6 +23,7 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
 
         public 闪现(Character? character = null) : base(SkillType.Skill, character)
         {
+            IsNonDirectional = true;
             CastRange = 9;
             Effects.Add(new 闪现特效(this));
         }

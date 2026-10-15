@@ -16,10 +16,10 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override double HardnessTime { get; set; } = 12;
         public override bool CanSelectSelf => false;
         public override bool CanSelectEnemy => true;
-        public override bool CastAnywhere => true;
 
         public 残香凋零(Character? character = null) : base(SkillType.SuperSkill, character)
         {
+            CastAnywhere = true;
             Effects.Add(new 残香凋零特效(this));
         }
 

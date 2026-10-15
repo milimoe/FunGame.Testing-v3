@@ -879,17 +879,15 @@ public sealed partial class SoloGameSession : IDisposable
         List<ChainApplicationDto> chainApplications = _queue is null
             ? []
             : [.. _queue.GetPendingChainActions(actor).Select(request => SoloGameMapper.ToChainApplication(request, _queue))];
-        // ---- 普通攻击「现在到底打不打得到」的权威口径 ----
-        // ctx.Enemys 是「攻击可达 ∪ 施法可达」的并集：敌人只在施法射程内时它也在列表里，
-        // 但此时提交普通攻击必然被引擎作废（OnSelectNormalAttackTargets 返回空 → 本次行动作废），
-        // 客户端只能白提交一轮。这里用引擎在选普攻目标前自己用的那一步收窄一次
-        // （见 GamingQueue.cs 的 NormalAttack 分支：GetGridsByRange(realGrid, character.ATR, true)），
-        // 得出的集合与引擎随后计算的 enemys 完全一致，客户端据此就能精确判断。
+        // 行动菜单与引擎目标选择共用普攻射程和资格。
         Grid? actorGrid = _map?.GetCharacterCurrentGrid(actor);
         HashSet<Character> inAttackRange = actorGrid is null || _map is null
-            ? []
-            : [.. _map.GetGridsByRange(actorGrid, actor.ATR, true).SelectMany(g => g.Characters)];
-        List<Character> attackTargets = [.. ctx.Enemys.Where(inAttackRange.Contains)];
+            ? [.. ctx.Enemys, .. ctx.Teammates]
+            : [.. _map.GetGridsByRange(actorGrid, actor.NormalAttack.AttackRange, true).SelectMany(g => g.Characters)];
+        List<Character> reachableEnemies = [.. ctx.Enemys.Where(inAttackRange.Contains)];
+        List<Character> reachableTeammates = [.. ctx.Teammates.Where(inAttackRange.Contains)];
+        List<Character> attackTargets = actor.NormalAttack.GetSelectableTargets(actor,
+            ctx.Enemys, ctx.Teammates, reachableEnemies, reachableTeammates);
 
         JsonElement? res = RequestDecision(DecisionKind.ActionType, new
         {
@@ -898,7 +896,7 @@ public sealed partial class SoloGameSession : IDisposable
             teamName = TeamNameOf(actor),
             // 站位与射程：勾选「移动 / 普通攻击 / 技能」时地图立即黄色（攻击/施法）与绿色（移动）高亮
             actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
-            atr = actor.ATR,
+            atr = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
             mov = actor.MOV,
             dp = SoloGameMapper.ToDP(ctx.DP),
             // 列表带全量（可用 + 不可用）：客户端对不可用项「可勾选查看详情、不可确认」
@@ -908,7 +906,7 @@ public sealed partial class SoloGameSession : IDisposable
             teammates = ctx.Teammates.Select(c => c.Guid.ToString()).ToList(),
             enemyOptions = ctx.Enemys.Select(c => ToTargetOption(c, actor)).ToList(),
             teammateOptions = ctx.Teammates.Select(c => ToTargetOption(c, actor)).ToList(),
-            // 普攻可达目标（严格 ATR 口径）：为空即普通攻击必然作废，客户端应直接禁用按钮
+            // 普攻可达目标同时应用射程与目标资格；为空时禁用入口
             attackTargets = attackTargets.Select(c => ToTargetOption(c, actor)).ToList(),
             canNormalAttack = attackTargets.Count > 0,
             // 协同行动：本回合可确认的队友申请，空列表时入口禁用。
@@ -959,7 +957,7 @@ public sealed partial class SoloGameSession : IDisposable
             actorGuid = actor.Guid.ToString(),
             // 站位与射程：勾选具体技能时地图立刻黄色高亮其施法范围
             actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
-            atr = actor.ATR,
+            atr = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
             mov = actor.MOV,
             // 带全量技能（可用 + 冷却/资源不足等不可用项），不可用项仅可查看；回执仍只认引擎可用列表
             skills = MergeSelectableSkills(ctx.Skills, actor).Select(s => SoloGameMapper.ToSkill(s, actor)).ToList()
@@ -978,7 +976,7 @@ public sealed partial class SoloGameSession : IDisposable
         {
             actorGuid = actor.Guid.ToString(),
             actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
-            atr = actor.ATR,
+            atr = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
             mov = actor.MOV,
             // 带全量物品（可用 + 冷却/生效中/资源不足等不可用项），不可用项仅可查看；回执仍只认引擎可用列表
             items = MergeSelectableItems(ctx.Items, actor).Select(i => SoloGameMapper.ToItem(i, actor)).ToList()
@@ -1016,17 +1014,7 @@ public sealed partial class SoloGameSession : IDisposable
         return RequestTargets(ctx, selectable, max, selectAll);
     }
 
-    /// <summary>
-    /// 依据技能（或普攻）的选择规则计算可选目标与最大可选数量。
-    /// <para>注意 <c>SelectAllEnemies</c> / <c>SelectAllTeammates</c>：这两个开关的优先级高于
-    /// <c>CanSelectTargetCount</c>，数量必须按「场上实际可选的敌/友数量」动态计算。
-    /// 是否包含施法者自身一律由 <c>CanSelectSelf</c> 决定，与引擎
-    /// <see cref="NormalAttack.GetSelectableTargets"/> / <see cref="Skill.GetSelectableTargets"/> 的判定一致；
-    /// <c>SelectAllTeammates</c> 不越权补自身（引擎的队友列表本就不含自己）。</para>
-    /// <para>强制校验：可选目标只来自技能/普攻声明规则（CanSelect*）命中的角色，不做任何兜底填充——
-    /// 尤其不允许默认把施法者自己塞进列表（那会让玩家「普攻自己」）。返回空列表时调用方必须
-    /// 取消本次行动（不发选目标决策，引擎会重新询问行动类型），不得发出零选项的选目标请求。</para>
-    /// </summary>
+    /// <summary>按 Core 的目标资格与全选规则生成候选和数量上限；空列表取消行动。</summary>
     private static (List<Character> Selectable, int Max, bool SelectAll) ResolveSelectable(SelectionContext ctx)
     {
         List<Character> selectable = [];
@@ -1036,24 +1024,9 @@ public sealed partial class SoloGameSession : IDisposable
         if (ctx.Skill is Skill skill && ctx.Trigger is not null)
         {
             selectAll = skill.SelectAllEnemies || skill.SelectAllTeammates;
-            List<Character> enemyPool = skill.SelectAllEnemies
-                ? [.. ctx.AllEnemys.Where(c => c.HP > 0 && !c.IsUnselectable)]
-                : ctx.Enemys;
-            List<Character> teammatePool = skill.SelectAllTeammates
-                ? [.. ctx.AllTeammates.Where(c => c.HP > 0)]
-                : ctx.Teammates;
-            selectable = skill.GetSelectableTargets(
-                ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
-            if (selectAll)
-            {
-                selectable = [.. selectable.Where(c =>
-                    skill.SelectAllEnemies
-                    && (enemyPool.Contains(c) || skill.AllowSelectDead && c.HP == 0 && ctx.AllEnemys.Contains(c))
-                    || skill.SelectAllTeammates
-                    && (ReferenceEquals(c, ctx.Trigger)
-                        || teammatePool.Contains(c)
-                        || skill.AllowSelectDead && c.HP == 0 && ctx.AllTeammates.Contains(c)))];
-            }
+            List<Character> enemyPool = ctx.Enemys;
+            List<Character> teammatePool = ctx.Teammates;
+            selectable = skill.GetSelectableTargets(ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
             rawMax = selectAll
                 ? Math.Max(1, selectable.Count)
                 : Math.Max(1, skill.RealCanSelectTargetCount(enemyPool, teammatePool));
@@ -1061,20 +1034,9 @@ public sealed partial class SoloGameSession : IDisposable
         else if (ctx.NormalAttack is NormalAttack attack && ctx.Trigger is not null)
         {
             selectAll = attack.SelectAllEnemies || attack.SelectAllTeammates;
-            List<Character> enemyPool = attack.SelectAllEnemies
-                ? [.. ctx.AllEnemys.Where(c => c.HP > 0 && !c.IsUnselectable)]
-                : ctx.Enemys;
-            List<Character> teammatePool = attack.SelectAllTeammates
-                ? [.. ctx.AllTeammates.Where(c => c.HP > 0)]
-                : ctx.Teammates;
-            selectable = attack.GetSelectableTargets(
-                ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
-            if (selectAll)
-            {
-                selectable = [.. selectable.Where(c =>
-                    attack.SelectAllEnemies && enemyPool.Contains(c)
-                    || attack.SelectAllTeammates && (ReferenceEquals(c, ctx.Trigger) || teammatePool.Contains(c)))];
-            }
+            List<Character> enemyPool = ctx.Enemys;
+            List<Character> teammatePool = ctx.Teammates;
+            selectable = attack.GetSelectableTargets(ctx.Trigger, ctx.AllEnemys, ctx.AllTeammates, enemyPool, teammatePool);
             rawMax = selectAll
                 ? Math.Max(1, selectable.Count)
                 : Math.Max(1, attack.RealCanSelectTargetCount(enemyPool, teammatePool));
@@ -1123,11 +1085,11 @@ public sealed partial class SoloGameSession : IDisposable
             actorGuid = actor.Guid.ToString(),
             skillName = ctx.Skill?.Name ?? ctx.NormalAttack?.Name ?? "",
             maxTargets = max,
-            // selectAll：本技能/普攻是「选取全体」类，前端应默认替玩家勾选全部可选目标
+            // 全选动作只确认完整目标集合。
             selectAll,
             // 攻击/施法距离（黄）：地图据此高亮可选范围；移动距离（绿）另在 TargetGrid 阶段下发
-            range = selectAll || castSkill?.CastAnywhere == true ? -1 : (castSkill?.CastRange ?? actor.ATR),
-            attackRange = actor.ATR,
+            range = castSkill?.CastAnywhere == true || ctx.NormalAttack?.AttackAnywhere == true ? -1 : (castSkill?.CastRange ?? actor.NormalAttack.AttackRange),
+            attackRange = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
             moveRange = actor.MOV,
             actorGridId = _map?.GetCharacterCurrentGrid(actor)?.Id ?? -1,
             enemys = ctx.Enemys.Select(c => c.Guid.ToString()).ToList(),
@@ -1227,8 +1189,8 @@ public sealed partial class SoloGameSession : IDisposable
             // 移动距离（绿）：moveRange 为格数，gridIds 为可达格子
             moveRange = actor.MOV,
             // 攻击距离（黄）：移动阶段也一并下发，方便在选格子时同时看到「移动后能打到谁」
-            attackRange = actor.ATR,
-            atr = actor.ATR,
+            attackRange = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
+            atr = actor.NormalAttack.AttackAnywhere ? -1 : actor.NormalAttack.AttackRange,
             mov = actor.MOV,
             gridIds = moveRange.Select(g => g.Id).ToList()
         });

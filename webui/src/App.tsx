@@ -5,8 +5,9 @@ import ClassPlannerPanel from './classplanner/ClassPlannerPanel'
 import StatsPanel from './components/StatsPanel'
 import ReplayPanel from './components/ReplayPanel'
 import SnapshotPanel from './components/SnapshotPanel'
+import DecisionTablePanel from './decisiontable/DecisionTablePanel'
 
-export type PanelKey = 'home' | 'classplanner' | 'stats' | 'replay' | 'snapshot'
+export type PanelKey = 'home' | 'classplanner' | 'stats' | 'replay' | 'snapshot' | 'decisiontable'
 
 const PANEL_PATHS: Record<PanelKey, string> = {
   home: '/',
@@ -14,6 +15,7 @@ const PANEL_PATHS: Record<PanelKey, string> = {
   stats: '/stats',
   replay: '/replay',
   snapshot: '/snapshot',
+  decisiontable: '/decisiontable',
 }
 
 function panelFromPath(pathname: string): PanelKey {
@@ -88,6 +90,7 @@ export default function App() {
       {panel === 'home' && <HomePanel />}
       {panel === 'classplanner' && <ClassPlannerPanel />}
       {panel === 'stats' && <StatsPanel />}
+      {panel === 'decisiontable' && <DecisionTablePanel />}
       {panel === 'replay' && <ReplayPanel requestedRound={replayRound} onRoundChange={selectReplayRound} />}
       {panel === 'snapshot' && (
         <SnapshotPanel

@@ -115,6 +115,7 @@ app.UseWebSockets();
 
 // ============ 职业规划端点（/api/classplan/*） ============
 app.MapClassPlanEndpoints();
+app.MapDecisionTableEndpoints();
 
 // ============ 游戏数据字典（AllSkills / AllItems / Characters），供前端按 id 匹配显示描述 ============
 app.MapGet("/api/gamedata", () =>

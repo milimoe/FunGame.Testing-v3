@@ -8,6 +8,7 @@ const NAV: { key: PanelKey; label: string; icon: string; desc: string }[] = [
   { key: 'stats', label: '赛后统计', icon: '🏆', desc: 'Rating 排行榜与战斗数据' },
   { key: 'replay', label: '回合回放', icon: '🎞️', desc: '逐回合浏览战斗过程' },
   { key: 'snapshot', label: '状态快照', icon: '📋', desc: '检查点回合角色状态' },
+  { key: 'decisiontable', label: '决策表编辑器', icon: '🧩', desc: '可视化编排行动规则' },
 ]
 
 export default function Layout({

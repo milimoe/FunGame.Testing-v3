@@ -78,7 +78,7 @@ public static partial class DecisionTableTest
             Bind(Loader, owner ?? Actor, config.Id);
         }
 
-        internal DecisionEvaluationContext Context(bool chain = false)
+        internal DecisionEvaluationContext Context(bool chain = false, int planBudget = 4096)
         {
             List<Character> enemies = Queue.GetEnemies(Actor);
             List<Character> allies = Queue.GetTeammates(Actor);
@@ -87,7 +87,7 @@ public static partial class DecisionTableTest
             Grid? origin = Queue.Map?.GetCharacterCurrentGrid(Actor);
             return new() { Queue = Queue, Actor = Actor, Points = Queue.CharacterDecisionPoints[Actor], TurnOrigin = origin,
                 Enemies = enemies, Allies = allies, SelectableEnemies = selectableEnemies, SelectableAllies = selectableAllies,
-                Skills = skills, Items = items, IsChainAction = chain,
+                Skills = skills, Items = items, IsChainAction = chain, PlanBudget = planBudget,
                 MoveGrids = origin == null ? [] : Queue.Map!.GetGridsByRange(origin, Actor.MOV, false) };
         }
 

@@ -192,7 +192,7 @@ public sealed partial class SoloGameSession
                 new { actionKind = "attack", skillId = System.Text.Json.JsonSerializer.SerializeToElement<long?>(null),
                     presentationKey = "normal_attack", origin, aim }),
             new(0, actionId, timelineId, "action.release", actor.Guid.ToString(), targetGuid, 260, new { origin, aim })];
-        if (actor.ATR > 1)
+        if (actor.NormalAttack.AttackRange > 1)
             foreach (var (target, grid) in targetGrids)
                 _openPresentationAttack.Add(new(0, actionId, timelineId, "projectile.spawn", actor.Guid.ToString(), target.Guid.ToString(), 260,
                     new { projectileId = $"{actionId}-{target.Guid}", presentationKey = actor.Id == 2 ? "xinyin_normal" : "generic_ranged",

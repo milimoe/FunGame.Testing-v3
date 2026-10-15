@@ -21,6 +21,7 @@ public static partial class DecisionTableTest
         [
             ("真实角色、技能和物品目录", CheckCatalog),
             ("JSON 文件加载与链式配置一致", CheckJsonFixture),
+            ("无效路径与重复配置不替换真实治疗策略", CheckLoaderDiagnostics),
             ("真实模组资源目录拒绝未知技能", CheckUnknownResource),
             ("角色复制及 JSON 往返重新绑定", CheckCharacterBinding),
             ("受伤友军绑定与规则优先级", CheckBoundPatient),
@@ -44,6 +45,7 @@ public static partial class DecisionTableTest
             tests.Add(($"不可执行规则跳过（{restriction}）", () => CheckRestriction(current)));
         }
         AddMapTests(tests);
+        AddLifecycleTests(tests);
         AddBattleTests(tests);
         if (!string.IsNullOrWhiteSpace(filter)) tests = [.. tests.Where(t => t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))];
         if (tests.Count == 0) { Console.WriteLine($"[FAIL] 没有匹配的决策表场景：{filter}"); return 1; }

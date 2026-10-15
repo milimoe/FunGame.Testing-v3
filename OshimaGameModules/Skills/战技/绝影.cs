@@ -15,11 +15,11 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Skills
         public override double CD => 18;
         public override double HardnessTime { get; set; } = 7;
         public override int CanSelectTargetRange => 1;
-        public override bool IsNonDirectional => true;
         public override SkillRangeType SkillRangeType => SkillRangeType.LinePass;
 
         public 绝影(Character? character = null) : base(SkillType.Skill, character)
         {
+            IsNonDirectional = true;
             CastRange = 6;
             Effects.Add(new 基于攻击力的伤害_带基础伤害(this, 70, 55, 0.095, 0.045, DamageType.Physical));
             Effects.Add(new 施加概率负面(this, EffectType.Delay, true, 15, 0, 0, 1, 0, 0.3));

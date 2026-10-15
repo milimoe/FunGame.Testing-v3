@@ -149,6 +149,8 @@ export interface SoloCharacterDto {
   mov: number
   /** 攻击距离（格） */
   atr: number
+  attackRange?: number
+  attackAnywhere?: boolean
   state: string
   isPlayer: boolean
   isAI: boolean
@@ -369,7 +371,7 @@ export type SoloDecisionPayload =
       actorGuid: string
       skillName: string
       maxTargets: number
-      /** 「选取全体」类技能/普攻：前端应默认替玩家勾选全部可选目标 */
+      /** 全选技能/普攻：确认完整目标集合，不逐个取消目标 */
       selectAll?: boolean
       /** 攻击 / 施法距离（格）；-1 表示全图 */
       range?: number
