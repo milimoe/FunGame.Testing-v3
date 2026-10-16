@@ -1,6 +1,6 @@
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
-using FunGame.Core.Model.Framework;
+using FunGame.Core.Model.ClassPlan;
 using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
 namespace Milimoe.FunGameTesting.OshimaGameModules.Classes

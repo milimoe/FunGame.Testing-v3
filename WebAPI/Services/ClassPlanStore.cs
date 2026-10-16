@@ -1,8 +1,8 @@
 using System.Text.Json;
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
+using FunGame.Core.Model.ClassPlan;
 using FunGame.Core.Model;
-using FunGame.Core.Model.Framework;
 
 namespace FunGame.Testing.WebAPI.Services;
 

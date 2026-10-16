@@ -1,6 +1,6 @@
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
-using FunGame.Core.Interface;
+using FunGame.Core.Interface.Base;
 using FunGame.Core.Model.DecisionTable;
 using Milimoe.FunGameTesting.OshimaGameModules.Skills;
 
