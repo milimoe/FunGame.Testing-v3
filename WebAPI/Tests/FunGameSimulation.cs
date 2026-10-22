@@ -664,7 +664,18 @@ namespace Milimoe.FunGameTesting.Tests
                     }
 
                     string zipFileName = "rounds_archive.zip";
-                    WriteRoundsToZip(actionQueue.Rounds.ToDictionary(kv => kv.Round, kv => kv), zipFileName);
+                    try
+                    {
+                        WriteRoundsToZip(actionQueue.Rounds.ToDictionary(kv => kv.Round, kv => kv), zipFileName);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 档案落盘失败（IO/权限/磁盘满等）不应连带丢弃整局模拟结果
+                        string msg = $"回合记录写入失败（{zipFileName}）：{ex.Message}";
+                        Console.WriteLine(ex);
+                        result.Add(msg);
+                        lastRecord.Add(msg);
+                    }
 
                     IsRuning = false;
                 }
@@ -688,10 +699,16 @@ namespace Milimoe.FunGameTesting.Tests
 
         /// <summary>
         /// 将回合记录字典序列化为 JSON，然后压缩并写入 ZIP 文件
+        /// <para/>
+        /// 逐回合容错：单个回合序列化失败（例如历史版本因同名技能重复键抛出的 ArgumentException）
+        /// 只跳过该回合，并把原因写入同档案的 <c>rounds_skipped.json</c>，其余回合与整局结果不受影响。
+        /// 逐回合序列化到字符串后再 <see cref="Utf8JsonWriter.WriteRawValue"/> 输出，
+        /// 保证失败回合不会在主 JSON 里留下半截对象；内存里同时只保留一个回合的 JSON。
         /// </summary>
         /// <param name="roundsData">要写入的字典数据</param>
         /// <param name="zipFilePath">输出的 ZIP 文件路径</param>
-        public static void WriteRoundsToZip(Dictionary<int, RoundRecord> roundsData, string zipFilePath)
+        /// <returns>被跳过的回合及其原因（未跳过时为空列表）</returns>
+        public static List<(int Round, string Error)> WriteRoundsToZip(Dictionary<int, RoundRecord> roundsData, string zipFilePath)
         {
             // 确保目标目录存在
             string? directory = Path.GetDirectoryName(zipFilePath);
@@ -700,19 +717,63 @@ namespace Milimoe.FunGameTesting.Tests
                 Directory.CreateDirectory(directory);
             }
 
+            List<(int Round, string Error)> skipped = [];
+
             // 创建 ZIP 文件
-            using FileStream? zipFileStream = new(zipFilePath, FileMode.Create);
-            using ZipArchive? zipArchive = new(zipFileStream, ZipArchiveMode.Create);
+            using FileStream zipFileStream = new(zipFilePath, FileMode.Create);
+            using ZipArchive zipArchive = new(zipFileStream, ZipArchiveMode.Create);
             // 在 ZIP 档案中创建一个条目来存放 JSON 数据
-            // 你可以给这个条目起个名字，比如 "rounds_data.json"
-            ZipArchiveEntry jsonEntry = zipArchive.CreateEntry("rounds_data.json", CompressionLevel.Optimal); // 使用 Optimal 级别压缩
+            ZipArchiveEntry jsonEntry = zipArchive.CreateEntry("rounds_data.json", CompressionLevel.Optimal);
 
-            // 获取条目的流，将 JSON 数据写入这个流
-            using Stream? entryStream = jsonEntry.Open();
-            // 使用 System.Text.Json 直接序列化到流
-            JsonSerializer.Serialize(entryStream, roundsData, JsonTool.JsonSerializerOptions);
+            // 手动写出字典外壳，逐回合序列化：坏回合可以单独跳过
+            using (Stream entryStream = jsonEntry.Open())
+            {
+                using Utf8JsonWriter writer = new(entryStream);
+                writer.WriteStartObject();
+                foreach (KeyValuePair<int, RoundRecord> kv in roundsData)
+                {
+                    string roundJson;
+                    try
+                    {
+                        roundJson = JsonSerializer.Serialize(kv.Value, JsonTool.JsonSerializerOptions);
+                    }
+                    catch (Exception ex)
+                    {
+                        skipped.Add((kv.Key, $"{ex.GetType().Name}: {ex.Message}"));
+                        Console.WriteLine($"[警告] 第 {kv.Key} 回合序列化失败，已跳过：{ex.Message}");
+                        continue;
+                    }
 
-            Console.WriteLine($"回合记录已成功序列化、压缩并写入到: {zipFilePath}");
+                    writer.WritePropertyName(kv.Key.ToString());
+                    // 内容由 System.Text.Json 自己产出，必然是合法 JSON，跳过二次校验
+                    writer.WriteRawValue(roundJson, skipInputValidation: true);
+                }
+                writer.WriteEndObject();
+            }
+
+            if (skipped.Count > 0)
+            {
+                ZipArchiveEntry skippedEntry = zipArchive.CreateEntry("rounds_skipped.json", CompressionLevel.Optimal);
+                using Stream skippedStream = skippedEntry.Open();
+                using Utf8JsonWriter skippedWriter = new(skippedStream, new JsonWriterOptions { Indented = true });
+                skippedWriter.WriteStartArray();
+                foreach ((int round, string error) in skipped)
+                {
+                    skippedWriter.WriteStartObject();
+                    skippedWriter.WriteNumber("Round", round);
+                    skippedWriter.WriteString("Error", error);
+                    skippedWriter.WriteEndObject();
+                }
+                skippedWriter.WriteEndArray();
+
+                Console.WriteLine($"回合记录已写入到: {zipFilePath}，其中 {skipped.Count} 个回合因序列化失败被跳过（详见 rounds_skipped.json）。");
+            }
+            else
+            {
+                Console.WriteLine($"回合记录已成功序列化、压缩并写入到: {zipFilePath}");
+            }
+
+            return skipped;
         }
 
         /// <summary>

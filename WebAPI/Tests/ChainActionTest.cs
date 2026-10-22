@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using FunGame.Core.Api;
 using FunGame.Core.Entity;
 using FunGame.Core.Library.Constant;
@@ -313,6 +314,12 @@ public static class ChainActionTest
                 foreach (int seed in new[] { 20261012, 20261013, 20261014 }) totalChains += RunModuleBattle(seed);
                 Check(totalChains > 0, "完整对局未执行协同行动");
             }),
+            ("同队两名角色协同释放同名装备技能可完整序列化", RunSameSkillChainSerialization),
+            ("回合档案逐回合容错", () =>
+            {
+                int failures = RoundArchiveTest.RunAllTests();
+                Check(failures == 0, $"回合档案容错存在 {failures} 项失败断言");
+            }),
             ("现有回合奖励回归", () => RunExisting(typeof(RoundRewardTest), RoundRewardTest.RunAllTests)),
             ("现有特效自动记录回归", () => RunExisting(typeof(EffectAutoRecordTest), EffectAutoRecordTest.RunAllTests))
         };
@@ -396,6 +403,78 @@ public static class ChainActionTest
         Check(queue.GameOver, $"种子 {seed} 在 1500 回合内没有正常结束");
         Check(actions > 0, "没有实际战斗记录");
         return chains;
+    }
+
+    /// <summary>
+    /// 复现「团队模拟 500：SkillsCost 重复键 6007.应急装置」的真实链路：
+    /// 两名同队角色各自装备一件应急装置（装备技能按物品副本独立实例化，Id/Name 相同、Guid 不同），
+    /// 在同一回合内由协同行动先后释放 → 同一个 RoundRecord 写入两条同名技能消耗，
+    /// 最终必须能像 WriteRoundsToZip 那样把整局回合字典序列化并读回。
+    /// </summary>
+    private static void RunSameSkillChainSerialization()
+    {
+        Fixture f = new();
+        Item itemB = new 应急装置1(f.B);
+        Item itemC = new 应急装置1(f.C);
+        Check(f.B.Equip(itemB) && f.C.Equip(itemC), "应急装置没有装入饰品槽");
+        Skill skillB = itemB.Skills.Active!;
+        Skill skillC = itemC.Skills.Active!;
+        Check(!ReferenceEquals(skillB, skillC) && skillB.GetIdName() == skillC.GetIdName(),
+            "两名角色应各自持有同名技能的独立实例");
+        Check(skillB.RealEPCost <= f.B.EP && skillC.RealEPCost <= f.C.EP, "能量不足以释放应急装置");
+
+        // C 紧跟 B，确保两名队友都落在回合角色的连续同队区间内
+        f.Q.ChangeCharacterHardnessTime(f.C, .6 - f.Q.HardnessTime[f.C], false, false);
+
+        List<Guid> requestIds = [];
+        f.Q.TurnStartEvent += ctx =>
+        {
+            foreach (Character actor in f.Q.GetAvailableChainActors(f.A))
+            {
+                Skill skill = actor == f.B ? skillB : skillC;
+                List<Character> teammates = [.. f.Q.GetTeammates(actor)];
+                if (!teammates.Contains(f.A)) teammates.Add(f.A);
+                List<Character> enemies = [.. f.Q.GetEnemies(actor)];
+                enemies.Remove(f.A);
+                List<Character> selectableTeammates = [.. teammates.Where(c => f.Q.Queue.Contains(c) || c == f.A)];
+                List<Character> targets = skill.GetSelectableTargets(actor, enemies, teammates, [], selectableTeammates);
+                ChainActionRequest request = f.Q.SubmitChainAction(f.A, actor, CharacterActionType.CastSkill, targets, out string reason, skill)
+                    ?? throw new InvalidOperationException(reason);
+                requestIds.Add(request.Id);
+            }
+            Equal(2, requestIds.Count, "两名队友都应落在协同区间内");
+            return true;
+        };
+        int decisions = 0;
+        f.Q.DecideActionEvent += ctx => ++decisions <= 2 ? CharacterActionType.ChainAction : CharacterActionType.EndTurn;
+        f.Q.SelectChainActionEvent += (_, pending) => requestIds.Where(id => pending.Any(r => r.Id == id)).Select(id => (Guid?)id).FirstOrDefault();
+        f.Run(f.A);
+
+        // 1) 本回合确实写入了两条同名但不同实例的技能消耗（旧实现在这里崩溃）
+        Equal(2, f.Q.LastRound.SkillsCost.Count, "本回合应记录两条独立技能消耗");
+        Check(f.Q.LastRound.Actions.Count(a => a.ActionType == CharacterActionType.CastSkill && a.IsSuccess) == 2,
+            "两次协同施法未全部成功");
+
+        // 2) 与 FunGameSimulation.WriteRoundsToZip 完全相同的入口：Dictionary<int, RoundRecord>
+        Dictionary<int, RoundRecord> rounds = new() { [f.Q.LastRound.Round] = f.Q.LastRound.Snapshot() };
+        string json = JsonSerializer.Serialize(rounds, JsonTool.JsonSerializerOptions);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement costs = doc.RootElement.GetProperty(f.Q.LastRound.Round.ToString()).GetProperty(nameof(RoundRecord.SkillsCost));
+        JsonProperty[] entries = [.. costs.EnumerateObject()];
+        Check(entries.Length == 1 && entries[0].Name == skillB.GetIdName(),
+            $"同名技能消耗应合并为一条 {skillB.GetIdName()}，实际 {entries.Length} 条");
+        Check(entries[0].Value.GetString()!.EndsWith("EP"), "合并后的消耗文本丢失");
+
+        // 3) 回放端仍能按 Zip 档案的读取方式解析回来，且每次施法的归属信息完整
+        Dictionary<int, RoundRecord>? decoded = JsonSerializer.Deserialize<Dictionary<int, RoundRecord>>(json, JsonTool.JsonSerializerOptions);
+        int actorHits = decoded == null ? -1 : decoded[f.Q.LastRound.Round].Actions.Count(a => a.Actor?.Guid == f.B.Guid || a.Actor?.Guid == f.C.Guid);
+        Check(decoded != null && decoded.Count == 1 && actorHits >= 2,
+            $"整局回合字典往返失败或协同记录丢失: decoded={decoded?.Count.ToString() ?? "null"}, actorHits={actorHits}, " +
+            $"actions={decoded?[f.Q.LastRound.Round].Actions.Count.ToString() ?? "null"}");
+        RoundRecord restored = decoded![f.Q.LastRound.Round];
+        Check(restored.Actions.Any(a => a.Actor?.Guid == f.B.Guid && a.TurnActor?.Guid == f.A.Guid && a.ChainActionRequestId != null), "B 的协同归属丢失");
+        Check(restored.Actions.Any(a => a.Actor?.Guid == f.C.Guid && a.TurnActor?.Guid == f.A.Guid && a.ChainActionRequestId != null), "C 的协同归属丢失");
+        Console.WriteLine($"  skillsCost={entries[0].Name}={entries[0].Value.GetString()}, chainActions={restored.Actions.Count(a => a.ChainActionRequestId != null)}");
     }
 
     private static void RunExisting(Type type, Action run)
