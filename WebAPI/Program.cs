@@ -262,7 +262,7 @@ app.MapPost("/api/simulate/team", async (IConfiguration config, IWebHostEnvironm
 {
     if (!await simulateLock.WaitAsync(0, ct))
     {
-        return Results.Conflict(new { error = "已有模拟正在进行中，请稍候" });
+        return Results.Conflict(new { error = "已有模拟正在进行中，请稍候！" });
     }
 
     try
