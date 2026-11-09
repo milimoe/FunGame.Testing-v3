@@ -11,9 +11,8 @@
     <ProjectReference Include="..\..\FunGame.Core\src\FunGame.Core.csproj" />
   </ItemGroup>
 
-  <!-- 内容模组实体 JSON 配置：随库输出到 modules/oshima-studios/（Factory.GetGameModuleInstances 的 BaseDirectory/modules/ 约定） -->
   <ItemGroup>
-    <None Include="configs\**" CopyToOutputDirectory="PreserveNewest" Link="modules\oshima-studios\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="modules\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
