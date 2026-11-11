@@ -24,13 +24,13 @@ namespace Milimoe.FunGameTesting.OshimaGameModules.Effects.OpenEffects
             {
                 RemainDurationTurn = DurationTurn;
             }
-            character.ExINT += 实际加成;
+            character.ExINT2 += 实际加成;
         }
 
         public override void OnEffectLost(HookContext ctx)
         {
             if (ctx.Trigger is not Character character) return;
-            character.ExINT -= 实际加成;
+            character.ExINT2 -= 实际加成;
         }
 
         public ExINT(Skill skill, Dictionary<string, object> args, Character? source = null) : base(skill, args)
